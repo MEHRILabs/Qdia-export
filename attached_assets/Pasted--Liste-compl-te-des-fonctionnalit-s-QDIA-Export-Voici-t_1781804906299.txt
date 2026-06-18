@@ -1,0 +1,433 @@
+# Liste complète des fonctionnalités — QDIA Export
+
+Voici **toutes les fonctionnalités** prévues pour la plateforme d’export de produits algériens (style Alibaba), organisées par acteur et par module.
+
+---
+
+## 1. Portail Acheteur International (`export.qdiadz.com`)
+
+### Compte & profil
+- Inscription acheteur (email, téléphone, entreprise)
+- Connexion / déconnexion / mot de passe oublié
+- Profil entreprise (nom, pays, adresse, SIRET/TVA, licence import)
+- Vérification email / téléphone (OTP)
+- Connexion sociale (Google, Facebook — optionnel)
+- Gestion des langues (FR, EN, AR, ES, DE…)
+- Gestion des devises d’affichage (USD, EUR, DZD)
+- Historique des connexions et sécurité du compte
+
+### Catalogue & recherche
+- Page d’accueil export (produits vedettes, catégories, bannières)
+- Navigation par catégories (alimentation, cosmétique, textile, artisanat, industrie…)
+- Recherche full-text (nom produit, origine, certification)
+- Filtres avancés :
+  - Pays d’origine (Algérie / wilaya)
+  - Prix (FOB, CFR, CIF)
+  - MOQ (quantité minimum)
+  - Incoterm (EXW, FOB, CFR, CIF)
+  - Certifications (halal, bio, ISO…)
+  - Port de départ (Alger, Oran, Annaba, Béjaïa…)
+  - Type de produit (alimentaire, non-alimentaire)
+- Tri (prix, popularité, nouveauté, MOQ)
+- Liste de favoris / wishlist
+- Comparaison de produits (2 à 4 produits côte à côte)
+- Produits similaires / recommandations
+- Badge « Made in Algeria »
+- Affichage multilingue des fiches produit
+
+### Fiche produit
+- Galerie images (zoom, diaporama, vidéo optionnelle)
+- Titre et description multilingue
+- Spécifications techniques (poids, conditionnement, durée de vie, etc.)
+- Origine (wilaya, producteur)
+- Certifications et documents (PDF téléchargeables)
+- MOQ et unité (kg, tonne, carton, palette)
+- Prix indicatif par Incoterm (EXW / FOB / CFR / CIF)
+- Port de départ et délais estimés
+- Profil du fournisseur (note, ancienneté, taux de réponse)
+- Bouton « Demander un devis » (RFQ)
+- Bouton « Contacter le fournisseur »
+- Bouton « Ajouter aux favoris »
+- Partage (lien, réseaux sociaux)
+- Signaler un produit / contenu inapproprié
+
+### RFQ — Demandes de devis
+- Création d’une demande de cotation (quantité, destination, Incoterm souhaité)
+- Message personnalisé à l’acheteur
+- Suivi des RFQ (en attente, répondu, accepté, refusé, expiré)
+- Réception de devis PDF
+- Acceptation / refus / contre-proposition
+- Historique des négociations par produit
+- Notifications (email, push) sur les réponses
+
+### Commandes & paiements
+- Panier B2B (quantités en gros)
+- Passage de commande après acceptation devis
+- Paiement en ligne (Stripe, PayPal, virement)
+- Paiement d’acompte (option escrow)
+- Suivi de commande (statuts : confirmée, en préparation, expédiée, livrée)
+- Factures et documents export (PDF)
+- Historique des commandes
+- Demandes de remboursement / litiges
+
+### Communication
+- Messagerie directe acheteur ↔ vendeur
+- Chat en temps réel (WebSocket)
+- Envoi de pièces jointes (documents, photos)
+- Traduction automatique des messages (optionnel)
+- Notifications de nouveaux messages
+
+### Tableau de bord acheteur
+- Vue d’ensemble (RFQ en cours, commandes, messages)
+- Mes devis reçus
+- Mes commandes
+- Mes fournisseurs favoris
+- Mes produits favoris
+- Paramètres du compte
+
+---
+
+## 2. App Producteur (`seller.qdiadz.com`)
+
+### Compte & onboarding
+- Inscription producteur (téléphone, email, mot de passe)
+- Connexion / déconnexion
+- Profil producteur (nom, entreprise, wilaya, adresse)
+- KYC / vérification d’identité :
+  - Carte nationale / passeport
+  - Registre de commerce
+  - Attestation fiscale (NIF)
+  - Certifications produit (halal, bio, etc.)
+- Statut de validation (en attente, approuvé, rejeté)
+- Gestion des employés (accès limité — optionnel)
+
+### Gestion des produits
+- Liste de mes produits (publiés, brouillon, en attente, rejetés)
+- Ajout de produit manuel (formulaire classique)
+- **Ajout assisté par IA** (photo ou description → fiche auto)
+- Modification / suppression de produit
+- Duplication de produit
+- Import en masse via Excel (template QDIA existant)
+- Champs export spécifiques :
+  - Origine (wilaya)
+  - MOQ et unité
+  - Poids / volume
+  - Conditionnement
+  - Port de départ
+  - Incoterm par défaut
+  - Certifications
+  - Coût unitaire de base (pour pricing)
+- Statuts : brouillon → soumis → en revue → publié → suspendu
+
+### Assistant IA Producteur
+- Chat avec l’agent QDIA (« Publie mon huile d’olive »)
+- Génération automatique :
+  - Titre produit (FR / EN / AR)
+  - Description SEO multilingue
+  - Catégorie et sous-catégorie
+  - Spécifications techniques
+  - Tags / mots-clés
+- Analyse d’image → fiche produit (vision IA — déjà partiellement en place)
+- Suggestion de prix retail
+- **Calcul prix export** (EXW, FOB, CFR, CIF) par marché cible
+- Suggestion MOQ selon le produit
+- Vérification conformité export (alertes réglementaires)
+- Publication en un clic sur la plateforme export
+- Historique des actions IA (logs, quotas)
+
+### Studio Images (intégré ou lien vers studio)
+- Upload photo(s) produit
+- Détourage automatique (fond transparent)
+- Fond blanc professionnel
+- Recadrage (1:1, 4:3, 16:9)
+- Rotation, luminosité, contraste
+- Génération d’image IA (photo studio à partir d’une photo amateur)
+- Application watermark QDIA
+- Variantes : packshot, lifestyle, zoom étiquette
+- Prévisualisation avant/après
+- Export en 3 tailles (miniature, carte, HD)
+- Historique des versions d’images
+- Remplacement d’image sur produit existant
+
+### Pricing & cotations
+- Saisie des coûts (produit, packaging, transport local, port, fret…)
+- Calcul automatique EXW → FOB → CFR → CIF
+- Application marge et frais QDIA
+- Prix indicatif affiché sur la fiche
+- Réponse aux RFQ acheteurs
+- Génération de devis PDF
+- Historique des cotations envoyées
+- Statistiques (taux d’acceptation, prix moyen)
+
+### Commandes & ventes
+- Réception des commandes export
+- Acceptation / refus de commande
+- Mise à jour statut (préparation, expédié)
+- Upload documents d’expédition (BL, facture, certificat)
+- Historique des ventes
+- Revenus et commissions QDIA
+- Demandes de retrait (wallet)
+
+### Communication
+- Messagerie avec acheteurs
+- Notifications RFQ, commandes, messages
+- Réponses rapides (templates)
+
+### Tableau de bord producteur
+- Vue d’ensemble (produits, ventes, RFQ, revenus)
+- Statistiques (vues produits, demandes devis)
+- Quota IA restant
+- Alertes (produit rejeté, KYC expiré, stock bas)
+
+---
+
+## 3. Studio Images (`studio.qdiadz.com`)
+
+### Édition d’images
+- Upload image (drag & drop, URL, caméra mobile)
+- Détourage IA (remove background)
+- Fond blanc / couleur personnalisée
+- Recadrage libre et ratios prédéfinis
+- Redimensionnement (thumb 150px, card 600px, HD 1200px)
+- Rotation, retournement
+- Ajustements : luminosité, contraste, saturation, netteté
+- Suppression d’objets indésirables (inpainting IA)
+- Ajout watermark QDIA (position, opacité)
+- Texte overlay (nom produit, origine)
+
+### Génération IA
+- Génération photo studio à partir de description texte
+- Amélioration photo amateur → rendu professionnel
+- Génération de variantes (angle différent, packaging)
+- Fond lifestyle (table, cuisine, nature) pour certains produits
+- Génération d’étiquette produit zoomée
+
+### Gestion
+- Historique des versions (V1, V2, V3…)
+- Comparaison avant/après
+- Téléchargement (PNG, JPG, WebP)
+- Envoi direct vers fiche produit QDIA
+- Bibliothèque d’images du producteur
+- Quota d’utilisation IA par compte
+
+### Intégration
+- API pour l’app producteur et l’agent IA
+- Connexion compte vendeur (Passport)
+- Sélection produit cible pour attacher l’image
+
+---
+
+## 4. Agent IA QDIA (backend orchestrateur)
+
+### Pipeline publication produit
+1. Réception entrée (photo, texte, voix transcrite)
+2. Analyse image (vision GPT-4o)
+3. Génération fiche produit multilingue
+4. Traitement images (studio)
+5. Calcul pricing export
+6. Vérification conformité
+7. Création `Item` en statut `pending_review`
+8. Retour résumé au producteur pour validation
+
+### Compétences IA
+| Compétence | Fonction |
+|------------|----------|
+| **ProductWriter** | Titre, description, catégorie, specs, SEO |
+| **ImageEnhancer** | Détourage, fond blanc, génération, watermark |
+| **ExportPricer** | EXW/FOB/CFR/CIF + benchmark marché |
+| **ComplianceChecker** | Règles export par pays/produit |
+| **Translator** | FR ↔ EN ↔ AR ↔ autres langues |
+| **MOQAdvisor** | Suggestion quantité minimum selon produit |
+| **CategoryMatcher** | Auto-catégorisation catalogue |
+| **RFQAssistant** | Aide rédaction réponse devis pour vendeur |
+
+### Gestion & contrôle
+- File d’attente jobs async (Redis)
+- Logs de chaque action IA
+- Quotas par vendeur (crédits IA)
+- Fallback si IA indisponible
+- Validation humaine obligatoire avant publication
+- Feedback producteur pour améliorer les prompts
+
+---
+
+## 5. Moteur de pricing export
+
+### Calculs Incoterms
+- **EXW** : produit + packaging
+- **FOB** : EXW + transport local + frais port + documentation + douane + manutention
+- **CFR** : FOB + fret maritime
+- **CIF** : CFR + assurance
+- Application marge vendeur (%)
+- Application frais QDIA (%)
+- Conversion devises (DZD → USD / EUR)
+- Prix unitaire et prix total selon quantité
+
+### Enrichissement IA
+- Estimation fret selon destination (benchmark)
+- Suggestion marge selon marché cible
+- Fourchette de prix si données incomplètes
+- Historique des prix du même produit sur la plateforme
+- Alertes si prix hors marché
+
+### Cotations & RFQ
+- Création cotation manuelle (admin/vendeur)
+- Création cotation depuis RFQ acheteur
+- Calcul temps réel (AJAX)
+- Export PDF devis
+- Statuts : brouillon, envoyé, accepté, refusé, expiré
+- Relance automatique devis expirés
+- Archivage et recherche cotations
+
+---
+
+## 6. Panneau Admin (`admin.qdiadz.com`)
+
+### Gestion export
+- Dashboard export (KPIs : produits, RFQ, CA, pays)
+- Liste produits export (filtres, approbation)
+- Validation / rejet produits avec motif
+- Suspension produit ou vendeur
+- Gestion catégories export
+- Gestion certifications autorisées
+- Gestion ports de départ algériens
+- Configuration frais QDIA export (%)
+- Configuration marges par défaut
+
+### Gestion producteurs
+- Liste vendeurs export
+- Validation KYC (documents)
+- Approbation / rejet compte producteur
+- Historique actions vendeur
+- Blocage / déblocage compte
+
+### Gestion acheteurs
+- Liste acheteurs internationaux
+- Vérification entreprise importatrice
+- Historique RFQ et commandes par acheteur
+
+### Cotations & RFQ
+- Vue globale des RFQ
+- Supervision des cotations
+- Intervention manuelle sur devis
+- Export rapports cotations (Excel/PDF)
+
+### Module IA admin
+- Configuration prompts IA
+- Limites et quotas par vendeur
+- Logs utilisation IA
+- Coûts OpenAI / APIs images
+- Activation/désactivation compétences IA
+
+### Import / export données
+- Import Excel producteurs (template existant)
+- Import bulk produits QDIA (watermark, champs export)
+- Export catalogue pour partenaires
+- Synchronisation images (fix CORS, `img.php`)
+
+### Rapports & analytics
+- Produits les plus consultés
+- Pays demandeurs principaux
+- Taux conversion RFQ → commande
+- Revenus commissions QDIA
+- Performance vendeurs
+- Utilisation studio images / IA
+
+### Paramètres système
+- Devises supportées
+- Langues actives
+- Incoterms disponibles
+- Zones / pays de destination
+- Templates email (RFQ, devis, commande)
+- Notifications push / email
+
+---
+
+## 7. API & intégrations techniques
+
+### API REST (extension Laravel V1/V2)
+- Endpoints catalogue export
+- Endpoints RFQ / cotations
+- Endpoints agent IA (`/ai/agent/*`)
+- Endpoints studio images
+- Endpoints acheteur international
+- Auth Passport (tokens)
+- Rate limiting et quotas
+
+### Intégrations externes
+- **OpenAI** : GPT-4o (texte + vision), DALL-E (images)
+- **Remove.bg / Replicate** : détourage images
+- **AWS S3** : stockage images CDN
+- **Stripe / PayPal** : paiements internationaux
+- **Firebase** : OTP, push notifications
+- **Pusher / WebSockets** : chat temps réel
+- **API fret** (optionnel Phase 3) : estimation maritime
+- **Taux de change** : API BCE / fixer.io
+
+### Sécurité & conformité
+- HTTPS, CORS configuré
+- Proxy images (`img.php`) pour Flutter Web
+- Validation uploads (type, taille)
+- Modération contenu IA
+- RGPD / consentement données
+- Logs audit admin
+
+---
+
+## 8. Fonctionnalités transversales (tous les acteurs)
+
+### Multilingue
+- Interface FR, EN, AR (minimum)
+- Contenu produit traduit (IA + manuel)
+- URLs localisées (`/en/`, `/fr/`, `/ar/`)
+
+### Notifications
+- Email (RFQ, devis, commande, KYC)
+- Push mobile / web
+- SMS OTP (Firebase)
+- Centre de notifications in-app
+
+### Recherche & SEO
+- URLs SEO-friendly
+- Meta tags produits
+- Sitemap export
+- Schema.org Product (rich snippets Google)
+
+### Mobile
+- App producteur Flutter (iOS / Android / Web)
+- App acheteur (Phase 4)
+- PWA portail export
+
+---
+
+## 9. Récapitulatif par nombre
+
+| Domaine | Nombre de fonctionnalités |
+|---------|---------------------------|
+| Portail acheteur | ~45 |
+| App producteur | ~40 |
+| Studio images | ~20 |
+| Agent IA | ~15 |
+| Pricing export | ~15 |
+| Admin export | ~35 |
+| API & technique | ~15 |
+| Transversal | ~10 |
+| **Total** | **~195 fonctionnalités** |
+
+---
+
+## 10. Priorisation MVP (Phase 1)
+
+Si vous voulez lancer vite, voici le **minimum viable** :
+
+1. Inscription producteur + KYC basique  
+2. Ajout produit assisté IA (fiche + prix FOB)  
+3. Studio image (fond blanc + watermark)  
+4. Validation admin + publication catalogue  
+5. Portail acheteur : recherche + fiche produit + RFQ  
+6. Réponse devis vendeur (PDF)  
+7. Messagerie basique acheteur ↔ vendeur  
+
+---
+
+Souhaitez-vous que je détaille une section en maquettes écran par écran, ou que je commence l’implémentation par la Phase 1 ?
