@@ -20,6 +20,13 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AiChatInput,
+  AiGenerateProductInput,
+  AiGeneratedProduct,
+  AiPricingInput,
+  AiPricingResult,
+  AiStudioInput,
+  AiStudioResult,
   Category,
   DashboardStats,
   HealthStatus,
@@ -1118,4 +1125,288 @@ export function useGetProductPerformance<TData = Awaited<ReturnType<typeof getPr
 
 
 
+
+export const getAiGenerateProductUrl = () => {
+
+
+
+
+  return `/api/ai/generate-product`
+}
+
+/**
+ * @summary Génère une fiche produit complète (titre, description, catégorie, specs) à partir d'une description ou photo
+ */
+export const aiGenerateProduct = async (aiGenerateProductInput: AiGenerateProductInput, options?: RequestInit): Promise<AiGeneratedProduct> => {
+
+  return customFetch<AiGeneratedProduct>(getAiGenerateProductUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      aiGenerateProductInput,)
+  }
+);}
+
+
+
+
+export const getAiGenerateProductMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof aiGenerateProduct>>, TError,{data: BodyType<AiGenerateProductInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof aiGenerateProduct>>, TError,{data: BodyType<AiGenerateProductInput>}, TContext> => {
+
+const mutationKey = ['aiGenerateProduct'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof aiGenerateProduct>>, {data: BodyType<AiGenerateProductInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  aiGenerateProduct(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AiGenerateProductMutationResult = NonNullable<Awaited<ReturnType<typeof aiGenerateProduct>>>
+    export type AiGenerateProductMutationBody = BodyType<AiGenerateProductInput>
+    export type AiGenerateProductMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Génère une fiche produit complète (titre, description, catégorie, specs) à partir d'une description ou photo
+ */
+export const useAiGenerateProduct = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof aiGenerateProduct>>, TError,{data: BodyType<AiGenerateProductInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof aiGenerateProduct>>,
+        TError,
+        {data: BodyType<AiGenerateProductInput>},
+        TContext
+      > => {
+      return useMutation(getAiGenerateProductMutationOptions(options));
+    }
+
+export const getAiCalculatePricingUrl = () => {
+
+
+
+
+  return `/api/ai/calculate-pricing`
+}
+
+/**
+ * @summary Calcule les prix export EXW/FOB/CFR/CIF enrichis par l'IA
+ */
+export const aiCalculatePricing = async (aiPricingInput: AiPricingInput, options?: RequestInit): Promise<AiPricingResult> => {
+
+  return customFetch<AiPricingResult>(getAiCalculatePricingUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      aiPricingInput,)
+  }
+);}
+
+
+
+
+export const getAiCalculatePricingMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof aiCalculatePricing>>, TError,{data: BodyType<AiPricingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof aiCalculatePricing>>, TError,{data: BodyType<AiPricingInput>}, TContext> => {
+
+const mutationKey = ['aiCalculatePricing'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof aiCalculatePricing>>, {data: BodyType<AiPricingInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  aiCalculatePricing(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AiCalculatePricingMutationResult = NonNullable<Awaited<ReturnType<typeof aiCalculatePricing>>>
+    export type AiCalculatePricingMutationBody = BodyType<AiPricingInput>
+    export type AiCalculatePricingMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Calcule les prix export EXW/FOB/CFR/CIF enrichis par l'IA
+ */
+export const useAiCalculatePricing = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof aiCalculatePricing>>, TError,{data: BodyType<AiPricingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof aiCalculatePricing>>,
+        TError,
+        {data: BodyType<AiPricingInput>},
+        TContext
+      > => {
+      return useMutation(getAiCalculatePricingMutationOptions(options));
+    }
+
+export const getAiStudioUrl = () => {
+
+
+
+
+  return `/api/ai/studio`
+}
+
+/**
+ * @summary Traitement IA d'image produit (fond blanc, scène studio, amélioration)
+ */
+export const aiStudio = async (aiStudioInput: AiStudioInput, options?: RequestInit): Promise<AiStudioResult> => {
+
+  return customFetch<AiStudioResult>(getAiStudioUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      aiStudioInput,)
+  }
+);}
+
+
+
+
+export const getAiStudioMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof aiStudio>>, TError,{data: BodyType<AiStudioInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof aiStudio>>, TError,{data: BodyType<AiStudioInput>}, TContext> => {
+
+const mutationKey = ['aiStudio'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof aiStudio>>, {data: BodyType<AiStudioInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  aiStudio(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AiStudioMutationResult = NonNullable<Awaited<ReturnType<typeof aiStudio>>>
+    export type AiStudioMutationBody = BodyType<AiStudioInput>
+    export type AiStudioMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Traitement IA d'image produit (fond blanc, scène studio, amélioration)
+ */
+export const useAiStudio = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof aiStudio>>, TError,{data: BodyType<AiStudioInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof aiStudio>>,
+        TError,
+        {data: BodyType<AiStudioInput>},
+        TContext
+      > => {
+      return useMutation(getAiStudioMutationOptions(options));
+    }
+
+export const getAiChatUrl = () => {
+
+
+
+
+  return `/api/ai/chat`
+}
+
+/**
+ * @summary Chat avec l'agent IA QDIA (SSE streaming)
+ */
+export const aiChat = async (aiChatInput: AiChatInput, options?: RequestInit): Promise<unknown> => {
+
+  return customFetch<unknown>(getAiChatUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      aiChatInput,)
+  }
+);}
+
+
+
+
+export const getAiChatMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof aiChat>>, TError,{data: BodyType<AiChatInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof aiChat>>, TError,{data: BodyType<AiChatInput>}, TContext> => {
+
+const mutationKey = ['aiChat'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof aiChat>>, {data: BodyType<AiChatInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  aiChat(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AiChatMutationResult = NonNullable<Awaited<ReturnType<typeof aiChat>>>
+    export type AiChatMutationBody = BodyType<AiChatInput>
+    export type AiChatMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Chat avec l'agent IA QDIA (SSE streaming)
+ */
+export const useAiChat = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof aiChat>>, TError,{data: BodyType<AiChatInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof aiChat>>,
+        TError,
+        {data: BodyType<AiChatInput>},
+        TContext
+      > => {
+      return useMutation(getAiChatMutationOptions(options));
+    }
 

@@ -6,6 +6,17 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './aiChatInput';
+export * from './aiChatMessage';
+export * from './aiGeneratedProduct';
+export * from './aiGeneratedProductSpecs';
+export * from './aiGenerateProductInput';
+export * from './aiPricingInput';
+export * from './aiPricingResult';
+export * from './aiPricingResultBreakdown';
+export * from './aiStudioInput';
+export * from './aiStudioInputAction';
+export * from './aiStudioResult';
 export * from './category';
 export * from './dashboardStats';
 export * from './healthStatus';

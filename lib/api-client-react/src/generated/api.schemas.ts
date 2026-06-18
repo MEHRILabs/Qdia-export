@@ -179,6 +179,100 @@ export interface ProductPerformance {
   views: number;
 }
 
+export interface AiGenerateProductInput {
+  description: string;
+  /** @nullable */
+  image_base64?: string | null;
+  /** @nullable */
+  target_market?: string | null;
+  /** @nullable */
+  cost_dzd?: number | null;
+}
+
+export type AiGeneratedProductSpecs = {[key: string]: string};
+
+export interface AiGeneratedProduct {
+  name_fr: string;
+  name_en: string;
+  name_ar: string;
+  description_fr: string;
+  description_en: string;
+  /** @nullable */
+  description_ar?: string | null;
+  category: string;
+  specs: AiGeneratedProductSpecs;
+  suggested_moq: number;
+  suggested_moq_unit: string;
+  suggested_port: string;
+  certifications: string[];
+  seo_tags: string[];
+  compliance_alerts?: string[];
+}
+
+export interface AiPricingInput {
+  product_name: string;
+  cost_dzd: number;
+  quantity: number;
+  quantity_unit?: string;
+  destination_country: string;
+  /** @nullable */
+  packaging_cost_dzd?: number | null;
+  /** @nullable */
+  local_transport_dzd?: number | null;
+  /** @nullable */
+  vendor_margin_pct?: number | null;
+}
+
+export type AiPricingResultBreakdown = {[key: string]: number};
+
+export interface AiPricingResult {
+  exw_usd: number;
+  fob_usd: number;
+  cfr_usd: number;
+  cif_usd: number;
+  exw_eur: number;
+  fob_eur: number;
+  exchange_rate_dzd_usd: number;
+  breakdown: AiPricingResultBreakdown;
+  /** @nullable */
+  market_benchmark?: string | null;
+  /** @nullable */
+  price_range_note?: string | null;
+}
+
+export type AiStudioInputAction = typeof AiStudioInputAction[keyof typeof AiStudioInputAction];
+
+
+export const AiStudioInputAction = {
+  studio_scene: 'studio_scene',
+  white_background: 'white_background',
+  enhance: 'enhance',
+} as const;
+
+export interface AiStudioInput {
+  image_base64: string;
+  action: AiStudioInputAction;
+  /** @nullable */
+  product_name?: string | null;
+  /** @nullable */
+  scene_description?: string | null;
+}
+
+export interface AiStudioResult {
+  image_base64: string;
+  action_applied: string;
+}
+
+export interface AiChatMessage {
+  role: string;
+  content: string;
+}
+
+export interface AiChatInput {
+  message: string;
+  history?: AiChatMessage[];
+}
+
 export type ListProductsParams = {
 /**
  * @nullable

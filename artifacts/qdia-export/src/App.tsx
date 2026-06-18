@@ -11,6 +11,7 @@ import Studio from "@/pages/Studio";
 import Rfq from "@/pages/Rfq";
 import Supplier from "@/pages/Supplier";
 import Dashboard from "@/pages/Dashboard";
+import AgentIA from "@/pages/AgentIA";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -31,6 +32,7 @@ function Router() {
       <Route path="/rfq" component={Rfq} />
       <Route path="/supplier" component={Supplier} />
       <Route path="/dashboard" component={Dashboard} />
+      <Route path="/agent-ia" component={AgentIA} />
       <Route component={NotFound} />
     </Switch>
   );

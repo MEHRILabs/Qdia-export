@@ -19,6 +19,8 @@ tags:
     description: Supplier management
   - name: dashboard
     description: Supplier dashboard stats
+  - name: ai
+    description: Agent IA QDIA — génération de fiches produit, pricing, images
 
 paths:
   /healthz:
@@ -263,6 +265,80 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/ProductPerformance"
+
+  /ai/generate-product:
+    post:
+      operationId: aiGenerateProduct
+      tags: [ai]
+      summary: Génère une fiche produit complète (titre, description, catégorie, specs) à partir d'une description ou photo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiGenerateProductInput"
+      responses:
+        "200":
+          description: Fiche produit générée
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiGeneratedProduct"
+
+  /ai/calculate-pricing:
+    post:
+      operationId: aiCalculatePricing
+      tags: [ai]
+      summary: Calcule les prix export EXW/FOB/CFR/CIF enrichis par l'IA
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiPricingInput"
+      responses:
+        "200":
+          description: Résultat pricing Incoterms
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiPricingResult"
+
+  /ai/studio:
+    post:
+      operationId: aiStudio
+      tags: [ai]
+      summary: Traitement IA d'image produit (fond blanc, scène studio, amélioration)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiStudioInput"
+      responses:
+        "200":
+          description: Image traitée en base64
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiStudioResult"
+
+  /ai/chat:
+    post:
+      operationId: aiChat
+      tags: [ai]
+      summary: Chat avec l'agent IA QDIA (SSE streaming)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiChatInput"
+      responses:
+        "200":
+          description: SSE stream de la réponse
+          content:
+            text/event-stream: {}
 
 components:
   schemas:
@@ -544,3 +620,148 @@ components:
           type: string
         views:
           type: integer
+
+    AiGenerateProductInput:
+      type: object
+      required: [description]
+      properties:
+        description:
+          type: string
+        image_base64:
+          type: ["string", "null"]
+        target_market:
+          type: ["string", "null"]
+        cost_dzd:
+          type: ["number", "null"]
+
+    AiGeneratedProduct:
+      type: object
+      required: [name_fr, name_en, name_ar, description_fr, description_en, category, specs, suggested_moq, suggested_moq_unit, suggested_port, certifications, seo_tags]
+      properties:
+        name_fr:
+          type: string
+        name_en:
+          type: string
+        name_ar:
+          type: string
+        description_fr:
+          type: string
+        description_en:
+          type: string
+        description_ar:
+          type: ["string", "null"]
+        category:
+          type: string
+        specs:
+          type: object
+          additionalProperties:
+            type: string
+        suggested_moq:
+          type: number
+        suggested_moq_unit:
+          type: string
+        suggested_port:
+          type: string
+        certifications:
+          type: array
+          items:
+            type: string
+        seo_tags:
+          type: array
+          items:
+            type: string
+        compliance_alerts:
+          type: array
+          items:
+            type: string
+
+    AiPricingInput:
+      type: object
+      required: [product_name, cost_dzd, quantity, destination_country]
+      properties:
+        product_name:
+          type: string
+        cost_dzd:
+          type: number
+        quantity:
+          type: number
+        quantity_unit:
+          type: string
+        destination_country:
+          type: string
+        packaging_cost_dzd:
+          type: ["number", "null"]
+        local_transport_dzd:
+          type: ["number", "null"]
+        vendor_margin_pct:
+          type: ["number", "null"]
+
+    AiPricingResult:
+      type: object
+      required: [exw_usd, fob_usd, cfr_usd, cif_usd, exw_eur, fob_eur, breakdown, exchange_rate_dzd_usd]
+      properties:
+        exw_usd:
+          type: number
+        fob_usd:
+          type: number
+        cfr_usd:
+          type: number
+        cif_usd:
+          type: number
+        exw_eur:
+          type: number
+        fob_eur:
+          type: number
+        exchange_rate_dzd_usd:
+          type: number
+        breakdown:
+          type: object
+          additionalProperties:
+            type: number
+        market_benchmark:
+          type: ["string", "null"]
+        price_range_note:
+          type: ["string", "null"]
+
+    AiStudioInput:
+      type: object
+      required: [image_base64, action]
+      properties:
+        image_base64:
+          type: string
+        action:
+          type: string
+          enum: [studio_scene, white_background, enhance]
+        product_name:
+          type: ["string", "null"]
+        scene_description:
+          type: ["string", "null"]
+
+    AiStudioResult:
+      type: object
+      required: [image_base64, action_applied]
+      properties:
+        image_base64:
+          type: string
+        action_applied:
+          type: string
+
+    AiChatMessage:
+      type: object
+      required: [role, content]
+      properties:
+        role:
+          type: string
+        content:
+          type: string
+
+    AiChatInput:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+        history:
+          type: array
+          items:
+            $ref: "#/components/schemas/AiChatMessage"

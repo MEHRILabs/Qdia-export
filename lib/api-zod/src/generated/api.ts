@@ -326,3 +326,87 @@ export const GetProductPerformanceResponseItem = zod.object({
 export const GetProductPerformanceResponse = zod.array(GetProductPerformanceResponseItem)
 
 
+/**
+ * @summary Génère une fiche produit complète (titre, description, catégorie, specs) à partir d'une description ou photo
+ */
+export const AiGenerateProductBody = zod.object({
+  "description": zod.string(),
+  "image_base64": zod.string().nullish(),
+  "target_market": zod.string().nullish(),
+  "cost_dzd": zod.number().nullish()
+})
+
+export const AiGenerateProductResponse = zod.object({
+  "name_fr": zod.string(),
+  "name_en": zod.string(),
+  "name_ar": zod.string(),
+  "description_fr": zod.string(),
+  "description_en": zod.string(),
+  "description_ar": zod.string().nullish(),
+  "category": zod.string(),
+  "specs": zod.record(zod.string(), zod.string()),
+  "suggested_moq": zod.number(),
+  "suggested_moq_unit": zod.string(),
+  "suggested_port": zod.string(),
+  "certifications": zod.array(zod.string()),
+  "seo_tags": zod.array(zod.string()),
+  "compliance_alerts": zod.array(zod.string()).optional()
+})
+
+
+/**
+ * @summary Calcule les prix export EXW/FOB/CFR/CIF enrichis par l'IA
+ */
+export const AiCalculatePricingBody = zod.object({
+  "product_name": zod.string(),
+  "cost_dzd": zod.number(),
+  "quantity": zod.number(),
+  "quantity_unit": zod.string().optional(),
+  "destination_country": zod.string(),
+  "packaging_cost_dzd": zod.number().nullish(),
+  "local_transport_dzd": zod.number().nullish(),
+  "vendor_margin_pct": zod.number().nullish()
+})
+
+export const AiCalculatePricingResponse = zod.object({
+  "exw_usd": zod.number(),
+  "fob_usd": zod.number(),
+  "cfr_usd": zod.number(),
+  "cif_usd": zod.number(),
+  "exw_eur": zod.number(),
+  "fob_eur": zod.number(),
+  "exchange_rate_dzd_usd": zod.number(),
+  "breakdown": zod.record(zod.string(), zod.number()),
+  "market_benchmark": zod.string().nullish(),
+  "price_range_note": zod.string().nullish()
+})
+
+
+/**
+ * @summary Traitement IA d'image produit (fond blanc, scène studio, amélioration)
+ */
+export const AiStudioBody = zod.object({
+  "image_base64": zod.string(),
+  "action": zod.enum(['studio_scene', 'white_background', 'enhance']),
+  "product_name": zod.string().nullish(),
+  "scene_description": zod.string().nullish()
+})
+
+export const AiStudioResponse = zod.object({
+  "image_base64": zod.string(),
+  "action_applied": zod.string()
+})
+
+
+/**
+ * @summary Chat avec l'agent IA QDIA (SSE streaming)
+ */
+export const AiChatBody = zod.object({
+  "message": zod.string(),
+  "history": zod.array(zod.object({
+  "role": zod.string(),
+  "content": zod.string()
+})).optional()
+})
+
+

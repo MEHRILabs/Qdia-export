@@ -183,9 +183,9 @@ export default function ProductDetail() {
                   <p className="text-sm text-muted-foreground">{product.supplier_location || 'Algeria'} • {product.origin_wilaya}</p>
                 </div>
                 <div className="text-right text-xs space-y-1">
-                  <div className="font-medium">{product.platform_years || 1} YRS on QDIA</div>
-                  <div className="text-muted-foreground">{product.response_rate || 95}% Response Rate</div>
-                  <div className="text-muted-foreground">{product.transaction_count || 10}+ Transactions</div>
+                  <div className="font-medium">6 YRS on QDIA</div>
+                  <div className="text-muted-foreground">98% Response Rate</div>
+                  <div className="text-muted-foreground">240+ Transactions</div>
                 </div>
               </div>
             </div>
