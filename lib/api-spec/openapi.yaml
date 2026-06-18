@@ -1,22 +1,31 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: QDIA Export API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: products
+    description: Product catalog
+  - name: categories
+    description: Product categories
+  - name: rfq
+    description: Request for Quotation
+  - name: suppliers
+    description: Supplier management
+  - name: dashboard
+    description: Supplier dashboard stats
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +33,237 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /categories:
+    get:
+      operationId: listCategories
+      tags: [categories]
+      summary: List all categories
+      responses:
+        "200":
+          description: List of categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Category"
+
+  /products:
+    get:
+      operationId: listProducts
+      tags: [products]
+      summary: List products with optional filtering
+      parameters:
+        - name: category_id
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: search
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: incoterm
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: page
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: limit
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Paginated list of products
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductList"
+    post:
+      operationId: createProduct
+      tags: [products]
+      summary: Create a new product listing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductInput"
+      responses:
+        "201":
+          description: Product created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+
+  /products/featured:
+    get:
+      operationId: listFeaturedProducts
+      tags: [products]
+      summary: Get featured/best-seller products
+      responses:
+        "200":
+          description: Featured products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+
+  /products/{id}:
+    get:
+      operationId: getProduct
+      tags: [products]
+      summary: Get product detail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Product detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "404":
+          description: Not found
+
+  /rfq:
+    get:
+      operationId: listRfqs
+      tags: [rfq]
+      summary: List RFQ requests
+      responses:
+        "200":
+          description: List of RFQs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Rfq"
+    post:
+      operationId: createRfq
+      tags: [rfq]
+      summary: Submit a Request for Quotation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RfqInput"
+      responses:
+        "201":
+          description: RFQ submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rfq"
+
+  /rfq/{id}:
+    get:
+      operationId: getRfq
+      tags: [rfq]
+      summary: Get RFQ detail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: RFQ detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rfq"
+
+  /suppliers:
+    get:
+      operationId: listSuppliers
+      tags: [suppliers]
+      summary: List verified suppliers
+      responses:
+        "200":
+          description: List of suppliers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Supplier"
+
+  /suppliers/{id}:
+    get:
+      operationId: getSupplier
+      tags: [suppliers]
+      summary: Get supplier profile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Supplier profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Supplier"
+
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [dashboard]
+      summary: Get supplier dashboard statistics
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+  /dashboard/recent-rfqs:
+    get:
+      operationId: getRecentRfqs
+      tags: [dashboard]
+      summary: Get recent RFQ activity for action panel
+      responses:
+        "200":
+          description: Recent RFQs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RfqActivity"
+
+  /dashboard/product-performance:
+    get:
+      operationId: getProductPerformance
+      tags: [dashboard]
+      summary: Get product performance by category
+      responses:
+        "200":
+          description: Product performance data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProductPerformance"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +274,273 @@ components:
       required:
         - status
 
+    Category:
+      type: object
+      required: [id, name, slug, icon]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+        icon:
+          type: string
+        product_count:
+          type: ["integer", "null"]
+
+    IncotermPrices:
+      type: object
+      required: [exw, fob, cfr, cif]
+      properties:
+        exw:
+          type: number
+        fob:
+          type: number
+        cfr:
+          type: number
+        cif:
+          type: number
+        currency:
+          type: string
+        unit:
+          type: string
+
+    Product:
+      type: object
+      required: [id, name, category, supplier_id, moq, moq_unit, port_depart, export_status, prices]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        category:
+          type: string
+        sku:
+          type: ["string", "null"]
+        image_url:
+          type: ["string", "null"]
+        images:
+          type: array
+          items:
+            type: string
+        supplier_id:
+          type: integer
+        supplier_name:
+          type: ["string", "null"]
+        supplier_location:
+          type: ["string", "null"]
+        moq:
+          type: number
+        moq_unit:
+          type: string
+        port_depart:
+          type: string
+        origin_wilaya:
+          type: ["string", "null"]
+        certifications:
+          type: array
+          items:
+            type: string
+        packaging:
+          type: ["string", "null"]
+        processing:
+          type: ["string", "null"]
+        export_status:
+          type: string
+          enum: [draft, pending, published, suspended]
+        prices:
+          $ref: "#/components/schemas/IncotermPrices"
+        rating:
+          type: ["number", "null"]
+        review_count:
+          type: ["integer", "null"]
+        orders_fulfilled:
+          type: ["integer", "null"]
+        target_markets:
+          type: array
+          items:
+            type: string
+        is_featured:
+          type: boolean
+
+    ProductInput:
+      type: object
+      required: [name, category, moq, moq_unit, port_depart, prices]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        sku:
+          type: string
+        moq:
+          type: number
+        moq_unit:
+          type: string
+        port_depart:
+          type: string
+        origin_wilaya:
+          type: string
+        certifications:
+          type: array
+          items:
+            type: string
+        packaging:
+          type: string
+        processing:
+          type: string
+        prices:
+          $ref: "#/components/schemas/IncotermPrices"
+        target_markets:
+          type: array
+          items:
+            type: string
+
+    ProductList:
+      type: object
+      required: [data, total, page, limit]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Product"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    Supplier:
+      type: object
+      required: [id, company_name, country, wilaya, verified, platform_years, response_rate, transaction_count]
+      properties:
+        id:
+          type: integer
+        company_name:
+          type: string
+        country:
+          type: string
+        wilaya:
+          type: string
+        verified:
+          type: boolean
+        verification_level:
+          type: integer
+        platform_years:
+          type: integer
+        response_rate:
+          type: number
+        transaction_count:
+          type: integer
+        description:
+          type: ["string", "null"]
+        avatar:
+          type: ["string", "null"]
+
+    Rfq:
+      type: object
+      required: [id, product_name, quantity, quantity_unit, destination_country, requested_incoterm, status, created_at]
+      properties:
+        id:
+          type: integer
+        product_name:
+          type: string
+        quantity:
+          type: number
+        quantity_unit:
+          type: string
+        destination_country:
+          type: string
+        requested_incoterm:
+          type: string
+        target_price:
+          type: ["number", "null"]
+        message:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [pending, quoted, accepted, rejected]
+        created_at:
+          type: string
+
+    RfqInput:
+      type: object
+      required: [product_name, quantity, quantity_unit, destination_country, requested_incoterm]
+      properties:
+        product_name:
+          type: string
+        product_description:
+          type: string
+        quantity:
+          type: number
+        quantity_unit:
+          type: string
+        destination_country:
+          type: string
+        requested_incoterm:
+          type: string
+        target_price:
+          type: number
+        message:
+          type: string
+
+    DashboardStats:
+      type: object
+      required: [active_inquiries, pending_rfqs, total_export_value, store_visits, total_products, active_listings, ai_suggestions]
+      properties:
+        active_inquiries:
+          type: integer
+        inquiries_change_pct:
+          type: number
+        pending_rfqs:
+          type: integer
+        pending_rfqs_urgent:
+          type: boolean
+        total_export_value:
+          type: number
+        export_value_period:
+          type: string
+        store_visits:
+          type: integer
+        store_visits_scope:
+          type: string
+        total_products:
+          type: integer
+        active_listings:
+          type: integer
+        ai_suggestions:
+          type: integer
+
+    RfqActivity:
+      type: object
+      required: [id, rfq_ref, product_name, buyer_city, buyer_country, buyer_flag, time_ago]
+      properties:
+        id:
+          type: integer
+        rfq_ref:
+          type: string
+        product_name:
+          type: string
+        buyer_city:
+          type: string
+        buyer_country:
+          type: string
+        buyer_flag:
+          type: string
+        time_ago:
+          type: string
+
+    ProductPerformance:
+      type: object
+      required: [category, views]
+      properties:
+        category:
+          type: string
+        views:
+          type: integer

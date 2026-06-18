@@ -1,0 +1,414 @@
+# Proposition Design & Architecture — QDIA Export (style Alibaba)
+
+Voici une proposition structurée **avant toute modification de code**, basée sur votre base actuelle (Laravel 10 + Flutter Web + module IA + cotations Incoterms).
+
+---
+
+## 1. Vision produit
+
+**QDIA Export** = marketplace B2B international pour produits algériens (alimentation, cosmétique, artisanat, industrie légère), inspirée d’**Alibaba** :
+
+| Acteur | Rôle |
+|--------|------|
+| **Producteur algérien** | Publie ses produits, photos, MOQ, certifications |
+| **Acheteur étranger** | Cherche, compare, demande devis (RFQ), négocie |
+| **Agent IA QDIA** | Remplit la fiche, génère/édite images, calcule prix export, publie sur la plateforme |
+| **Admin QDIA** | Valide vendeurs, modère catalogue, supervise cotations |
+
+**Pivot par rapport au B2B actuel** : vous gardez le moteur multi-vendeurs (`Vendor` → `Store` → `Item`), mais vous ajoutez une **couche export** visible internationalement, avec pricing Incoterms et un agent IA orienté publication.
+
+---
+
+## 2. Les 4 interfaces (design UX)
+
+### A. Portail Acheteur International — `export.qdiadz.com`
+
+Inspiré Alibaba : catalogue, recherche, fiches produit riches.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  QDIA Export    [Recherche produit...]    FR EN AR    Login │
+├─────────────────────────────────────────────────────────────┤
+│  Catégories │ Huile olive │ Dattes │ Cosmétique │ Textile │
+├─────────────────────────────────────────────────────────────┤
+│  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐        │
+│  │ [image] │  │ [image] │  │ [image] │  │ [image] │        │
+│  │ Huile   │  │ Dattes  │  │ Miel    │  │ Couscous│        │
+│  │ FOB $X  │  │ MOQ 1T  │  │ CIF $Y  │  │ EXW $Z  │        │
+│  │ 🇩🇿→🇫🇷  │  │ 🇩🇿→🇩🇪  │  │ 🇩🇿→🇺🇸  │  │ 🇩🇿→🇪🇸  │        │
+│  └─────────┘  └─────────┘  └─────────┘  └─────────┘        │
+│                                                             │
+│  [Demander un devis]  [Contacter le fournisseur]            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Écrans clés**
+- Accueil : catégories export, produits vedettes, pays de destination
+- Fiche produit : galerie, specs (origine, certification halal/bio, MOQ, Incoterm, ports)
+- RFQ (Request for Quotation) : quantité, destination, Incoterm souhaité
+- Messagerie acheteur ↔ vendeur (chat existant 6amMart réutilisable)
+- Tableau de bord acheteur : devis reçus, commandes, favoris
+
+**Design** : sobre, professionnel, fond clair, accent vert/doré (identité algérienne), cartes produit type Alibaba avec badge `Made in Algeria`.
+
+---
+
+### B. App Producteur — `seller.qdiadz.com` (nouveau Flutter ou Web)
+
+Interface simplifiée pour les producteurs algériens (souvent peu techniques).
+
+```
+┌──────────────────────────────────────┐
+│  Mon produit                         │
+│  ┌────────────────────────────────┐  │
+│  │  📷 Photo (glisser-déposer)    │  │
+│  │  [Studio IA] [Éditer]          │  │
+│  └────────────────────────────────┘  │
+│                                      │
+│  🤖 Assistant QDIA                   │
+│  ┌────────────────────────────────┐  │
+│  │ "Huile d'olive extra vierge    │  │
+│  │  1L, origine Béjaïa..."        │  │
+│  │                                │  │
+│  │  [Générer fiche] [Calculer prix]│  │
+│  └────────────────────────────────┘  │
+│                                      │
+│  Prix suggéré : FOB 4,20 USD/kg      │
+│  MOQ : 500 kg                        │
+│  Port : Alger                        │
+│                                      │
+│  [Publier sur QDIA Export]           │
+└──────────────────────────────────────┘
+```
+
+**Parcours producteur**
+1. Inscription / KYC (CNI, registre commerce, certifications)
+2. Upload photo ou description vocale/texte
+3. L’agent IA remplit titre, description multilingue, catégorie, specs
+4. Studio image : fond blanc, recadrage, watermark QDIA
+5. Agent pricing : prix EXW/FOB/CFR/CIF par marché cible
+6. Validation admin → publication
+
+---
+
+### C. Studio Images — `studio.qdiadz.com`
+
+Outil web dédié (React/Vue ou module Laravel + Canvas) pour créer et éditer les visuels produit.
+
+**Fonctions**
+| Fonction | Description |
+|----------|-------------|
+| Fond blanc auto | Détourage IA (remove.bg ou modèle local) |
+| Recadrage 1:1 / 4:3 | Formats catalogue Alibaba |
+| Watermark QDIA | Déjà présent dans `VendorBulkImportController` |
+| Génération IA | Photo studio à partir d’une photo amateur |
+| Variantes | Packshot, lifestyle, étiquette zoom |
+| Export | 3 tailles (thumb, card, HD) → S3 |
+
+```
+┌──────────────┬─────────────────────────────┐
+│ Outils       │                             │
+│ ├ Détourage  │     [ Aperçu produit ]      │
+│ ├ Fond blanc │                             │
+│ ├ Recadrage  │                             │
+│ ├ IA Générer │                             │
+│ └ Watermark  │                             │
+├──────────────┴─────────────────────────────┤
+│ Historique │ V1 │ V2 │ V3 │  [Appliquer]   │
+└────────────────────────────────────────────┘
+```
+
+---
+
+### D. Panneau Admin Export — extension de `admin.qdiadz.com`
+
+Réutilise l’admin Laravel existant + module export (cotations déjà partiellement codées).
+
+- Validation producteurs et produits
+- Supervision agent IA (logs, corrections)
+- Gestion RFQ / cotations (`ExportQuotation`)
+- Commissions export (`qdia_fee_rate` déjà dans le modèle)
+- Analytics : pays demandeurs, produits top, marges
+
+---
+
+## 3. Architecture technique globale
+
+```mermaid
+flowchart TB
+    subgraph clients [Interfaces Client]
+        BUYER[Portail Acheteur Web<br/>Next.js ou Flutter Web]
+        SELLER[App Producteur<br/>Flutter]
+        STUDIO[Studio Images<br/>React/Vue]
+        ADMIN[Admin Laravel Blade]
+    end
+
+    subgraph api [Backend QDIA - Laravel 10]
+        API[API REST v1/v2<br/>Passport Auth]
+        EXPORT[Module Export<br/>RFQ + Cotations]
+        AI[Module AI étendu<br/>Agent + Pricing + Images]
+        CATALOG[Catalogue Item/Store/Vendor]
+        QUEUE[Queues Redis<br/>Jobs async IA]
+    end
+
+    subgraph external [Services Externes]
+        OPENAI[OpenAI GPT-4o / DALL-E]
+        IMG[Remove.bg / Replicate]
+        S3[AWS S3 - Images]
+        FREIGHT[API Fret - optionnel]
+        PAY[Stripe / PayPal]
+    end
+
+  BUYER --> API
+  SELLER --> API
+  STUDIO --> API
+  ADMIN --> API
+
+  API --> CATALOG
+  API --> EXPORT
+  API --> AI
+  AI --> OPENAI
+  AI --> IMG
+  AI --> QUEUE
+  CATALOG --> S3
+  EXPORT --> PAY
+```
+
+### Principe : **évolution, pas réécriture**
+
+| Existant QDIA | Réutilisation |
+|---------------|---------------|
+| `Item`, `Category`, `Brand`, `Store`, `Vendor` | Catalogue export |
+| `ExportQuotation::calculate()` | Moteur pricing Incoterms |
+| Module `AI` (titre, description, analyse image) | Base agent IA |
+| Import Excel producteurs | Onboarding massif |
+| API V1 Passport | Nouvelles routes export |
+| Watermark Intervention Image | Studio images |
+| Chat, Wallet, Paiements | Transactions B2B |
+
+---
+
+## 4. Agent IA QDIA — architecture
+
+L’agent n’est pas un simple chatbot : c’est un **orchestrateur de tâches** avec plusieurs compétences.
+
+```mermaid
+sequenceDiagram
+    participant P as Producteur
+    participant UI as App Producteur
+    participant AG as Agent Orchestrateur
+    participant CAT as Catalogue Service
+    participant IMG as Image Service
+    participant PRC as Pricing Engine
+    participant DB as Base de données
+
+    P->>UI: Photo + "Huile olive Béjaïa 1L"
+    UI->>AG: POST /ai/agent/publish-product
+    AG->>IMG: Détourage + fond blanc + watermark
+    IMG-->>AG: 3 images optimisées
+    AG->>AG: GPT-4o Vision → fiche produit FR/EN/AR
+    AG->>PRC: Calcul EXW/FOB/CFR/CIF
+    PRC-->>AG: Prix par Incoterm + marchés
+    AG->>CAT: Créer Item (status: pending_review)
+    AG-->>UI: Fiche complète + prix + images
+    P->>UI: Confirmer publication
+    UI->>DB: Item approuvé → visible export
+```
+
+### Compétences de l’agent (modules)
+
+| Compétence | Entrée | Sortie | Techno |
+|------------|--------|--------|--------|
+| **ProductWriter** | Photo/texte | Titre, description SEO, catégorie, specs | GPT-4o (existant) |
+| **ImageEnhancer** | Photo brute | Packshot pro, fond blanc | DALL-E / Stable Diffusion + remove.bg |
+| **ExportPricer** | Coût unitaire, qty, destination | EXW/FOB/CFR/CIF + marge | `ExportQuotation::calculate()` + IA marché |
+| **ComplianceChecker** | Produit + destination | Alertes (halal, phytosanitaire, embargo) | Règles + GPT |
+| **Publisher** | Fiche validée | `Item` publié module ecommerce export | Laravel |
+
+### Nouveau module Laravel suggéré : `Modules/ExportAI/`
+
+```
+Modules/ExportAI/
+├── Services/
+│   ├── AgentOrchestrator.php      # Coordonne le pipeline
+│   ├── ProductWriterService.php   # Étend ProductAutoFillService
+│   ├── ImageStudioService.php     # Génération/édition images
+│   ├── ExportPricingService.php   # Fusion IA + ExportQuotation
+│   └── ComplianceService.php
+├── Jobs/
+│   ├── ProcessProductImages.php
+│   └── GenerateExportPricing.php
+└── routes/api/v1/agent.php
+```
+
+---
+
+## 5. Moteur de pricing export
+
+Vous avez déjà la base dans `ExportQuotation` :
+
+```43:71:c:\Users\Roqia\Downloads\public_html(2)\admin\app\Models\ExportQuotation.php
+    public static function calculate(array $d): array
+    {
+        // EXW → FOB → CFR → CIF
+        // + marge + frais QDIA
+```
+
+**Extension proposée**
+
+```
+Prix final = ExportQuotation::calculate()
+           + suggestion IA (benchmark marché destination)
+           + ajustement saisonnier
+           + taux de change (DZD → USD/EUR)
+```
+
+| Niveau de prix affiché | Usage |
+|------------------------|-------|
+| **Prix indicatif FOB** | Visible sur la fiche (comme Alibaba) |
+| **Prix exact** | Après RFQ avec quantité et destination réelles |
+| **Fourchette** | Si données incomplètes (ex. "3,80 – 4,50 USD/kg") |
+
+L’IA enrichit les inputs (fret estimé, frais port Alger/Oran/Annaba) ; le calcul reste **déterministe** pour la traçabilité commerciale.
+
+---
+
+## 6. Modèle de données — extensions minimales
+
+Nouvelles tables/colonnes à prévoir (sans toucher au code pour l’instant) :
+
+```
+export_product_profiles     # Extension Item pour l'export
+  - item_id
+  - origin_wilaya
+  - certifications (JSON: halal, bio, ISO...)
+  - moq, moq_unit
+  - default_incoterm
+  - port_depart
+  - price_exw, price_fob, price_cfr, price_cif
+  - target_markets (JSON: ["FR","DE","US"])
+  - export_status (draft|pending|published|suspended)
+
+export_rfq                  # Demandes acheteurs
+  - buyer_id, item_id, quantity, destination_country
+  - requested_incoterm, message, status
+
+export_buyers               # Profil acheteur international
+  - user_id, company_name, country, import_license
+
+product_images_studio       # Versions images générées
+  - item_id, original_url, processed_url, variant_type
+```
+
+**Lien avec l’existant** : `Item` reste la source de vérité catalogue ; `export_product_profiles` = couche export (pattern propre, sans casser 6amMart).
+
+---
+
+## 7. Stack technique recommandée par interface
+
+| Interface | Technologie | Pourquoi |
+|-----------|-------------|----------|
+| Portail acheteur | **Next.js 14** (SSR/SEO) | Référencement international, multilingue, perf |
+| App producteur | **Flutter** (nouveau projet) | Réutilise l’écosystème QDIA, mobile + web |
+| Studio images | **React + Fabric.js** ou **Vue + Konva** | Édition canvas, intégration APIs IA |
+| Backend | **Laravel 10 existant** | API, auth, catalogue, cotations |
+| Agent IA | **Laravel Jobs + OpenAI** | Async, logs, quotas par vendeur |
+| Stockage images | **AWS S3** (déjà configuré) | CDN global |
+| Recherche catalogue | **Meilisearch** ou **Algolia** | Filtres pays, MOQ, Incoterm |
+
+---
+
+## 8. Flux métier complet (style Alibaba)
+
+```mermaid
+flowchart LR
+    A[Producteur upload] --> B[Agent IA]
+    B --> C[Studio Images]
+    C --> D[Pricing Export]
+    D --> E[Validation Admin]
+    E --> F[Catalogue Export]
+    F --> G[Acheteur cherche]
+    G --> H[RFQ]
+    H --> I[Cotation ExportQuotation]
+    I --> J[Négociation Chat]
+    J --> K[Commande + Paiement]
+    K --> L[Logistique + Suivi]
+```
+
+---
+
+## 9. Phases de déploiement suggérées
+
+### Phase 1 — Fondations (4–6 semaines)
+- Module `export` : routes manquantes, `export_product_profiles`
+- Portail acheteur MVP (catalogue + fiches produit)
+- Extension agent IA : fiche produit + pricing FOB basique
+- Compléter persistance import producteurs (aujourd’hui en session)
+
+### Phase 2 — Studio & Agent complet (4–6 semaines)
+- Studio images (détourage, watermark, génération IA)
+- Pipeline agent : photo → fiche → prix → publication
+- RFQ acheteur + lien avec `ExportQuotation`
+- KYC producteurs
+
+### Phase 3 — Marketplace mature (6–8 semaines)
+- Recherche avancée, filtres pays/Incoterm
+- Messagerie B2B, négociation devis
+- Paiements internationaux (acompte, escrow optionnel)
+- Analytics admin, API fret (optionnel)
+
+### Phase 4 — Scale
+- Apps mobiles producteur/acheteur
+- Multi-devises, multi-langues étendu
+- Intégration douanes / documents export
+
+---
+
+## 10. Points d’attention
+
+| Sujet | Recommandation |
+|-------|----------------|
+| **Séparation B2C local / Export** | Nouveau module `export` ou flag `is_export` sur `Item` |
+| **Flutter actuel** | Garder pour livraison locale ; nouveau front export séparé |
+| **Coûts IA** | Quotas par vendeur (déjà `image_wise_ai_use_count`) |
+| **Conformité** | Validation humaine avant publication (admin) |
+| **SEO international** | Portail Next.js avec URLs `/en/products/olive-oil-algeria` |
+| **Sécurité** | KYC producteurs, modération images IA |
+
+---
+
+## 11. Résumé visuel de l’écosystème
+
+```
+                    ┌─────────────────┐
+                    │   QDIA Export   │
+                    │   (Marketplace) │
+                    └────────┬────────┘
+           ┌─────────────────┼─────────────────┐
+           ▼                 ▼                 ▼
+   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+   │   Acheteur   │  │  Producteur  │  │    Admin     │
+   │  (Web SEO)   │  │ (Flutter App)│  │  (Laravel)   │
+   └──────┬───────┘  └──────┬───────┘  └──────┬───────┘
+          │                 │                 │
+          └────────────┬────┴─────────────────┘
+                       ▼
+              ┌────────────────┐
+              │  API Laravel   │
+              │  + Agent IA    │
+              │  + Studio IMG  │
+              └────────────────┘
+```
+
+---
+
+## Prochaine étape
+
+Avant d’écrire du code, il serait utile de valider avec vous :
+
+1. **Portail acheteur** : Next.js (SEO) ou Flutter Web (cohérence avec l’existant) ?
+2. **Studio images** : intégré dans l’app producteur ou site séparé `studio.qdiadz.com` ?
+3. **Premier marché cible** : France, Afrique, Golfe, ou tous dès le MVP ?
+4. **Phase 1** : catalogue + agent pricing, ou studio images en priorité ?
+
+Dites-moi vos choix et je pourrai enchaîner avec un plan technique détaillé (schéma API, maquettes écran par écran, ou début d’implémentation Phase 1).

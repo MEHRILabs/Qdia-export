@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "QDIA Export"
+version = "1.0.0"
+id = "artifacts/qdia-export"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25180
+
+[services.development]
+run = "pnpm --filter @workspace/qdia-export run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/qdia-export", "run", "build" ]
+publicDir = "artifacts/qdia-export/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25180"
+BASE_PATH = "/"

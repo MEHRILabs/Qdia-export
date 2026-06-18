@@ -1,0 +1,50 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "X1-BnVMgxMx7C8228Ushc"
+uri = "file://artifacts/qdia-export/public/logo.png"
+type = "image"
+title = "QDIA Export logo"
+
+[[generated]]
+id = "hpQtll__hX3r_f1H0zjF0"
+uri = "file://artifacts/qdia-export/public/dates.png"
+type = "image"
+title = "Deglet Nour dates packshot"
+
+[[generated]]
+id = "t9Ta0lg6ZvABcwfqz9hWb"
+uri = "file://artifacts/qdia-export/public/olive-oil.png"
+type = "image"
+title = "Olive oil bottle packshot"
+
+[[generated]]
+id = "LV18y6L6bm0grExkUWnD_"
+uri = "file://artifacts/qdia-export/public/honey.png"
+type = "image"
+title = "Saharan honey jar packshot"
+
+[[generated]]
+id = "dbTjSB48bPN6fgBVAdkEU"
+uri = "file://artifacts/qdia-export/public/couscous.png"
+type = "image"
+title = "Couscous packshot"
+
+[[generated]]
+id = "ChoS-OmApUy7Nw1KBgkXC"
+uri = "file://artifacts/qdia-export/public/rug.png"
+type = "image"
+title = "Berber rug flat lay"
+
+[[generated]]
+id = "m6sxRkYwGYyEWFAAYXPN2"
+uri = "file://artifacts/qdia-export/public/pottery.png"
+type = "image"
+title = "Hammam pottery packshot"
+
+[[generated]]
+id = "eQb3RpLeYt_n9oz2cTtbV"
+uri = "file://artifacts/qdia-export/public/hero.png"
+type = "image"
+title = "Hero banner cargo port"
