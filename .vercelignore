@@ -5,9 +5,15 @@ artifacts/qdia_mobile
 data
 artifacts/api-server/uploads
 artifacts/uploads
+artifacts/api-server/dist
+artifacts/qdia-export/dist
 .env
 .env.local
 .env.*.local
 *.log
 .cursor
 terminals
+**/*.xlsx
+RAPPORT*.md
+GUIDE*.md
+attached_assets
