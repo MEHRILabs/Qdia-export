@@ -7,7 +7,16 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+function createPool() {
+  const url = process.env.DATABASE_URL ?? "";
+  const remote = /neon\.tech|supabase|vercel-storage|sslmode=require/i.test(url);
+  return new Pool({
+    connectionString: url,
+    ...(remote ? { ssl: { rejectUnauthorized: false } } : {}),
+  });
+}
+
+const pool = createPool();
 
 const CATEGORIES = [
   ["Agriculture & Food", "agriculture-food", "Wheat"],
@@ -140,12 +149,15 @@ async function seed() {
       ["Émirats arabes unis", "AE", "Handicrafts & Decor", "6912", 5, 5, 1100, 650, "Poterie — emballage renforcé"],
       ["Algérie (export)", "DZ", "Agriculture & Food", "—", 0, 0, 600, 500, "Dédouanement export — DAU + certificat origine"],
     ];
-    for (const c of CUSTOMS) {
-      await client.query(
-        `INSERT INTO customs_tariffs (destination_country, destination_code, product_category, hs_code, duty_rate_pct, vat_rate_pct, customs_fee_dzd, documentation_fee_dzd, notes)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-        c,
-      );
+    const customsExisting = await client.query(`SELECT id FROM customs_tariffs LIMIT 1`);
+    if (customsExisting.rows.length === 0) {
+      for (const c of CUSTOMS) {
+        await client.query(
+          `INSERT INTO customs_tariffs (destination_country, destination_code, product_category, hs_code, duty_rate_pct, vat_rate_pct, customs_fee_dzd, documentation_fee_dzd, notes)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+          c,
+        );
+      }
     }
 
     const demoHash = "$2b$10$Dxhy/Kp8zT7ASr2Zs5mFV.lFjiG7kScFkQJGXe7ItcejVTzT0Yo4a";
