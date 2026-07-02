@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "corepack enable && pnpm install --no-frozen-lockfile",
+  "buildCommand": "pnpm -C artifacts/api-server build && pnpm -C lib/db run push && pnpm run seed && BASE_PATH=/ VITE_API_URL= pnpm -C artifacts/qdia-export build",
+  "outputDirectory": "artifacts/qdia-export/dist/public",
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api" },
+    { "source": "/uploads/(.*)", "destination": "/api" },
+    { "source": "/((?!api/)(?!uploads/)(?!assets/)(?!.*\\..*).*)", "destination": "/index.html" }
+  ],
+  "functions": {
+    "api/index.ts": {
+      "maxDuration": 60,
+      "memory": 1024
+    }
+  }
+}

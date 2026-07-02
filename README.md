@@ -18,25 +18,51 @@ copy .env.example .env
 - API : http://localhost:8080  
 - Comptes test : `supplier@qdiadz.com` / `demo1234` · `admin@qdiadz.com` / `demo1234`
 
-## Hébergement Render (gratuit)
+## Hébergement Vercel (recommandé)
 
-1. [render.com](https://render.com) → **New** → **Blueprint**
-2. Connectez le repo `MEHRILabs/Qdia-export`
-3. Le fichier `render.yaml` crée API + PostgreSQL
-4. Ajoutez les secrets dans le dashboard Render :
-   - `GROQ_API_KEY` (chat IA)
-   - `ANTHROPIC_API_KEY` (optionnel, visuels SVG)
-   - `GOOGLE_CLIENT_ID` (connexion Gmail)
-   - `JWT_SECRET` (généré automatiquement)
-5. Après déploiement, exécutez les migrations DB (Render Shell) :
+### 1. Base PostgreSQL (gratuit)
 
-```bash
-cd artifacts/api-server
-pnpm -C ../../lib/db run push
-pnpm -C ../.. run seed
+Créez une base sur [Neon](https://neon.tech) ou [Supabase](https://supabase.com) et copiez l’URL :
+
+```
+postgresql://user:pass@host/db?sslmode=require
 ```
 
-L’app est servie en mode `SERVE_WEB=1` (API + site sur le même port).
+### 2. Importer sur Vercel
+
+1. [vercel.com](https://vercel.com) → **Add New** → **Project**
+2. Importez `MEHRILabs/Qdia-export`
+3. Framework : **Other** (détecté via `vercel.json`)
+4. Ne changez rien — `vercel.json` configure tout
+
+### 3. Variables d’environnement (Vercel → Settings → Environment)
+
+| Variable | Obligatoire |
+|----------|-------------|
+| `DATABASE_URL` | Oui (Neon / Supabase) |
+| `JWT_SECRET` | Oui (chaîne longue aléatoire) |
+| `GROQ_API_KEY` | Oui (chat IA) |
+| `GOOGLE_CLIENT_ID` | Oui (connexion Gmail) |
+| `VITE_GOOGLE_CLIENT_ID` | Même valeur que `GOOGLE_CLIENT_ID` |
+| `ANTHROPIC_API_KEY` | Optionnel |
+| `OPENAI_API_KEY` | Optionnel |
+
+### 4. Déployer
+
+Cliquez **Deploy**. Le build crée les tables + comptes test automatiquement.
+
+### 5. Google OAuth
+
+Dans Google Cloud → **Origines JavaScript autorisées**, ajoutez :
+
+```
+https://votre-projet.vercel.app
+```
+
+### Limites Vercel (plan gratuit)
+
+- Pas de WebSocket temps réel
+- Uploads photos : stockage temporaire (préférer Neon + URL externes pour prod)
 
 ## Structure
 
@@ -44,6 +70,6 @@ L’app est servie en mode `SERVE_WEB=1` (API + site sur le même port).
 |---------|------|
 | `artifacts/api-server` | API Node/Express |
 | `artifacts/qdia-export` | Site React/Vite |
-| `artifacts/qdia_mobile` | App Flutter |
+| `api/index.ts` | Handler serverless Vercel |
+| `vercel.json` | Config déploiement Vercel |
 | `lib/db` | Schéma PostgreSQL (Drizzle) |
-| `render.yaml` | Config déploiement Render |
