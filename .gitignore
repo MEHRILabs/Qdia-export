@@ -47,3 +47,13 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Environment (secrets)
+.env
+.env.local
+.env.*.local
+artifacts/qdia-export/.env
+
+# Uploads produits (générés en prod, pas versionnés)
+artifacts/api-server/uploads/
+artifacts/uploads/

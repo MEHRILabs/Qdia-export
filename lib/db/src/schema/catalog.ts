@@ -1,0 +1,45 @@
+import { pgTable, serial, text, real, integer, timestamp, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
+
+/** Master Data Article — variantes catalogue (19 735 lignes) avant publication marketplace */
+export const catalogVariantsTable = pgTable("catalog_variants", {
+  id: serial("id").primaryKey(),
+  masterId: text("master_id").notNull(),
+  parentProductId: text("parent_product_id"),
+  brandCode: text("brand_code"),
+  brandName: text("brand_name"),
+  categoryCode: text("category_code"),
+  categoryName: text("category_name").notNull(),
+  subcategory: text("subcategory"),
+  name: text("name").notNull(),
+  description: text("description"),
+  ean: text("ean"),
+  priceRetailDzd: real("price_retail_dzd"),
+  priceFobUsd: real("price_fob_usd"),
+  moq: real("moq"),
+  moqUnit: text("moq_unit"),
+  hsCode: text("hs_code"),
+  weightKg: real("weight_kg"),
+  volumeL: real("volume_l"),
+  unitsPerCarton: real("units_per_carton"),
+  cartonsPerPallet: real("cartons_per_pallet"),
+  cartonLengthCm: real("carton_length_cm"),
+  cartonWidthCm: real("carton_width_cm"),
+  cartonHeightCm: real("carton_height_cm"),
+  weightCartonKg: real("weight_carton_kg"),
+  weightPalletKg: real("weight_pallet_kg"),
+  subsidyStatus: text("subsidy_status").notNull().default("N"),
+  phytoLevel: text("phyto_level").notNull().default("X"),
+  exportStatus: text("export_status").notNull().default("a_valider"),
+  imageUrl: text("image_url"),
+  packagingNotes: text("packaging_notes"),
+  aiEnrichedAt: timestamp("ai_enriched_at", { withTimezone: true }),
+  aiNotes: text("ai_notes"),
+  publishedProductId: integer("published_product_id"),
+  meta: jsonb("meta").$type<Record<string, unknown>>().default({}),
+  importBatch: text("import_batch"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [uniqueIndex("catalog_variants_master_id_idx").on(t.masterId)]);
+
+export type CatalogVariant = typeof catalogVariantsTable.$inferSelect;
+export type InsertCatalogVariant = typeof catalogVariantsTable.$inferInsert;

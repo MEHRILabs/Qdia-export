@@ -1,137 +1,204 @@
-import React from "react";
 import { Link } from "wouter";
+import { motion, useInView } from "framer-motion";
+import { useRef, type ReactNode } from "react";
 import { useListFeaturedProducts } from "@workspace/api-client-react";
+import { BuyerHeader, BuyerFooter } from "@/components/BuyerHeader";
+import { PortsCustomsPanel } from "@/components/PortsCustomsPanel";
+import { HomeHero } from "@/components/HomeHero";
+import { ExportWorkflow } from "@/components/ExportWorkflow";
+import { ProductImage } from "@/components/ProductImage";
+import { DEMO_PRODUCTS } from "@/lib/demo-products";
+import { HOME_CATEGORIES } from "@/lib/nav";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ShieldCheck, Award, Ship, Camera, ArrowRight } from "lucide-react";
+import { useI18n } from "@/contexts/I18nContext";
+
+const DEMO_DISPLAY = DEMO_PRODUCTS.filter(p => p.is_featured).length
+  ? DEMO_PRODUCTS.filter(p => p.is_featured)
+  : DEMO_PRODUCTS.slice(0, 6);
+
+const TRUST_ITEMS = [
+  { icon: ShieldCheck, title: "Fournisseurs vérifiés", desc: "Audit QDIA" },
+  { icon: Award, title: "Certifications", desc: "ISO · Bio · Halal" },
+  { icon: Ship, title: "Incoterms", desc: "EXW → CIF" },
+  { icon: Camera, title: "Studio IA", desc: "Photos export pro" },
+];
+
+function AnimatedSection({ children, className = "", id }: { children: ReactNode; className?: string; id?: string }) {
+  const ref = useRef(null);
+  const inView = useInView(ref, { once: true, margin: "-60px" });
+  return (
+    <motion.div
+      ref={ref}
+      id={id}
+      initial={{ opacity: 0, y: 32 }}
+      animate={inView ? { opacity: 1, y: 0 } : {}}
+      transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+}
 
 export default function Home() {
+  const { tr } = useI18n();
   const { data: featuredProducts, isLoading } = useListFeaturedProducts();
+  const products = featuredProducts?.length ? featuredProducts : DEMO_DISPLAY;
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <header className="border-b bg-card h-16 flex items-center px-6 shrink-0 z-10 sticky top-0">
-        <Link href="/" className="font-bold text-xl flex items-center gap-2 text-primary">
-          <img src="/public/logo.png" alt="QDIA Export" className="h-8 w-8 object-contain" />
-          QDIA Export
-        </Link>
-        <div className="ml-auto flex items-center gap-4">
-          <Link href="/products" className="text-sm font-medium hover:text-primary transition-colors">Catalog</Link>
-          <Link href="/rfq" className="text-sm font-medium hover:text-primary transition-colors">Post RFQ</Link>
-          <Link href="/supplier" className="text-sm font-medium hover:text-primary transition-colors">Supplier Center</Link>
-        </div>
-      </header>
+    <div className="min-h-screen qdia-buyer-page flex flex-col">
+      <BuyerHeader />
 
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar */}
-        <aside className="w-64 border-r bg-card hidden md:block overflow-y-auto">
-          <div className="p-4">
-            <h3 className="font-semibold text-sm text-muted-foreground mb-4 uppercase tracking-wider">Categories</h3>
-            <nav className="space-y-1">
-              {['Agriculture & Food', 'Energy & Chemicals', 'Textiles & Apparel', 'Construction Materials', 'Handicrafts & Decor'].map((cat) => (
-                <Link key={cat} href={`/products?category=${encodeURIComponent(cat)}`} className="block px-3 py-2 text-sm rounded-md hover:bg-muted transition-colors font-medium">
-                  {cat}
-                </Link>
-              ))}
-            </nav>
-          </div>
-        </aside>
+      <main className="flex-1">
+        <HomeHero />
 
-        {/* Main Content */}
-        <main className="flex-1 overflow-y-auto">
-          {/* Hero */}
-          <section className="relative bg-muted">
-            <div className="absolute inset-0 z-0">
-              <img src="/public/hero.png" alt="Cargo Port" className="w-full h-full object-cover opacity-20" />
-              <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-transparent" />
-            </div>
-            <div className="relative z-10 p-8 md:p-16 lg:p-24 max-w-4xl">
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-foreground mb-6">
-                Connect with Premium <span className="text-primary">Algerian Exporters</span>
-              </h1>
-              <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl leading-relaxed">
-                Source high-quality products directly from verified manufacturers. From premium Deglet Nour dates to industrial materials, access Algeria's growing export market.
-              </p>
-              <div className="flex flex-wrap gap-4">
-                <Link href="/rfq" className="inline-flex h-11 items-center justify-center rounded-md bg-primary px-8 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50">
-                  Post your RFQ
-                </Link>
-                <Button variant="outline" size="lg" className="h-11">
-                  Learn How it Works
-                </Button>
-              </div>
-            </div>
-          </section>
-
-          {/* Trust Bar */}
-          <section className="border-y bg-card">
-            <div className="flex items-center justify-between p-6 max-w-6xl mx-auto flex-wrap gap-6">
-              {[
-                { title: "Verified Suppliers", desc: "Strict vetting process" },
-                { title: "Certified Quality", desc: "ISO, Bio, Halal" },
-                { title: "Secure Payments", desc: "Protected transactions" },
-                { title: "Logistics Support", desc: "End-to-end shipping" }
-              ].map((item) => (
-                <div key={item.title} className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                    <div className="h-4 w-4 bg-primary rounded-full" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-sm">{item.title}</p>
-                    <p className="text-xs text-muted-foreground">{item.desc}</p>
-                  </div>
+        {/* Trust bar */}
+        <section className="bg-white border-b border-[#E5E7EB] relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-[#E8F2FB]/50 via-transparent to-[#FFF8E1]/40 pointer-events-none" />
+          <div className="max-w-7xl mx-auto px-6 py-10 grid grid-cols-2 lg:grid-cols-4 gap-6 relative">
+            {TRUST_ITEMS.map(({ icon: Icon, title, desc }, i) => (
+              <motion.div
+                key={title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1, duration: 0.45 }}
+                whileHover={{ y: -4, transition: { duration: 0.2 } }}
+                className="flex items-start gap-3 group cursor-default"
+              >
+                <div className="h-11 w-11 rounded-xl bg-[#E8F2FB] flex items-center justify-center shrink-0 group-hover:bg-[#0461A5] transition-colors duration-300">
+                  <Icon className="h-5 w-5 text-[#0461A5] group-hover:text-white transition-colors duration-300" />
                 </div>
-              ))}
-            </div>
-          </section>
+                <div>
+                  <p className="font-semibold text-sm text-[#1A1A2E]">{title}</p>
+                  <p className="text-xs text-[#9CA3AF] mt-0.5">{desc}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </section>
 
-          {/* Product Grid */}
-          <section className="p-8 md:p-12 max-w-7xl mx-auto">
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl font-bold">Premium Algerian Exports</h2>
-              <Link href="/products" className="text-sm font-medium text-primary hover:underline">
-                View All Products →
-              </Link>
+        {/* Categories */}
+        <AnimatedSection className="max-w-7xl mx-auto px-6 py-12">
+          <div className="flex items-end justify-between mb-6 gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-[#0461A5] mb-1">{tr("header.explore_catalog")}</p>
+              <h2 className="text-2xl font-black text-[#1A1A2E]">{tr("home.sectors_title")}</h2>
             </div>
+            <Link href="/products" className="text-sm font-semibold text-[#0461A5] hover:underline shrink-0 flex items-center gap-1">
+              {tr("nav.catalog")} <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            {HOME_CATEGORIES.map(({ name, slug, emoji }, i) => (
+              <motion.div
+                key={slug}
+                initial={{ opacity: 0, scale: 0.9 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.05, duration: 0.35 }}
+                whileHover={{ scale: 1.04, y: -2 }}
+              >
+                <Link
+                  href={`/products?category=${encodeURIComponent(slug)}`}
+                  className="inline-flex items-center gap-2 px-5 py-3 bg-white border border-[#E5E7EB] rounded-2xl text-sm font-semibold text-[#334257] hover:border-[#0461A5] hover:text-[#0461A5] hover:shadow-md transition-all duration-200"
+                >
+                  <span className="text-lg">{emoji}</span> {name}
+                </Link>
+              </motion.div>
+            ))}
+          </div>
+        </AnimatedSection>
 
-            {isLoading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {[...Array(8)].map((_, i) => (
-                  <div key={i} className="space-y-4">
-                    <Skeleton className="h-48 w-full rounded-lg" />
-                    <Skeleton className="h-4 w-3/4" />
-                    <Skeleton className="h-4 w-1/2" />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {featuredProducts?.map((product) => (
-                  <Link key={product.id} href={`/products/${product.id}`} className="group relative block overflow-hidden rounded-lg border bg-card p-4 hover:shadow-md transition-shadow">
-                    <div className="aspect-square bg-muted rounded-md mb-4 overflow-hidden relative">
-                      {product.image_url ? (
-                        <img src={product.image_url} alt={product.name} className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">No image</div>
-                      )}
-                    </div>
-                    <h3 className="font-semibold line-clamp-1 mb-1" title={product.name}>{product.name}</h3>
-                    <p className="text-xs text-muted-foreground line-clamp-1 mb-3">{product.category}</p>
-                    <div className="flex items-end justify-between mt-auto">
-                      <div>
-                        <p className="text-lg font-bold text-primary">${product.prices?.fob?.toLocaleString() ?? '--'} <span className="text-xs text-muted-foreground font-normal">FOB</span></p>
-                        <p className="text-xs text-muted-foreground">MOQ: {product.moq} {product.moq_unit}</p>
+        <ExportWorkflow />
+
+        {/* Products */}
+        <AnimatedSection className="max-w-7xl mx-auto px-6 pb-20 pt-4">
+          <div className="flex items-end justify-between mb-8 gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-[#0461A5] mb-1">Sélection premium</p>
+              <h2 className="text-2xl md:text-3xl font-black text-[#1A1A2E]">{tr("home.featured_title")}</h2>
+              <p className="text-sm text-[#9CA3AF] mt-1">Made in Algeria · Cliquez pour voir la fiche & commander</p>
+            </div>
+            <Button variant="outline" className="border-[#0461A5] text-[#0461A5] shrink-0 hidden sm:flex" asChild>
+              <Link href="/products">Tout voir <ArrowRight className="h-4 w-4 ml-1" /></Link>
+            </Button>
+          </div>
+
+          {isLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-[340px] rounded-xl" />)}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {products.slice(0, 6).map((product, i) => (
+                <motion.div
+                  key={product.id}
+                  initial={{ opacity: 0, y: 24 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.08, duration: 0.45 }}
+                >
+                  <Link href={`/products/${product.id}`} className="qdia-product-card group overflow-hidden block">
+                    <div className="aspect-[4/3] overflow-hidden relative bg-[#F8FAFC]">
+                      <ProductImage
+                        src={product.image_url}
+                        alt={product.name}
+                        className="w-full h-full group-hover:scale-110 transition-transform duration-700"
+                      />
+                      <span className="absolute top-3 left-3 badge-algeria text-[10px]">🇩🇿 Algeria</span>
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#073B74]/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
+                        <span className="text-white text-sm font-bold flex items-center gap-1">
+                          Voir & commander <ArrowRight className="h-4 w-4" />
+                        </span>
                       </div>
-                      <div className="flex items-center gap-1 bg-secondary/10 text-secondary-foreground px-2 py-1 rounded text-xs font-medium border border-secondary/20">
-                        DZ <span className="sr-only">Algeria</span>
+                    </div>
+                    <div className="p-4">
+                      <h3 className="font-bold text-[#1A1A2E] text-sm line-clamp-2 leading-snug mb-2 min-h-[2.5rem] group-hover:text-[#0461A5] transition-colors">
+                        {product.name}
+                      </h3>
+                      <p className="text-xl font-black text-[#0461A5]">
+                        ${product.prices?.fob?.toLocaleString() ?? "—"}
+                        <span className="text-xs font-normal text-[#9CA3AF] ml-1">FOB</span>
+                      </p>
+                      <p className="text-xs text-[#9CA3AF] mt-1">MOQ {product.moq} {product.moq_unit}</p>
+                      <div className="mt-3 flex items-center gap-2">
+                        <Badge variant="incoterm" className="text-[10px]">FOB</Badge>
+                        <span className="text-[11px] text-[#9CA3AF]">{product.port_depart}</span>
                       </div>
                     </div>
                   </Link>
-                ))}
-              </div>
-            )}
-          </section>
-        </main>
-      </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-10 text-center sm:hidden">
+            <Button variant="gold" className="font-bold" asChild>
+              <Link href="/products">Voir tout le catalogue</Link>
+            </Button>
+          </div>
+        </AnimatedSection>
+
+        <AnimatedSection id="emplacement" className="py-10 md:py-16 px-6 md:px-8 max-w-7xl mx-auto scroll-mt-20">
+          <div className="text-center mb-8">
+            <p className="text-xs font-bold uppercase tracking-widest text-[#0461A5] mb-1">Logistique export</p>
+            <h2 className="text-2xl md:text-3xl font-black text-[#1A1A2E]">{tr("home.ports_title")}</h2>
+            <p className="text-sm text-[#656566] mt-2 max-w-xl mx-auto">
+              Ports algériens (Alger, Oran, Béjaïa…) et destinations France 🇫🇷 · UAE 🇦🇪 — calcul douanier intégré
+            </p>
+          </div>
+          <div className="max-w-2xl mx-auto">
+            <PortsCustomsPanel productCategory="Agriculture & Food" portDepart="Béjaïa" fobPrice={51000} />
+          </div>
+        </AnimatedSection>
+
+      </main>
+
+      <BuyerFooter />
     </div>
   );
 }

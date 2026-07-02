@@ -1,134 +1,191 @@
-import React, { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link } from "wouter";
-import { useListProducts, useListCategories } from "@workspace/api-client-react";
+import { useListCategories } from "@workspace/api-client-react";
+import { useQuery } from "@tanstack/react-query";
+import { BuyerHeader, BuyerFooter } from "@/components/BuyerHeader";
+import { AdvancedCatalogFilters, DEFAULT_CATALOG_FILTERS, type CatalogFilters } from "@/components/AdvancedCatalogFilters";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search } from "lucide-react";
+import { Search, Plus, Sparkles, FileDown } from "lucide-react";
+import { ProductImage } from "@/components/ProductImage";
+import { DEMO_PRODUCTS, filterDemoProducts } from "@/lib/demo-products";
+import { platformApi } from "@/lib/platform-api";
+import { useI18n } from "@/contexts/I18nContext";
 
 export default function Catalog() {
   const [search, setSearch] = useState("");
-  const [categoryId, setCategoryId] = useState<number | null>(null);
-  const [incoterm, setIncoterm] = useState<string>("ALL");
+  const [categoryName, setCategoryName] = useState<string>("ALL");
+  const [filters, setFilters] = useState<CatalogFilters>(DEFAULT_CATALOG_FILTERS);
+  const [showFilters, setShowFilters] = useState(false);
+
+  useEffect(() => {
+    const cat = new URLSearchParams(window.location.search).get("category");
+    if (cat) setCategoryName(cat);
+  }, []);
 
   const { data: categories } = useListCategories();
-  const { data: productList, isLoading } = useListProducts({
-    search: search || undefined,
-    category_id: categoryId,
-    incoterm: incoterm === "ALL" ? undefined : incoterm,
-    limit: 20
+  const { data: productCategories } = useQuery({
+    queryKey: ["product-categories"],
+    queryFn: () => platformApi.getProductCategories(),
+  });
+  const categoryId = categoryName !== "ALL"
+    ? categories?.find(c => c.name === categoryName)?.id ?? null
+    : null;
+
+  const incoterm = filters.incoterm || undefined;
+
+  const { data: productList, isLoading } = useQuery({
+    queryKey: ["catalog-products", search, categoryName, filters],
+    queryFn: () => platformApi.listProductsFiltered({
+      search: search || undefined,
+      category: categoryName !== "ALL" ? categoryName : undefined,
+      category_id: categoryId ?? undefined,
+      incoterm,
+      moq_min: filters.moqMin ? parseFloat(filters.moqMin) : undefined,
+      moq_max: filters.moqMax ? parseFloat(filters.moqMax) : undefined,
+      price_min: filters.priceMin ? parseFloat(filters.priceMin) : undefined,
+      price_max: filters.priceMax ? parseFloat(filters.priceMax) : undefined,
+      origin_wilaya: filters.originWilaya || undefined,
+      supplier_id: filters.supplierId ? parseInt(filters.supplierId, 10) : undefined,
+      limit: 50,
+    }),
   });
 
+  const products = useMemo(() => {
+    const api = productList?.data ?? [];
+    if (api.length > 0) {
+      return api as unknown as typeof DEMO_PRODUCTS;
+    }
+    return filterDemoProducts(
+      search || undefined,
+      categoryName !== "ALL" ? categoryName : undefined,
+    );
+  }, [productList, search, categoryName]);
+
+  const usingDemo = !(productList?.data?.length);
+
+  const categoryOptions = useMemo(() => {
+    const fromApi = productCategories?.data?.map(c => c.name) ?? [];
+    const fromDb = categories?.map(c => c.name) ?? [];
+    const merged = [...new Set([...fromApi, ...fromDb])].sort();
+    if (merged.length > 0) return merged;
+    if (usingDemo) {
+      return DEMO_PRODUCTS.map(p => p.category).filter((v, i, a) => a.indexOf(v) === i);
+    }
+    return merged;
+  }, [productCategories, categories, usingDemo]);
+  const { tr } = useI18n();
+
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <header className="border-b bg-card h-16 flex items-center px-6 shrink-0 z-10 sticky top-0">
-        <Link href="/" className="font-bold text-xl flex items-center gap-2 text-primary">
-          <img src="/public/logo.png" alt="QDIA Export" className="h-8 w-8 object-contain" />
-          QDIA Export
-        </Link>
-        <div className="ml-auto flex items-center gap-4">
-          <Link href="/products" className="text-sm font-medium hover:text-primary transition-colors text-primary">Catalog</Link>
-          <Link href="/rfq" className="text-sm font-medium hover:text-primary transition-colors">Post RFQ</Link>
-          <Link href="/supplier" className="text-sm font-medium hover:text-primary transition-colors">Supplier Center</Link>
-        </div>
-      </header>
+    <div className="min-h-screen qdia-buyer-page flex flex-col">
+      <BuyerHeader />
 
       <main className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-4">Product Catalog</h1>
-          
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input 
-                placeholder="Search premium Algerian products..." 
-                className="pl-9 h-11"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-            <div className="flex gap-4">
-              <Select value={categoryId?.toString() ?? "ALL"} onValueChange={(v) => setCategoryId(v === "ALL" ? null : parseInt(v))}>
-                <SelectTrigger className="w-[200px] h-11">
-                  <SelectValue placeholder="All Categories" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Categories</SelectItem>
-                  {categories?.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              
-              <Select value={incoterm} onValueChange={setIncoterm}>
-                <SelectTrigger className="w-[150px] h-11">
-                  <SelectValue placeholder="Incoterm" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Incoterms</SelectItem>
-                  <SelectItem value="FOB">FOB</SelectItem>
-                  <SelectItem value="EXW">EXW</SelectItem>
-                  <SelectItem value="CIF">CIF</SelectItem>
-                  <SelectItem value="CFR">CFR</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+        <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <h1 className="text-[28px] font-black text-[#1A1A2E] mb-1">{tr("catalog.title")}</h1>
+            <p className="text-sm text-[#656566]">
+              {tr("catalog.subtitle")} 🇩🇿
+              {usingDemo && !isLoading && (
+                <span className="ml-2 text-[#0461A5]">{tr("catalog.demo_hint")}</span>
+              )}
+            </p>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <Button variant="outline" className="font-bold gap-2" onClick={() => window.open(platformApi.catalogPdfUrl(), "_blank")}>
+                <FileDown className="h-4 w-4" /> {tr("catalog.pdf")}
+              </Button>
+            <Button variant="gold" className="font-bold gap-2" asChild>
+            <Link href="/agent-ia?new=1">
+              <Plus className="h-4 w-4" /> {tr("supplier.add_product")}
+            </Link>
+            </Button>
           </div>
         </div>
 
-        {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {[...Array(8)].map((_, i) => (
-              <div key={i} className="space-y-4">
-                <Skeleton className="h-56 w-full rounded-lg" />
-                <Skeleton className="h-4 w-3/4" />
-                <Skeleton className="h-4 w-1/2" />
-              </div>
-            ))}
+        <div className="flex flex-col md:flex-row gap-4 mb-8">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-[#9CA3AF]" />
+            <Input
+              placeholder={tr("catalog.search_placeholder")}
+              className="pl-9 h-11"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          <div className="flex gap-3 flex-wrap">
+            <Select value={categoryName} onValueChange={setCategoryName}>
+              <SelectTrigger className="w-[200px] h-11"><SelectValue placeholder={tr("catalog.categories_placeholder")} /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">{tr("catalog.all_categories")}</SelectItem>
+                {categoryOptions.map(cat => (
+                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="outline" className="h-11" onClick={() => setShowFilters(v => !v)}>
+              {tr("filters.title")}
+            </Button>
+          </div>
+        </div>
+
+        {showFilters && (
+          <div className="mb-8">
+            <AdvancedCatalogFilters
+              filters={filters}
+              onChange={setFilters}
+              onReset={() => setFilters(DEFAULT_CATALOG_FILTERS)}
+            />
+          </div>
+        )}
+
+        {isLoading && !usingDemo ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
+            {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-80 rounded-xl" />)}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {productList?.data.map((product) => (
-              <Link key={product.id} href={`/products/${product.id}`} className="group relative block overflow-hidden rounded-lg border bg-card p-4 hover:shadow-md transition-shadow">
-                <div className="aspect-square bg-muted rounded-md mb-4 overflow-hidden relative">
-                  {product.image_url ? (
-                    <img src={product.image_url} alt={product.name} className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">No image</div>
-                  )}
-                  <div className="absolute top-2 right-2 flex flex-col gap-1">
-                    <span className="bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded text-[10px] font-semibold text-primary border border-primary/20">
-                      Made in Algeria
-                    </span>
-                  </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
+            {products.map(product => (
+              <Link key={product.id} href={`/products/${product.id}`} className="qdia-product-card group overflow-hidden block">
+                <div className="aspect-[4/3] overflow-hidden relative bg-[#F8FAFC]">
+                  <ProductImage
+                    src={product.image_url}
+                    alt={product.name}
+                    className="w-full h-full group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <span className="absolute top-3 left-3 badge-algeria text-[10px]">🇩🇿 {tr("common.algeria")}</span>
                 </div>
-                <h3 className="font-semibold line-clamp-1 mb-1" title={product.name}>{product.name}</h3>
-                <p className="text-xs text-muted-foreground line-clamp-1 mb-3">{product.category}</p>
-                <div className="flex items-end justify-between mt-auto">
-                  <div>
-                    <p className="text-lg font-bold text-primary">
-                      ${product.prices?.fob?.toLocaleString() ?? '--'} 
-                      <span className="text-xs text-muted-foreground font-normal ml-1">FOB</span>
-                    </p>
-                    <p className="text-xs text-muted-foreground">MOQ: {product.moq} {product.moq_unit}</p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span title="Origin: Algeria">🇩🇿</span>
-                    <span className="text-muted-foreground text-xs">→</span>
-                    <span title="Destination Global">🌍</span>
+                <div className="p-4">
+                  <p className="text-[11px] text-[#9CA3AF] mb-1">{product.category}</p>
+                  <h3 className="font-bold text-[#1A1A2E] text-sm line-clamp-2 leading-snug mb-2">{product.name}</h3>
+                  <p className="text-xl font-black text-[#0461A5]">
+                    ${product.prices?.fob?.toLocaleString() ?? "—"}
+                    <span className="text-xs font-normal text-[#9CA3AF] ml-1">{tr("product.fob")}</span>
+                  </p>
+                  <p className="text-xs text-[#9CA3AF] mt-1">MOQ {product.moq} {product.moq_unit} · {product.port_depart}</p>
+                  <div className="mt-3 flex items-center justify-between">
+                    <Badge variant="incoterm" className="text-[10px]">{tr("product.fob")}</Badge>
+                    <span className="text-xs font-semibold text-[#0461A5] group-hover:underline">{tr("common.view_details")}</span>
                   </div>
                 </div>
               </Link>
             ))}
-            {productList?.data.length === 0 && (
-              <div className="col-span-full py-12 text-center text-muted-foreground">
-                <p>No products found matching your criteria.</p>
+            {products.length === 0 && (
+              <div className="col-span-full py-16 text-center space-y-4">
+                <p className="text-[#9CA3AF]">{tr("catalog.no_results")}</p>
+                <Button asChild>
+                  <Link href="/agent-ia?new=1"><Sparkles className="h-4 w-4 mr-2" /> {tr("catalog.publish_first")}</Link>
+                </Button>
               </div>
             )}
           </div>
         )}
       </main>
+
+      <BuyerFooter />
     </div>
   );
 }

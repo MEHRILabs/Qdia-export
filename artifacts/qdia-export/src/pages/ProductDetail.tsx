@@ -1,27 +1,42 @@
-import React from "react";
 import { Link, useParams } from "wouter";
 import { useGetProduct, getGetProductQueryKey } from "@workspace/api-client-react";
+import { BuyerHeader, BuyerFooter } from "@/components/BuyerHeader";
+import { ProductBuyPanel } from "@/components/ProductBuyPanel";
+import { ProductEngagement } from "@/components/ProductEngagement";
+import { ProductRecommendations } from "@/components/ProductRecommendations";
+import { OemSamplePanel } from "@/components/OemSamplePanel";
+import { SupplierReviewsSection } from "@/components/SupplierReviewsSection";
+import { PortsCustomsPanel } from "@/components/PortsCustomsPanel";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { CheckCircle2, Star, ShieldCheck, ChevronRight, Download } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { CheckCircle2, Star, ShieldCheck, ChevronRight, MapPin, FileDown } from "lucide-react";
+import { ProductImage } from "@/components/ProductImage";
+import { getDemoProduct, isDemoProductId } from "@/lib/demo-products";
+import { platformApi } from "@/lib/platform-api";
+import { useI18n } from "@/contexts/I18nContext";
 
 export default function ProductDetail() {
   const params = useParams();
   const productId = parseInt(params.id || "0");
+  const isDemo = isDemoProductId(productId);
 
-  const { data: product, isLoading } = useGetProduct(productId, {
+  const { data: apiProduct, isLoading } = useGetProduct(productId, {
     query: {
-      enabled: !!productId,
-      queryKey: getGetProductQueryKey(productId)
-    }
+      enabled: !isDemo && productId > 0,
+      queryKey: getGetProductQueryKey(productId),
+    },
   });
 
-  if (isLoading) {
+  const product = isDemo ? getDemoProduct(productId) : apiProduct;
+  const loading = !isDemo && isLoading;
+  const { tr } = useI18n();
+
+  if (loading) {
     return (
-      <div className="min-h-screen bg-background flex flex-col">
-        <header className="border-b bg-card h-16 flex items-center px-6 shrink-0 z-10 sticky top-0" />
-        <div className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full grid grid-cols-1 md:grid-cols-2 gap-12">
+      <div className="min-h-screen qdia-buyer-page flex flex-col">
+        <BuyerHeader />
+        <div className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-12">
           <Skeleton className="aspect-square w-full rounded-xl" />
           <div className="space-y-6">
             <Skeleton className="h-10 w-3/4" />
@@ -30,179 +45,187 @@ export default function ProductDetail() {
             <Skeleton className="h-48 w-full" />
           </div>
         </div>
+        <BuyerFooter />
       </div>
     );
   }
 
   if (!product) {
-    return <div className="p-8 text-center">Product not found</div>;
+    return (
+      <div className="min-h-screen qdia-buyer-page flex flex-col">
+        <BuyerHeader />
+        <div className="flex-1 p-8 text-center space-y-4">
+          <p>{tr("product_detail.not_found")}</p>
+          <Button asChild><Link href="/products">{tr("product_detail.back_catalog")}</Link></Button>
+        </div>
+        <BuyerFooter />
+      </div>
+    );
   }
 
-  const prices = product.prices || {};
+  const prices = product.prices as typeof product.prices & { retail?: number; wholesale?: number };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <header className="border-b bg-card h-16 flex items-center px-6 shrink-0 z-10 sticky top-0">
-        <Link href="/" className="font-bold text-xl flex items-center gap-2 text-primary">
-          <img src="/public/logo.png" alt="QDIA Export" className="h-8 w-8 object-contain" />
-          QDIA Export
-        </Link>
-        <div className="ml-auto flex items-center gap-4">
-          <Link href="/products" className="text-sm font-medium hover:text-primary transition-colors text-primary">Catalog</Link>
-          <Link href="/rfq" className="text-sm font-medium hover:text-primary transition-colors">Post RFQ</Link>
-          <Link href="/supplier" className="text-sm font-medium hover:text-primary transition-colors">Supplier Center</Link>
-        </div>
-      </header>
+    <div className="min-h-screen qdia-buyer-page flex flex-col">
+      <BuyerHeader />
 
       <main className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full">
-        {/* Breadcrumb */}
-        <div className="flex items-center text-sm text-muted-foreground mb-6">
-          <Link href="/products" className="hover:text-primary transition-colors">Products</Link>
-          <ChevronRight className="h-4 w-4 mx-1" />
-          <span>{product.category}</span>
-          <ChevronRight className="h-4 w-4 mx-1" />
-          <span className="text-foreground truncate">{product.name}</span>
+        <div className="flex items-center text-sm text-muted-foreground mb-6 flex-wrap gap-1">
+          <Link href="/products" className="hover:text-primary transition-colors">{tr("catalog.breadcrumb")}</Link>
+          <ChevronRight className="h-4 w-4" />
+          <Link href={`/products?category=${encodeURIComponent(product.category)}`} className="hover:text-primary transition-colors">
+            {product.category}
+          </Link>
+          <ChevronRight className="h-4 w-4" />
+          <span className="text-foreground truncate max-w-[200px]">{product.name}</span>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-          {/* Left Column: Images */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-12">
           <div className="space-y-4">
-            <div className="aspect-square bg-white rounded-xl border overflow-hidden flex items-center justify-center p-4">
-              {product.image_url ? (
-                <img src={product.image_url} alt={product.name} className="max-w-full max-h-full object-contain" />
-              ) : (
-                <div className="text-muted-foreground">No Image</div>
-              )}
+            <div className="aspect-square bg-white rounded-xl border overflow-hidden flex items-center justify-center p-4 shadow-sm">
+              <ProductImage src={product.image_url} alt={product.name} fit="contain" className="max-w-full max-h-full w-full h-full rounded-lg" />
             </div>
-            {product.images && product.images.length > 0 && (
-              <div className="grid grid-cols-4 gap-4">
+            {product.images && product.images.length > 1 && (
+              <div className="grid grid-cols-4 gap-3">
                 {product.images.slice(0, 4).map((img, i) => (
-                  <div key={i} className="aspect-square bg-white rounded-lg border overflow-hidden p-2 cursor-pointer hover:border-primary transition-colors">
-                    <img src={img} alt={`${product.name} thumbnail`} className="w-full h-full object-contain" />
+                  <div key={i} className="aspect-square bg-white rounded-lg border overflow-hidden p-2">
+                    <img src={img} alt="" className="w-full h-full object-contain" />
                   </div>
                 ))}
               </div>
             )}
           </div>
 
-          {/* Right Column: Details */}
-          <div>
-            <div className="mb-6">
-              <div className="flex items-center gap-2 mb-3">
-                <Badge variant="secondary" className="bg-primary/10 text-primary hover:bg-primary/20 border-primary/20">
-                  <ShieldCheck className="h-3 w-3 mr-1" /> Verified Supplier
+          <div className="space-y-6">
+            <div>
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
+                <Badge className="bg-primary/10 text-primary border-primary/20">
+                  <ShieldCheck className="h-3 w-3 mr-1" /> {tr("product_detail.verified_supplier")}
                 </Badge>
-                <Badge variant="outline" className="border-secondary/30 text-secondary-foreground bg-secondary/5">
-                  🇩🇿 Made in Algeria
-                </Badge>
+                <span className="badge-algeria">🇩🇿 {tr("product_detail.made_in_algeria")}</span>
+                {product.sku && <Badge variant="outline" className="text-xs">{product.sku}</Badge>}
               </div>
-              <h1 className="text-3xl font-bold text-foreground mb-3">{product.name}</h1>
-              
-              <div className="flex items-center gap-4 text-sm">
-                <div className="flex items-center text-amber-500">
-                  <Star className="h-4 w-4 fill-current" />
-                  <span className="ml-1 font-medium">{product.rating?.toFixed(1) || 'N/A'}</span>
-                </div>
-                <span className="text-muted-foreground">{product.review_count || 0} Reviews</span>
-                <span className="text-muted-foreground">•</span>
-                <span className="text-muted-foreground">{product.orders_fulfilled || 0} Orders fulfilled</span>
+              <h1 className="text-2xl md:text-3xl font-black text-[#1A1A2E] mb-2">{product.name}</h1>
+              <div className="flex items-center gap-4 text-sm flex-wrap text-[#656566]">
+                <span className="flex items-center text-amber-500">
+                  <Star className="h-4 w-4 fill-current mr-1" />
+                  {product.rating?.toFixed(1) ?? "—"}
+                </span>
+                <span>{product.review_count ?? 0} {tr("product.reviews")}</span>
+                <span>·</span>
+                <span>{product.orders_fulfilled ?? 0} commandes</span>
               </div>
             </div>
 
-            {/* Incoterms Price Table */}
-            <div className="rounded-xl border bg-card overflow-hidden mb-8 shadow-sm">
-              <div className="grid grid-cols-4 bg-muted/50 border-b text-xs font-medium text-muted-foreground uppercase tracking-wider text-center">
-                <div className="p-3 border-r">EXW</div>
-                <div className="p-3 border-r">FOB</div>
-                <div className="p-3 border-r">CFR</div>
-                <div className="p-3">CIF</div>
+            {product.description && (
+              <div className="text-sm text-[#656566] leading-relaxed border-l-4 border-[#0461A5] pl-4">
+                {product.description}
+              </div>
+            )}
+
+            <div className="rounded-xl border bg-white overflow-hidden shadow-sm">
+              <div className="grid grid-cols-4 bg-[#F0F4FF] border-b text-xs font-semibold text-[#656566] uppercase text-center">
+                {(["EXW", "FOB", "CFR", "CIF"] as const).map(term => (
+                  <div key={term} className={`p-2.5 border-r last:border-r-0 ${term === "FOB" ? "text-[#0461A5]" : ""}`}>{term}</div>
+                ))}
               </div>
               <div className="grid grid-cols-4 text-center divide-x">
-                <div className="p-4">
-                  <div className="text-lg font-bold">${prices.exw?.toLocaleString() ?? '--'}</div>
-                  <div className="text-[10px] text-muted-foreground uppercase mt-1">{prices.unit || 'unit'}</div>
-                </div>
-                <div className="p-4 bg-primary/5 text-primary">
-                  <div className="text-lg font-bold">${prices.fob?.toLocaleString() ?? '--'}</div>
-                  <div className="text-[10px] opacity-70 uppercase mt-1">{prices.unit || 'unit'}</div>
-                </div>
-                <div className="p-4">
-                  <div className="text-lg font-bold">${prices.cfr?.toLocaleString() ?? '--'}</div>
-                  <div className="text-[10px] text-muted-foreground uppercase mt-1">{prices.unit || 'unit'}</div>
-                </div>
-                <div className="p-4">
-                  <div className="text-lg font-bold">${prices.cif?.toLocaleString() ?? '--'}</div>
-                  <div className="text-[10px] text-muted-foreground uppercase mt-1">{prices.unit || 'unit'}</div>
-                </div>
+                {(["exw", "fob", "cfr", "cif"] as const).map(key => (
+                  <div key={key} className={`p-3 ${key === "fob" ? "bg-[#E8F2FB]" : ""}`}>
+                    <div className="text-lg font-black text-[#0461A5]">${prices[key]?.toLocaleString() ?? "—"}</div>
+                    <div className="text-[10px] text-[#9CA3AF]">{prices.unit ?? tr("common.unit")}</div>
+                  </div>
+                ))}
               </div>
             </div>
 
-            {/* Product Specs */}
-            <div className="grid grid-cols-2 gap-y-4 gap-x-8 mb-8 text-sm">
-              <div>
-                <span className="text-muted-foreground block text-xs mb-1">Minimum Order Qty</span>
-                <span className="font-medium">{product.moq} {product.moq_unit}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground block text-xs mb-1">Port of Departure</span>
-                <span className="font-medium">{product.port_depart}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground block text-xs mb-1">Packaging</span>
-                <span className="font-medium">{product.packaging || 'Standard Export'}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground block text-xs mb-1">Processing</span>
-                <span className="font-medium">{product.processing || 'N/A'}</span>
-              </div>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              {[
+                [tr("product.moq"), `${product.moq} ${product.moq_unit}`],
+                [tr("product_detail.departure_port"), product.port_depart],
+                [tr("product_detail.packaging"), product.packaging ?? tr("product_detail.export_standard")],
+                [tr("product.origin"), product.origin_wilaya ?? tr("common.algeria")],
+                ...(prices?.retail != null
+                  ? [[tr("product_detail.retail_price"), `${prices.retail.toLocaleString()} DZD`]]
+                  : []),
+                ...(prices?.wholesale != null
+                  ? [[tr("product_detail.wholesale_price"), `${prices.wholesale.toLocaleString()} DZD`]]
+                  : []),
+              ].map(([label, value]) => (
+                <div key={label}>
+                  <span className="text-[#9CA3AF] text-xs block mb-0.5">{label}</span>
+                  <span className="font-medium text-[#1A1A2E]">{value}</span>
+                </div>
+              ))}
             </div>
 
-            {/* Certifications */}
             {product.certifications && product.certifications.length > 0 && (
-              <div className="mb-8 border-t pt-6">
-                <h3 className="text-sm font-semibold mb-3">Compliance & Certifications</h3>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-semibold">{tr("product.certifications")}</h3>
+                  {!isDemo && (
+                    <Button variant="outline" size="sm" className="gap-1" asChild>
+                      <a href={platformApi.certificatePdfUrl(productId)} target="_blank" rel="noreferrer">
+                        <FileDown className="h-3 w-3" /> {tr("product.certificate_pdf")}
+                      </a>
+                    </Button>
+                  )}
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {product.certifications.map((cert, i) => (
-                    <Badge key={i} variant="outline" className="bg-background">
-                      <CheckCircle2 className="h-3 w-3 mr-1 text-green-600" />
-                      {cert}
+                    <Badge key={i} variant="outline" className="bg-white">
+                      <CheckCircle2 className="h-3 w-3 mr-1 text-green-600" />{cert}
                     </Badge>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Supplier Card */}
-            <div className="rounded-xl border bg-muted/30 p-5 mb-8">
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h3 className="font-bold text-base flex items-center gap-2">
-                    {product.supplier_name || 'Algerian Supplier'}
-                    <CheckCircle2 className="h-4 w-4 text-primary" />
-                  </h3>
-                  <p className="text-sm text-muted-foreground">{product.supplier_location || 'Algeria'} • {product.origin_wilaya}</p>
-                </div>
-                <div className="text-right text-xs space-y-1">
-                  <div className="font-medium">6 YRS on QDIA</div>
-                  <div className="text-muted-foreground">98% Response Rate</div>
-                  <div className="text-muted-foreground">240+ Transactions</div>
-                </div>
+            {product.target_markets && product.target_markets.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap text-sm">
+                <MapPin className="h-4 w-4 text-[#0461A5]" />
+                <span className="text-[#656566]">{tr("product_detail.target_markets")}</span>
+                {product.target_markets.map(m => (
+                  <Badge key={m} variant="secondary">{m}</Badge>
+                ))}
               </div>
+            )}
+
+            <div className="rounded-xl border bg-[#FAFBFC] p-4 flex items-start gap-3">
+              <div className="flex-1">
+                <p className="font-bold text-[#1A1A2E]">{product.supplier_name ?? tr("product_detail.default_supplier")}</p>
+                <p className="text-sm text-[#9CA3AF]">{product.supplier_location}</p>
+              </div>
+              <CheckCircle2 className="h-5 w-5 text-[#0461A5] shrink-0" />
             </div>
 
-            {/* Actions */}
-            <div className="flex gap-4">
-              <Button size="lg" className="flex-1 h-12 text-base font-semibold shadow-sm" asChild>
-                <Link href={`/rfq?product=${encodeURIComponent(product.name)}`}>Request for Quotation</Link>
-              </Button>
-              <Button size="lg" variant="outline" className="flex-1 h-12 text-base font-semibold">
-                Contact Supplier
-              </Button>
-            </div>
-            
+            <ProductBuyPanel product={product} />
+
+            {!isDemo && product.supplier_id && (
+              <SupplierReviewsSection supplierId={product.supplier_id} />
+            )}
+
+            {!isDemo && (
+              <OemSamplePanel productId={product.id} supplierId={product.supplier_id} />
+            )}
+
+            <ProductEngagement productId={product.id} productName={product.name} category={product.category} />
+
+            <PortsCustomsPanel
+              productCategory={product.category}
+              portDepart={product.port_depart}
+              fobPrice={(product.prices?.fob ?? 5) * 10000}
+            />
           </div>
         </div>
+
+        {!isDemo && (
+          <div className="mt-12">
+            <ProductRecommendations productId={product.id} />
+          </div>
+        )}
       </main>
+      <BuyerFooter />
     </div>
   );
 }

@@ -1,81 +1,50 @@
 import React from "react";
 import { Link } from "wouter";
 import { useGetDashboardStats, useGetProductPerformance, useGetRecentRfqs } from "@workspace/api-client-react";
+import { SupplierSidebar } from "@/components/SupplierSidebar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { LayoutDashboard, Package, MessageSquare, FileText, ShieldCheck, TrendingUp, Sparkles, AlertCircle } from "lucide-react";
+import { LayoutDashboard, MessageSquare, FileText, TrendingUp, Sparkles, AlertCircle, Wand2 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { useI18n } from "@/contexts/I18nContext";
 
 export default function Dashboard() {
+  const { tr } = useI18n();
   const { data: stats, isLoading: statsLoading } = useGetDashboardStats();
   const { data: performance, isLoading: perfLoading } = useGetProductPerformance();
   const { data: recentRfqs, isLoading: rfqsLoading } = useGetRecentRfqs();
 
   return (
-    <div className="min-h-screen bg-background flex flex-col md:flex-row">
-      {/* Left Sidebar */}
-      <aside className="w-64 border-r bg-card hidden md:flex flex-col">
-        <div className="p-6 border-b">
-          <Link href="/" className="font-bold text-xl flex items-center gap-2 text-primary">
-            <img src="/public/logo.png" alt="QDIA Export" className="h-8 w-8 object-contain" />
-            QDIA Export
-          </Link>
-        </div>
-        
-        <div className="p-4 flex-1">
-          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4 px-2">Supplier Center</div>
-          <nav className="space-y-1">
-            <Link href="/dashboard" className="flex items-center gap-3 px-3 py-2 text-sm rounded-md bg-primary/10 text-primary transition-colors font-medium">
-              <LayoutDashboard className="h-4 w-4" /> Dashboard
-            </Link>
-            <Link href="/supplier" className="flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-muted text-muted-foreground transition-colors font-medium">
-              <Package className="h-4 w-4" /> Product Management
-            </Link>
-            <Link href="/inquiries" className="flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-muted text-muted-foreground transition-colors font-medium">
-              <MessageSquare className="h-4 w-4" /> Inquiries
-            </Link>
-            <Link href="/rfq" className="flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-muted text-muted-foreground transition-colors font-medium">
-              <FileText className="h-4 w-4" /> RFQ Portal
-            </Link>
-            <Link href="/verification" className="flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-muted text-muted-foreground transition-colors font-medium">
-              <ShieldCheck className="h-4 w-4" /> Verification
-            </Link>
-          </nav>
-        </div>
-
-        <div className="p-4 border-t">
-          <Button className="w-full" asChild>
-            <Link href="/rfq">Post RFQ</Link>
-          </Button>
-        </div>
-      </aside>
+    <div className="min-h-screen qdia-producer-page flex flex-col md:flex-row">
+      <SupplierSidebar activePath="/dashboard" />
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto">
         <header className="border-b bg-card h-16 flex items-center px-6 shrink-0 md:hidden sticky top-0 z-10">
           <Link href="/" className="font-bold text-xl flex items-center gap-2 text-primary">
-            QDIA Export
+            {tr("mobile.brand_short")}
           </Link>
         </header>
 
         <div className="p-6 md:p-8 max-w-7xl mx-auto">
           {/* Banner */}
-          <div className="bg-primary rounded-xl p-6 md:p-8 mb-8 text-primary-foreground flex flex-col md:flex-row items-center justify-between gap-6 overflow-hidden relative">
+          <div className="bg-gradient-to-r from-[#0461A5] to-[#073B74] rounded-xl p-6 md:p-8 mb-8 text-white flex flex-col md:flex-row items-center justify-between gap-6 overflow-hidden relative">
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
             <div className="relative z-10">
-              <h1 className="text-2xl md:text-3xl font-bold mb-2">Scale Your Exports</h1>
-              <p className="text-primary-foreground/80 max-w-xl">
-                Your products are gaining traction in European markets. Enhance your listings with AI to increase conversion by up to 40%.
+              <span className="inline-block text-xs font-bold bg-[#F5C518] text-[#1A1A2E] px-2 py-0.5 rounded mb-2">{tr("dashboard_page.badge")}</span>
+              <h1 className="text-2xl md:text-3xl font-bold mb-2">{tr("dashboard_page.title")}</h1>
+              <p className="text-white/80 max-w-xl">
+                {tr("dashboard_page.subtitle")}
               </p>
             </div>
-            <div className="flex gap-4 relative z-10 shrink-0 w-full md:w-auto">
-              <Button variant="secondary" className="flex-1 md:flex-none gap-2 bg-secondary text-secondary-foreground hover:bg-secondary/90">
-                <Sparkles className="h-4 w-4" /> AI Assistant
+            <div className="flex flex-col sm:flex-row gap-3 relative z-10 shrink-0 w-full md:w-auto">
+              <Button variant="gold" className="flex-1 md:flex-none gap-2" asChild>
+                <Link href="/agent-ia"><Sparkles className="h-4 w-4" /> {tr("nav.agent_ia")}</Link>
               </Button>
-              <Button variant="outline" className="flex-1 md:flex-none border-primary-foreground/20 hover:bg-primary-foreground/10">
-                Publish New
+              <Button variant="outline" className="flex-1 md:flex-none border-white/30 text-white bg-white/10 hover:bg-white/20 gap-2" asChild>
+                <Link href="/studio"><Wand2 className="h-4 w-4" /> {tr("nav.studio")}</Link>
               </Button>
             </div>
           </div>
@@ -90,7 +59,7 @@ export default function Dashboard() {
                   </div>
                   {statsLoading ? <Skeleton className="h-5 w-12" /> : <Badge variant="secondary" className="bg-green-100 text-green-700 hover:bg-green-100">+12%</Badge>}
                 </div>
-                <div className="text-sm font-medium text-muted-foreground mb-1">Active Inquiries</div>
+                <div className="text-sm font-medium text-muted-foreground mb-1">{tr("dashboard_page.active_inquiries")}</div>
                 <div className="text-2xl font-bold">
                   {statsLoading ? <Skeleton className="h-8 w-16" /> : stats?.active_inquiries || 0}
                 </div>
@@ -103,9 +72,9 @@ export default function Dashboard() {
                   <div className="p-2 bg-amber-100 text-amber-700 rounded-md">
                     <FileText className="h-5 w-5" />
                   </div>
-                  {statsLoading ? <Skeleton className="h-5 w-16" /> : <Badge variant="destructive" className="bg-red-100 text-red-700 hover:bg-red-100 border-red-200">Urgent</Badge>}
+                  {statsLoading ? <Skeleton className="h-5 w-16" /> : <Badge variant="destructive" className="bg-red-100 text-red-700 hover:bg-red-100 border-red-200">{tr("dashboard_page.priority")}</Badge>}
                 </div>
-                <div className="text-sm font-medium text-muted-foreground mb-1">Pending RFQs</div>
+                <div className="text-sm font-medium text-muted-foreground mb-1">{tr("dashboard_page.pending_rfqs")}</div>
                 <div className="text-2xl font-bold">
                   {statsLoading ? <Skeleton className="h-8 w-16" /> : stats?.pending_rfqs || 0}
                 </div>
@@ -119,7 +88,7 @@ export default function Dashboard() {
                     <TrendingUp className="h-5 w-5" />
                   </div>
                 </div>
-                <div className="text-sm font-medium text-muted-foreground mb-1">Total Export Value</div>
+                <div className="text-sm font-medium text-muted-foreground mb-1">{tr("dashboard_page.export_value")}</div>
                 <div className="text-2xl font-bold">
                   {statsLoading ? <Skeleton className="h-8 w-24" /> : `$${(stats?.total_export_value || 0).toLocaleString()}`}
                 </div>
@@ -133,7 +102,7 @@ export default function Dashboard() {
                     <LayoutDashboard className="h-5 w-5" />
                   </div>
                 </div>
-                <div className="text-sm font-medium text-muted-foreground mb-1">Store Visits (30d)</div>
+                <div className="text-sm font-medium text-muted-foreground mb-1">{tr("dashboard_page.store_visits")}</div>
                 <div className="text-2xl font-bold">
                   {statsLoading ? <Skeleton className="h-8 w-20" /> : (stats?.store_visits || 0).toLocaleString()}
                 </div>
@@ -145,7 +114,7 @@ export default function Dashboard() {
             {/* Chart */}
             <Card className="lg:col-span-2">
               <CardHeader>
-                <CardTitle>Product Performance</CardTitle>
+                <CardTitle>{tr("dashboard_page.performance")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="h-[300px] w-full">
@@ -187,7 +156,7 @@ export default function Dashboard() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5 text-amber-500" /> Action Required
+                  <AlertCircle className="h-5 w-5 text-amber-500" /> {tr("dashboard_page.actions_required")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -225,7 +194,7 @@ export default function Dashboard() {
                   )}
                   {recentRfqs?.length === 0 && (
                     <div className="text-center text-muted-foreground py-8">
-                      No pending actions. You're all caught up!
+                      {tr("dashboard_page.no_actions")}
                     </div>
                   )}
                 </div>

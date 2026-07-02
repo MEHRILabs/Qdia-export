@@ -1,0 +1,49 @@
+# QDIA Export — déploiement gratuit Render (test admin)
+# https://render.com — compte gratuit + PostgreSQL gratuit 90 jours
+#
+# 1. Poussez le repo sur GitHub
+# 2. Render → New → Blueprint → ce fichier
+# 3. Renseignez les secrets (OPENAI, GROQ, GOOGLE, JWT_SECRET…)
+
+databases:
+  - name: qdia-db
+    plan: free
+    databaseName: qdia_export
+    user: qdia
+
+services:
+  - type: web
+    name: qdia-export
+    runtime: node
+    plan: free
+    buildCommand: >-
+      corepack enable &&
+      pnpm install &&
+      pnpm -C artifacts/api-server build &&
+      BASE_PATH=/ PORT=8080 VITE_API_URL= pnpm -C artifacts/qdia-export build
+    startCommand: cd artifacts/api-server && SERVE_WEB=1 node --enable-source-maps ./dist/index.mjs
+    healthCheckPath: /api/healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SERVE_WEB
+        value: "1"
+      - key: PORT
+        value: "8080"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: qdia-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: GROQ_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: VITE_GOOGLE_CLIENT_ID
+        fromService:
+          type: web
+          name: qdia-export
+          envVarKey: GOOGLE_CLIENT_ID

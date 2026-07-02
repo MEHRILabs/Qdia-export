@@ -1,125 +1,202 @@
-import React from "react";
+import { useState, useRef, useMemo } from "react";
 import { Link } from "wouter";
+import { SupplierSidebar } from "@/components/SupplierSidebar";
+import { StudioCanvas } from "@/components/StudioCanvas";
 import { Button } from "@/components/ui/button";
-import { Undo, Redo, ZoomIn, ZoomOut, Eraser, Sparkles, Crop, ImageIcon, Download, ShieldCheck } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { useI18n } from "@/contexts/I18nContext";
+import {
+  Sparkles, Eraser, ShieldCheck,
+  Upload, Loader2, Wand2, X, ImageIcon, Scissors,
+} from "lucide-react";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+type StudioAction = "remove_background" | "studio_scene" | "white_background" | "enhance";
 
 export default function Studio() {
+  const { toast } = useToast();
+  const { tr } = useI18n();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [image, setImage] = useState<string | null>(null);
+  const [result, setResult] = useState<string | null>(null);
+  const [action, setAction] = useState<StudioAction>("remove_background");
+  const [productName, setProductName] = useState("");
+  const [scene, setScene] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [showBadge, setShowBadge] = useState(true);
+  const [provider, setProvider] = useState<string | null>(null);
+
+  const TOOLS = useMemo(() => [
+    { id: "remove_background" as const, label: tr("studio_page.tool_cutout"), desc: tr("studio_page.tool_cutout_desc"), icon: Scissors },
+    { id: "white_background" as const, label: tr("studio_page.tool_white"), desc: tr("studio_page.tool_white_desc"), icon: Eraser },
+    { id: "studio_scene" as const, label: tr("studio_page.tool_scene"), desc: tr("studio_page.tool_scene_desc"), icon: Sparkles },
+    { id: "enhance" as const, label: tr("studio_page.tool_enhance"), desc: tr("studio_page.tool_enhance_desc"), icon: Wand2 },
+  ], [tr]);
+
+  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      setImage((ev.target?.result as string).split(",")[1]);
+      setResult(null);
+      setProvider(null);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const runStudio = async () => {
+    if (!image) {
+      toast({ title: tr("studio_page.photo_required"), description: tr("studio_page.photo_required_desc"), variant: "destructive" });
+      return;
+    }
+    setLoading(true);
+    setResult(null);
+    try {
+      const resp = await fetch(`${BASE}/api/ai/studio`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          image_base64: image,
+          action,
+          product_name: productName || undefined,
+          scene_description: scene || undefined,
+        }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error ?? tr("studio_page.error_studio"));
+      }
+      const data = await resp.json();
+      setResult(data.image_base64);
+      setProvider(data.provider ?? null);
+      toast({
+        title: tr("studio_page.done"),
+        description: tr("studio_page.done_desc").replace("{provider}", data.provider ?? "IA"),
+      });
+    } catch (e) {
+      toast({ title: tr("common.error"), description: String(e instanceof Error ? e.message : e), variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <header className="border-b bg-card h-14 flex items-center px-6 shrink-0 z-10">
-        <Link href="/" className="font-bold text-lg flex items-center gap-2 text-primary">
-          <img src="/public/logo.png" alt="QDIA Export" className="h-6 w-6 object-contain" />
-          AI Editing Studio
-        </Link>
-        <div className="ml-auto flex items-center gap-3">
-          <Button variant="outline" size="sm">Discard</Button>
-          <Button size="sm" className="gap-2">
-            <Download className="h-4 w-4" /> Save to Catalog
+    <div className="min-h-screen flex bg-[#E5E7EB]">
+      <SupplierSidebar activePath="/studio" />
+
+      <div className="flex-1 flex flex-col min-h-screen min-w-0">
+        <header className="h-16 bg-white border-b border-[#E5E7EB] flex items-center px-4 md:px-6 shrink-0 gap-4">
+          <div className="min-w-0">
+            <h1 className="font-bold text-[#1A1A2E] text-base md:text-lg truncate">{tr("studio.title")}</h1>
+            <p className="text-[11px] text-[#9CA3AF] hidden sm:block">
+              {tr("studio_page.providers")}
+            </p>
+          </div>
+          <div className="ml-auto flex items-center gap-2 shrink-0">
+            <Button variant="outline" size="sm" className="hidden sm:inline-flex" asChild>
+              <Link href="/agent-ia">{tr("studio_page.back_agent")}</Link>
           </Button>
         </div>
       </header>
 
-      <div className="flex-1 flex overflow-hidden">
-        {/* Tools Panel */}
-        <aside className="w-64 border-r bg-card flex flex-col">
-          <div className="p-4 border-b">
-            <h3 className="font-semibold text-sm">Image Tools</h3>
-          </div>
-          <div className="p-2 space-y-1 overflow-y-auto flex-1">
-            <button className="w-full flex items-center gap-3 px-3 py-3 text-sm rounded-md hover:bg-muted transition-colors text-left">
-              <div className="bg-primary/10 text-primary p-1.5 rounded">
-                <Eraser className="h-4 w-4" />
+        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+          <aside className="w-full lg:w-[300px] xl:w-[320px] bg-white border-b lg:border-b-0 lg:border-r border-[#E5E7EB] flex flex-col shrink-0">
+            <div className="p-5 space-y-5 overflow-y-auto flex-1">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-[#9CA3AF] mb-3">{tr("studio_page.selected_tool")}</p>
+                <div className="space-y-2">
+                  {TOOLS.map(({ id, label, desc, icon: Icon }) => (
+                    <button key={id} type="button" onClick={() => setAction(id)}
+                      className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${
+                        action === id
+                          ? "border-[#0461A5] bg-[#E8F2FB] shadow-sm"
+                          : "border-[#E5E7EB] hover:border-[#0461A5]/40 hover:bg-[#FAFBFC]"
+                      }`}>
+                      <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${
+                        action === id ? "bg-[#0461A5] text-white" : "bg-[#F1F5F9] text-[#0461A5]"
+                      }`}>
+                        <Icon className="h-4 w-4" />
               </div>
               <div>
-                <div className="font-medium">Remove Background</div>
-                <div className="text-[10px] text-muted-foreground">Auto-detect subject</div>
+                        <p className="font-semibold text-sm text-[#1A1A2E]">{label}</p>
+                        <p className="text-[11px] text-[#9CA3AF]">{desc}</p>
               </div>
             </button>
-            <button className="w-full flex items-center gap-3 px-3 py-3 text-sm rounded-md hover:bg-muted transition-colors text-left bg-muted/50 border border-border/50">
-              <div className="bg-secondary/20 text-secondary-foreground p-1.5 rounded">
-                <Sparkles className="h-4 w-4" />
+                  ))}
+                </div>
               </div>
+
+              <div className="space-y-3 pt-2 border-t border-[#E5E7EB]">
               <div>
-                <div className="font-medium">AI Studio Scene</div>
-                <div className="text-[10px] text-muted-foreground">Generate commercial bg</div>
+                  <label className="text-xs font-semibold text-[#334257] mb-1.5 block">{tr("studio_page.product_name")}</label>
+                  <Input value={productName} onChange={e => setProductName(e.target.value)}
+                    placeholder={tr("studio_page.product_name_placeholder")} className="h-9 text-sm" />
               </div>
-            </button>
-            <button className="w-full flex items-center gap-3 px-3 py-3 text-sm rounded-md hover:bg-muted transition-colors text-left">
-              <div className="bg-muted-foreground/10 text-muted-foreground p-1.5 rounded">
-                <Crop className="h-4 w-4" />
-              </div>
+                {action === "studio_scene" && (
               <div>
-                <div className="font-medium">Crop 1:1</div>
-                <div className="text-[10px] text-muted-foreground">Standard catalog size</div>
+                    <label className="text-xs font-semibold text-[#334257] mb-1.5 block">{tr("studio_page.scene_desc")}</label>
+                    <Textarea value={scene} onChange={e => setScene(e.target.value)} rows={2}
+                      className="text-sm resize-none" placeholder={tr("studio_page.scene_placeholder")} />
               </div>
-            </button>
-            <button className="w-full flex items-center gap-3 px-3 py-3 text-sm rounded-md hover:bg-muted transition-colors text-left">
-              <div className="bg-muted-foreground/10 text-muted-foreground p-1.5 rounded">
-                <ImageIcon className="h-4 w-4" />
-              </div>
-              <div>
-                <div className="font-medium">Add Watermark</div>
-                <div className="text-[10px] text-muted-foreground">Apply QDIA verified logo</div>
-              </div>
-            </button>
-          </div>
-          
-          <div className="p-4 border-t bg-muted/30">
-            <div className="bg-card border rounded-lg p-3 shadow-sm">
-              <div className="flex items-center gap-2 mb-2">
-                <Sparkles className="h-4 w-4 text-primary" />
-                <span className="font-medium text-xs">AI Assistant</span>
-              </div>
-              <p className="text-[11px] text-muted-foreground mb-3 leading-tight">
-                Generating natural lighting and white pedestal for product presentation...
-              </p>
-              <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-                <div className="h-full bg-primary w-[65%] rounded-full animate-pulse" />
+                )}
+                <label className="flex items-center gap-2.5 text-xs text-[#656566] cursor-pointer">
+                  <input type="checkbox" checked={showBadge} onChange={e => setShowBadge(e.target.checked)}
+                    className="rounded accent-[#0461A5]" />
+                  <ShieldCheck className="h-3.5 w-3.5 text-[#0461A5]" />
+                  {tr("studio_page.watermark")}
+                </label>
               </div>
             </div>
+
+            <div className="p-5 border-t border-[#E5E7EB] bg-[#FAFBFC]">
+              <Button onClick={runStudio} disabled={loading || !image} variant="ai" className="w-full h-11 font-bold gap-2">
+                {loading
+                  ? <><Loader2 className="h-4 w-4 animate-spin" /> {tr("studio_page.processing")}</>
+                  : <><Wand2 className="h-4 w-4" /> {tr("studio_page.generate")}</>}
+              </Button>
           </div>
         </aside>
 
-        {/* Canvas Area */}
-        <main className="flex-1 bg-[#e5e5e5] relative flex flex-col">
-          {/* Canvas Checkerboard */}
-          <div 
-            className="absolute inset-0 z-0 opacity-50"
-            style={{
-              backgroundImage: `linear-gradient(45deg, #d4d4d4 25%, transparent 25%), linear-gradient(-45deg, #d4d4d4 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #d4d4d4 75%), linear-gradient(-45deg, transparent 75%, #d4d4d4 75%)`,
-              backgroundSize: '20px 20px',
-              backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px'
-            }}
-          />
-          
-          {/* Top Controls */}
-          <div className="relative z-10 p-4 flex justify-center">
-            <div className="bg-card border shadow-sm rounded-md flex items-center p-1 gap-1">
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"><Undo className="h-4 w-4" /></Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"><Redo className="h-4 w-4" /></Button>
-              <div className="w-px h-4 bg-border mx-1" />
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"><ZoomOut className="h-4 w-4" /></Button>
-              <span className="text-xs font-medium w-12 text-center">100%</span>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"><ZoomIn className="h-4 w-4" /></Button>
-            </div>
-          </div>
+          <main className="flex-1 qdia-studio-workspace flex flex-col items-center justify-center p-6 md:p-10 min-h-[400px] gap-6">
+            <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
 
-          {/* Image Canvas */}
-          <div className="relative z-10 flex-1 flex items-center justify-center p-8">
-            <div className="relative shadow-2xl bg-white rounded-sm ring-1 ring-black/5 max-w-2xl w-full aspect-square flex items-center justify-center overflow-hidden group">
-              <img src="/public/olive-oil.png" alt="Product Draft" className="w-[80%] h-[80%] object-contain" />
-              
-              {/* Badge Overlay */}
-              <div className="absolute bottom-4 right-4 bg-black/80 backdrop-blur text-white text-[10px] font-semibold px-2 py-1 rounded-sm border border-white/10 flex items-center gap-1.5 opacity-90">
-                <ShieldCheck className="h-3 w-3" />
-                QDIA VERIFIED ASSET
+            {loading ? (
+              <div className="w-full max-w-lg bg-white rounded-2xl border p-8 shadow-sm text-center">
+                <Loader2 className="h-8 w-8 animate-spin text-[#0461A5] mx-auto mb-4" />
+                <p className="font-semibold text-[#1A1A2E]">{tr("studio_page.generating")}</p>
+                <p className="text-sm text-[#9CA3AF]">{tr("studio_page.generating_hint")}</p>
               </div>
-
-              {/* Edit bounds mock */}
-              <div className="absolute inset-[10%] border border-primary/40 border-dashed rounded-sm opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+            ) : image || result ? (
+              <>
+                {provider && (
+                  <span className="text-xs bg-[#E8F2FB] text-[#0461A5] px-3 py-1 rounded-full font-semibold">
+                    {tr("studio_page.provider").replace("{name}", provider)}
+                  </span>
+                )}
+                <StudioCanvas originalBase64={image} resultBase64={result} showBadge={showBadge} />
+                <button type="button" onClick={() => { setImage(null); setResult(null); setProvider(null); }}
+                  className="text-xs text-[#9CA3AF] hover:text-[#0461A5] flex items-center gap-1">
+                  <X className="h-3.5 w-3.5" /> {tr("studio_page.new_image")}
+                </button>
+              </>
+            ) : (
+              <button type="button" onClick={() => inputRef.current?.click()}
+                className="w-full max-w-md bg-white rounded-2xl border-2 border-dashed border-[#94A3B8] p-10 flex flex-col items-center gap-4 hover:border-[#0461A5] transition-all group">
+                <div className="h-16 w-16 rounded-2xl bg-[#E8F2FB] flex items-center justify-center group-hover:bg-[#0461A5] transition-colors">
+                  <Upload className="h-7 w-7 text-[#0461A5] group-hover:text-white transition-colors" />
             </div>
+                <p className="font-bold text-[#1A1A2E]">{tr("studio_page.upload_title")}</p>
+                <span className="text-xs text-[#9CA3AF] flex items-center gap-1">
+                  <ImageIcon className="h-3.5 w-3.5" /> {tr("studio_page.upload_formats")}
+                </span>
+              </button>
+            )}
+          </main>
           </div>
-        </main>
       </div>
     </div>
   );

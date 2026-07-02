@@ -1,7 +1,7 @@
 import { Switch, Route, Router as WouterRouter } from "wouter";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ScrollToTop } from "@/components/ScrollToTop";
 import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import NotFound from "@/pages/not-found";
 
 import Home from "@/pages/Home";
@@ -11,16 +11,24 @@ import Studio from "@/pages/Studio";
 import Rfq from "@/pages/Rfq";
 import Supplier from "@/pages/Supplier";
 import Dashboard from "@/pages/Dashboard";
+import Inquiries from "@/pages/Inquiries";
+import Verification from "@/pages/Verification";
+import AdminReview from "@/pages/AdminReview";
 import AgentIA from "@/pages/AgentIA";
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
+import Profile from "@/pages/Profile";
+import Messages from "@/pages/Messages";
+import Legal from "@/pages/Legal";
+import MyRfqs from "@/pages/MyRfqs";
+import Facturation from "@/pages/Facturation";
+import Favorites from "@/pages/Favorites";
+import Transactions from "@/pages/Transactions";
+import SupplierPublic from "@/pages/SupplierPublic";
+import ProductEdit from "@/pages/ProductEdit";
+import Cart from "@/pages/Cart";
+import Checkout from "@/pages/Checkout";
+import Orders from "@/pages/Orders";
+import TradeAssurance from "@/pages/TradeAssurance";
+import Tracking from "@/pages/Tracking";
 
 function Router() {
   return (
@@ -28,11 +36,62 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/products" component={Catalog} />
       <Route path="/products/:id" component={ProductDetail} />
-      <Route path="/studio" component={Studio} />
+      <Route path="/panier">
+        <ProtectedRoute><Cart /></ProtectedRoute>
+      </Route>
+      <Route path="/checkout">
+        <ProtectedRoute><Checkout /></ProtectedRoute>
+      </Route>
+      <Route path="/commandes">
+        <ProtectedRoute><Orders /></ProtectedRoute>
+      </Route>
+      <Route path="/trade-assurance">
+        <ProtectedRoute><TradeAssurance /></ProtectedRoute>
+      </Route>
+      <Route path="/suivi" component={Tracking} />
       <Route path="/rfq" component={Rfq} />
+      <Route path="/mes-rfq">
+        <ProtectedRoute><MyRfqs /></ProtectedRoute>
+      </Route>
+      <Route path="/favoris">
+        <ProtectedRoute><Favorites /></ProtectedRoute>
+      </Route>
+      <Route path="/transactions">
+        <ProtectedRoute roles={["supplier", "admin", "buyer"]}><Transactions /></ProtectedRoute>
+      </Route>
+      <Route path="/suppliers/:id" component={SupplierPublic} />
+      <Route path="/supplier/products/:id/edit">
+        <ProtectedRoute roles={["supplier", "admin"]}><ProductEdit /></ProtectedRoute>
+      </Route>
+      <Route path="/facturation">
+        <ProtectedRoute roles={["supplier", "admin", "buyer"]}><Facturation /></ProtectedRoute>
+      </Route>
+      <Route path="/legal/:page?" component={Legal} />
+      <Route path="/profile">
+        <ProtectedRoute><Profile /></ProtectedRoute>
+      </Route>
+      <Route path="/messages">
+        <ProtectedRoute><Messages /></ProtectedRoute>
+      </Route>
+      <Route path="/studio">
+        <ProtectedRoute roles={["supplier", "admin"]}><Studio /></ProtectedRoute>
+      </Route>
       <Route path="/supplier" component={Supplier} />
-      <Route path="/dashboard" component={Dashboard} />
-      <Route path="/agent-ia" component={AgentIA} />
+      <Route path="/dashboard">
+        <ProtectedRoute roles={["supplier", "admin", "buyer"]}><Dashboard /></ProtectedRoute>
+      </Route>
+      <Route path="/agent-ia">
+        <ProtectedRoute roles={["supplier", "admin", "buyer"]}><AgentIA /></ProtectedRoute>
+      </Route>
+      <Route path="/inquiries">
+        <ProtectedRoute roles={["supplier", "admin", "buyer"]}><Inquiries /></ProtectedRoute>
+      </Route>
+      <Route path="/verification">
+        <ProtectedRoute roles={["supplier", "admin", "buyer"]}><Verification /></ProtectedRoute>
+      </Route>
+      <Route path="/admin">
+        <ProtectedRoute roles={["supplier", "admin"]}><AdminReview /></ProtectedRoute>
+      </Route>
       <Route component={NotFound} />
     </Switch>
   );
@@ -40,14 +99,11 @@ function Router() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
-        </WouterRouter>
-        <Toaster />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+      <ScrollToTop />
+      <Router />
+      <Toaster />
+    </WouterRouter>
   );
 }
 

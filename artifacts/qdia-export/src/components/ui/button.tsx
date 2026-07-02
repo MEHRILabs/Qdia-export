@@ -26,6 +26,8 @@ const buttonVariants = cva(
         // @replit no hover, transparent border
         ghost: "border border-transparent",
         link: "text-primary underline-offset-4 hover:underline",
+        ai: "btn-qdia-ai border-0 shadow-md",
+        gold: "bg-[#F5C518] text-[#1A1A2E] border border-[#D4A910] font-bold hover:bg-[#D4A910]",
       },
       size: {
         // @replit changed sizes

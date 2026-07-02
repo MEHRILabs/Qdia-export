@@ -1,20 +1,29 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Link } from "wouter";
+import { SupplierSidebar } from "@/components/SupplierSidebar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { useAgentSession } from "@/hooks/useAgentSession";
+import { useI18n } from "@/contexts/I18nContext";
+import { StudioCanvas } from "@/components/StudioCanvas";
 import {
-  LayoutDashboard, Package, MessageSquare, FileText,
-  ShieldCheck, Sparkles, Send, ImagePlus, ChevronRight,
+  MessageSquare, Package, Sparkles, Send, ImagePlus, ChevronRight,
   Loader2, CheckCircle2, AlertTriangle, RefreshCw,
   Tag, Globe, Boxes, Anchor, DollarSign, Languages,
-  Wand2, Upload, X,
+  Wand2, Upload, X, ShieldCheck,
 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+function parseUploadedImage(dataUrl: string): { base64: string; mime: string } {
+  const match = dataUrl.match(/^data:(image\/[\w+.-]+);base64,(.+)$/s);
+  if (match) return { mime: match[1], base64: match[2] };
+  return { mime: "image/jpeg", base64: dataUrl.split(",")[1] ?? dataUrl };
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ChatMessage {
@@ -32,73 +41,48 @@ interface GeneratedProduct {
 }
 
 interface PricingResult {
+  exw_dzd: number; fob_dzd: number; cfr_dzd: number; cif_dzd: number;
   exw_usd: number; fob_usd: number; cfr_usd: number; cif_usd: number;
-  exw_eur: number; fob_eur: number;
+  exw_eur: number; fob_eur: number; cfr_eur?: number; cif_eur?: number;
+  exw_aed: number; fob_aed: number; cfr_aed?: number; cif_aed?: number;
   exchange_rate_dzd_usd: number;
+  exchange_rate_dzd_eur?: number;
+  exchange_rate_dzd_aed?: number;
   breakdown: Record<string, number>;
   market_benchmark: string | null;
   price_range_note: string | null;
 }
 
-// ─── Sidebar (shared) ─────────────────────────────────────────────────────────
-function SupplierSidebar() {
-  return (
-    <aside className="w-64 border-r bg-card hidden md:flex flex-col shrink-0">
-      <div className="p-6 border-b">
-        <Link href="/" className="font-bold text-xl flex items-center gap-2 text-primary">
-          <img src="/logo.png" alt="QDIA Export" className="h-8 w-8 object-contain" onError={e => (e.currentTarget.style.display = "none")} />
-          QDIA Export
-        </Link>
-        <p className="text-xs text-muted-foreground mt-1">Supplier Center · Verified Exporter</p>
-      </div>
-      <div className="p-4 flex-1">
-        <nav className="space-y-1">
-          {[
-            { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-            { href: "/supplier", icon: Package, label: "Product Management" },
-            { href: "/agent-ia", icon: Sparkles, label: "Agent IA", active: true },
-            { href: "/", icon: MessageSquare, label: "Inquiries" },
-            { href: "/rfq", icon: FileText, label: "RFQ Portal" },
-            { href: "/", icon: ShieldCheck, label: "Verification" },
-          ].map(({ href, icon: Icon, label, active }) => (
-            <Link key={label} href={href}
-              className={`flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors font-medium ${active
-                ? "bg-primary/10 text-primary"
-                : "hover:bg-muted text-muted-foreground"}`}>
-              <Icon className="h-4 w-4" /> {label}
-            </Link>
-          ))}
-        </nav>
-      </div>
-      <div className="p-4 border-t">
-        <Button className="w-full" asChild>
-          <Link href="/rfq">Post RFQ</Link>
-        </Button>
-      </div>
-    </aside>
-  );
-}
-
 // ─── STEP INDICATOR ───────────────────────────────────────────────────────────
 type Step = "chat" | "generate" | "pricing" | "studio" | "publish";
-const STEPS: { id: Step; label: string; icon: typeof Sparkles }[] = [
-  { id: "chat", label: "Assistant IA", icon: MessageSquare },
-  { id: "generate", label: "Fiche Produit", icon: Package },
-  { id: "pricing", label: "Pricing Export", icon: DollarSign },
-  { id: "studio", label: "Studio Image", icon: Wand2 },
-  { id: "publish", label: "Publication", icon: Globe },
-];
 
 // ─── MAIN PAGE ────────────────────────────────────────────────────────────────
 export default function AgentIA() {
   const { toast } = useToast();
+  const { tr } = useI18n();
+  const { sessionId, session, loading: sessionLoading, reset: resetSession, markComplete, refresh } = useAgentSession();
   const [activeStep, setActiveStep] = useState<Step>("chat");
+
+  const STEPS = [
+    { id: "chat" as const, label: tr("agent.step_assistant"), icon: MessageSquare },
+    { id: "generate" as const, label: tr("agent.step_product_sheet"), icon: Package },
+    { id: "pricing" as const, label: tr("agent.step_pricing_export"), icon: DollarSign },
+    { id: "studio" as const, label: tr("agent.step_studio_image"), icon: Wand2 },
+    { id: "publish" as const, label: tr("agent.step_publication"), icon: Globe },
+  ];
+
+  const SUGGESTIONS = [
+    tr("agent.suggestion_1"),
+    tr("agent.suggestion_2"),
+    tr("agent.suggestion_3"),
+    tr("agent.suggestion_4"),
+  ];
 
   // Chat state
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "assistant",
-      content: "Bonjour ! Je suis l'Agent IA QDIA Export. Je vous aide à publier vos produits algériens sur le marché international.\n\nComment puis-je vous aider ? Décrivez-moi votre produit (nom, origine, caractéristiques) et je génèrerai une fiche export complète en 3 langues avec les prix Incoterms.",
+      content: tr("agent.welcome"),
     },
   ]);
   const [chatInput, setChatInput] = useState("");
@@ -110,6 +94,7 @@ export default function AgentIA() {
   const [genTargetMarket, setGenTargetMarket] = useState("FR");
   const [genCost, setGenCost] = useState("");
   const [genImage, setGenImage] = useState<string | null>(null);
+  const [genImageMime, setGenImageMime] = useState("image/jpeg");
   const [genLoading, setGenLoading] = useState(false);
   const [generatedProduct, setGeneratedProduct] = useState<GeneratedProduct | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -120,12 +105,19 @@ export default function AgentIA() {
   const [pricingUnit, setPricingUnit] = useState("kg");
   const [pricingDest, setPricingDest] = useState("FR");
   const [pricingMargin, setPricingMargin] = useState("15");
+  const [pricingPackaging, setPricingPackaging] = useState("0");
+  const [pricingTransport, setPricingTransport] = useState("0");
   const [pricingLoading, setPricingLoading] = useState(false);
   const [pricingResult, setPricingResult] = useState<PricingResult | null>(null);
 
+  // Publish state
+  const [publishLoading, setPublishLoading] = useState(false);
+  const [publishedId, setPublishedId] = useState<number | null>(null);
+
   // Studio state
   const [studioImage, setStudioImage] = useState<string | null>(null);
-  const [studioAction, setStudioAction] = useState<"studio_scene" | "white_background" | "enhance">("studio_scene");
+  const [studioImageMime, setStudioImageMime] = useState("image/jpeg");
+  const [studioAction, setStudioAction] = useState<"remove_background" | "studio_scene" | "white_background" | "enhance">("remove_background");
   const [studioProductName, setStudioProductName] = useState("");
   const [studioScene, setStudioScene] = useState("");
   const [studioLoading, setStudioLoading] = useState(false);
@@ -136,12 +128,86 @@ export default function AgentIA() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  useEffect(() => {
+    if (activeStep === "pricing" && genCost && !pricingCost) {
+      setPricingCost(genCost);
+    }
+  }, [activeStep, genCost, pricingCost]);
+
+  useEffect(() => {
+    if (activeStep === "studio" && genImage && !studioImage) {
+      setStudioImage(genImage);
+    }
+  }, [activeStep, genImage, studioImage]);
+
+  const resetForNewProduct = useCallback(async () => {
+    await resetSession();
+    setActiveStep("chat");
+    setPublishedId(null);
+    setGeneratedProduct(null);
+    setGenDescription("");
+    setGenCost("");
+    setGenImage(null);
+    setPricingResult(null);
+    setStudioResult(null);
+    setStudioImage(null);
+    setChatInput("");
+    setMessages([{
+      role: "assistant",
+      content: tr("agent.welcome_new"),
+    }]);
+  }, [resetSession, tr]);
+
+  useEffect(() => {
+    if (!session || sessionLoading) return;
+    const ext = session.extracted_data as Record<string, unknown>;
+    if (ext.product_name && typeof ext.product_name === "string") setGenDescription(ext.product_name);
+    if (ext.cost_dzd) setGenCost(String(ext.cost_dzd));
+    if (ext.target_market && typeof ext.target_market === "string") setGenTargetMarket(ext.target_market);
+    if (session.generated_product) setGeneratedProduct(session.generated_product as unknown as GeneratedProduct);
+    if (session.pricing_result) setPricingResult(session.pricing_result as unknown as PricingResult);
+    if (session.studio_images?.length) {
+      const last = session.studio_images[session.studio_images.length - 1];
+      setStudioResult(last.image_base64);
+    }
+    if (session.chat_history?.length) {
+      setMessages([
+        { role: "assistant", content: tr("agent.welcome_continue") },
+        ...session.chat_history,
+      ]);
+    }
+    if (session.current_step && session.current_step !== "chat") {
+      setActiveStep(session.current_step as Step);
+    }
+  }, [session?.id, sessionLoading]);
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("new") === "1") {
+      resetForNewProduct();
+      window.history.replaceState({}, "", `${import.meta.env.BASE_URL.replace(/\/$/, "")}/agent-ia`);
+    }
+  }, [resetForNewProduct]);
+
+  const handleSuggestion = (text: string, generateSheet?: boolean) => {
+    if (generateSheet) {
+      setGenDescription(text.replace(/^Génère une fiche pour /, ""));
+      setActiveStep("generate");
+      return;
+    }
+    setChatInput(text);
+  };
+
+  const goToGenerate = () => {
+    const lastUser = [...messages].reverse().find(m => m.role === "user");
+    if (lastUser && !genDescription) setGenDescription(lastUser.content);
+    setActiveStep("generate");
+  };
+
   // ─── Chat Streaming ──────────────────────────────────────────────────────────
   const sendChat = useCallback(async () => {
     if (!chatInput.trim() || chatLoading) return;
     const userMsg = chatInput.trim();
     setChatInput("");
-    const history = messages.filter(m => m.role !== "assistant" || messages.indexOf(m) > 0);
     setMessages(prev => [...prev, { role: "user", content: userMsg }]);
     setChatLoading(true);
 
@@ -152,7 +218,7 @@ export default function AgentIA() {
       const resp = await fetch(`${BASE}/api/ai/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMsg, history }),
+        body: JSON.stringify({ message: userMsg, session_id: sessionId }),
       });
 
       if (!resp.ok) throw new Error("Erreur serveur");
@@ -169,7 +235,15 @@ export default function AgentIA() {
           if (line.startsWith("data: ")) {
             try {
               const data = JSON.parse(line.slice(6));
-              if (data.done) break;
+              if (data.done) {
+                if (data.suggested_step === "product") setActiveStep("generate");
+                else if (data.suggested_step === "pricing") setActiveStep("pricing");
+                else if (data.suggested_step === "image") setActiveStep("studio");
+                if (data.extracted?.product_name && !genDescription) setGenDescription(data.extracted.product_name);
+                if (data.extracted?.cost_dzd && !genCost) setGenCost(String(data.extracted.cost_dzd));
+                if (sessionId) refresh(sessionId);
+                break;
+              }
               if (data.content) {
                 assistantContent += data.content;
                 setMessages(prev => {
@@ -183,39 +257,53 @@ export default function AgentIA() {
         }
       }
     } catch {
-      toast({ title: "Erreur", description: "Impossible de contacter l'agent IA.", variant: "destructive" });
+      toast({ title: tr("common.error"), variant: "destructive" });
       setMessages(prev => prev.slice(0, -1));
     } finally {
       setChatLoading(false);
     }
-  }, [chatInput, chatLoading, messages, toast]);
+  }, [chatInput, chatLoading, messages, toast, sessionId, genDescription, genCost, refresh]);
 
   // ─── Generate Product ────────────────────────────────────────────────────────
   const generateProduct = async () => {
     if (!genDescription.trim()) {
-      toast({ title: "Requis", description: "Décrivez votre produit.", variant: "destructive" });
+      toast({ title: tr("common.required"), description: tr("agent.describe_label"), variant: "destructive" });
       return;
     }
     setGenLoading(true);
     setGeneratedProduct(null);
     try {
+      const cost = genCost ? parseFloat(genCost) : undefined;
       const resp = await fetch(`${BASE}/api/ai/generate-product`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           description: genDescription,
           target_market: genTargetMarket || undefined,
-          cost_dzd: genCost ? parseFloat(genCost) : undefined,
+          cost_dzd: cost != null && Number.isFinite(cost) ? cost : undefined,
           image_base64: genImage ?? undefined,
+          session_id: sessionId,
         }),
       });
-      if (!resp.ok) throw new Error("Erreur");
-      const data = await resp.json();
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error((data as { error?: string }).error ?? "Erreur génération");
       setGeneratedProduct(data);
       if (genDescription && !studioProductName) setStudioProductName(data.name_fr);
-      toast({ title: "Fiche générée !", description: "Votre fiche produit est prête en 3 langues." });
-    } catch {
-      toast({ title: "Erreur", description: "Génération échouée. Réessayez.", variant: "destructive" });
+      if (data._fallback) {
+        toast({
+          title: "Fiche générée (mode secours)",
+          description: data._fallback_reason ?? "Quota IA épuisé — fiche basique créée. Rechargez OpenAI/Gemini.",
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: tr("agent.sheet_success") });
+      }
+    } catch (e) {
+      toast({
+        title: tr("common.error"),
+        description: e instanceof Error ? e.message : tr("agent.generate_first"),
+        variant: "destructive",
+      });
     } finally {
       setGenLoading(false);
     }
@@ -223,8 +311,8 @@ export default function AgentIA() {
 
   // ─── Calculate Pricing ───────────────────────────────────────────────────────
   const calculatePricing = async () => {
-    if (!pricingCost || !genDescription) {
-      toast({ title: "Requis", description: "Coût de revient et description produit nécessaires.", variant: "destructive" });
+    if (!pricingCost || (!genDescription && !generatedProduct)) {
+      toast({ title: tr("common.required"), description: tr("agent.cost_required"), variant: "destructive" });
       return;
     }
     setPricingLoading(true);
@@ -240,14 +328,17 @@ export default function AgentIA() {
           quantity_unit: pricingUnit,
           destination_country: pricingDest,
           vendor_margin_pct: parseFloat(pricingMargin),
+          packaging_cost_dzd: parseFloat(pricingPackaging) || 0,
+          local_transport_dzd: parseFloat(pricingTransport) || 0,
+          session_id: sessionId,
         }),
       });
       if (!resp.ok) throw new Error("Erreur");
       const data = await resp.json();
       setPricingResult(data);
-      toast({ title: "Pricing calculé !", description: "Prix EXW/FOB/CFR/CIF prêts." });
+      toast({ title: tr("agent.calculate_btn") });
     } catch {
-      toast({ title: "Erreur", description: "Calcul pricing échoué.", variant: "destructive" });
+      toast({ title: tr("common.error"), description: tr("agent.pricing_placeholder"), variant: "destructive" });
     } finally {
       setPricingLoading(false);
     }
@@ -258,13 +349,17 @@ export default function AgentIA() {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = ev => setStudioImage((ev.target?.result as string).split(",")[1]);
+    reader.onload = ev => {
+      const parsed = parseUploadedImage(ev.target?.result as string);
+      setStudioImage(parsed.base64);
+      setStudioImageMime(parsed.mime);
+    };
     reader.readAsDataURL(file);
   };
 
   const runStudio = async () => {
     if (!studioImage) {
-      toast({ title: "Requis", description: "Uploadez une image produit.", variant: "destructive" });
+      toast({ title: tr("common.required"), description: tr("agent.product_photo_required"), variant: "destructive" });
       return;
     }
     setStudioLoading(true);
@@ -278,19 +373,80 @@ export default function AgentIA() {
           action: studioAction,
           product_name: studioProductName || undefined,
           scene_description: studioScene || undefined,
+          session_id: sessionId,
         }),
       });
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error ?? "Erreur studio");
+        throw new Error((err as { error?: string }).error ?? tr("studio_page.error_studio"));
       }
       const data = await resp.json();
       setStudioResult(data.image_base64);
-      toast({ title: "Image traitée !", description: "Studio IA terminé." });
+      toast({ title: tr("studio_page.done"), description: tr("studio.processed_success") });
     } catch (e) {
-      toast({ title: "Erreur Studio", description: String(e instanceof Error ? e.message : e), variant: "destructive" });
+      toast({ title: tr("studio_page.error_studio"), description: String(e instanceof Error ? e.message : e), variant: "destructive" });
     } finally {
       setStudioLoading(false);
+    }
+  };
+
+  // ─── Publish Product ───────────────────────────────────────────────────────
+  const publishProduct = async () => {
+    if (!generatedProduct) {
+      toast({ title: tr("common.required"), description: tr("agent.generate_first"), variant: "destructive" });
+      return;
+    }
+    setPublishLoading(true);
+    try {
+      const specs = generatedProduct.specs;
+      const resp = await fetch(`${BASE}/api/products`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: generatedProduct.name_fr,
+          description: [
+            generatedProduct.description_fr,
+            generatedProduct.description_en && `EN: ${generatedProduct.description_en}`,
+            generatedProduct.description_ar && `AR: ${generatedProduct.description_ar}`,
+            generatedProduct.seo_tags?.length ? `SEO: ${generatedProduct.seo_tags.join(", ")}` : "",
+          ].filter(Boolean).join("\n\n"),
+          category: generatedProduct.category,
+          moq: generatedProduct.suggested_moq,
+          moq_unit: generatedProduct.suggested_moq_unit,
+          port_depart: generatedProduct.suggested_port,
+          origin_wilaya: specs["Origine"] ?? specs["origine"] ?? undefined,
+          certifications: generatedProduct.certifications,
+          packaging: specs["Conditionnement"] ?? specs["conditionnement"] ?? undefined,
+          processing: specs["Normes"] ?? specs["normes"] ?? undefined,
+          prices: {
+            exw: pricingResult?.exw_usd ?? 0,
+            fob: pricingResult?.fob_usd ?? 0,
+            cfr: pricingResult?.cfr_usd ?? 0,
+            cif: pricingResult?.cif_usd ?? 0,
+            currency: "USD",
+            unit: `per ${pricingUnit}`,
+          },
+          target_markets: [genTargetMarket],
+          export_status: "pending",
+          image_url: studioResult ? `data:image/png;base64,${studioResult}` : genImage ? `data:${genImageMime};base64,${genImage}` : undefined,
+          images: studioResult ? [`data:image/png;base64,${studioResult}`] : [],
+        }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error ?? "Erreur publication");
+      }
+      const data = await resp.json();
+      setPublishedId(data.id);
+      if (sessionId) await markComplete(data.id);
+      toast({
+        title: tr("agent.publish_success_title"),
+        description: tr("agent.publish_pending").replace("{id}", String(data.id)),
+      });
+    } catch (e) {
+      toast({ title: tr("common.error"), description: String(e instanceof Error ? e.message : e), variant: "destructive" });
+    } finally {
+      setPublishLoading(false);
     }
   };
 
@@ -299,49 +455,60 @@ export default function AgentIA() {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = ev => setGenImage((ev.target?.result as string).split(",")[1]);
+    reader.onload = ev => {
+      const parsed = parseUploadedImage(ev.target?.result as string);
+      setGenImage(parsed.base64);
+      setGenImageMime(parsed.mime);
+    };
     reader.readAsDataURL(file);
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col md:flex-row">
-      <SupplierSidebar />
+    <div className="min-h-screen qdia-producer-page flex flex-col md:flex-row">
+      <SupplierSidebar activePath="/agent-ia" />
 
       <main className="flex-1 overflow-y-auto flex flex-col">
         {/* Header */}
-        <header className="border-b bg-card px-6 py-4 flex items-center gap-3 shrink-0">
-          <div className="p-2 rounded-lg bg-primary/10">
-            <Sparkles className="h-5 w-5 text-primary" />
+        <header className="border-b bg-white px-6 py-4 flex items-center gap-3 shrink-0 shadow-sm">
+          <div className="p-2 rounded-lg bg-[#E8F2FB]">
+            <Sparkles className="h-5 w-5 text-[#0461A5]" />
           </div>
           <div>
-            <h1 className="text-lg font-bold">Agent IA QDIA</h1>
-            <p className="text-xs text-muted-foreground">Publiez vos produits en quelques minutes grâce à l'intelligence artificielle</p>
+            <h1 className="text-lg font-bold text-[#1A1A2E]">{tr("agent.header_title")}</h1>
+            <p className="text-xs text-[#656566]">{tr("agent.header_subtitle")}</p>
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <Badge variant="outline" className="gap-1 text-green-700 border-green-300 bg-green-50">
-              <span className="h-1.5 w-1.5 rounded-full bg-green-500 inline-block" />
-              IA Active
+            <Badge variant="success" className="gap-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-white inline-block animate-pulse" />
+              {tr("agent.ia_active")}
             </Badge>
           </div>
         </header>
 
-        {/* Step Tabs */}
-        <div className="border-b bg-card px-6 overflow-x-auto">
-          <div className="flex gap-0 min-w-max">
+        {/* Step Tabs — stepper QDIA */}
+        <div className="border-b bg-white px-6 overflow-x-auto shadow-sm">
+          <div className="flex gap-2 min-w-max py-3">
             {STEPS.map((step, i) => {
               const Icon = step.icon;
               const isActive = activeStep === step.id;
+              const stepIndex = STEPS.findIndex(s => s.id === activeStep);
+              const isDone = i < stepIndex;
               return (
                 <button
                   key={step.id}
                   onClick={() => setActiveStep(step.id)}
                   data-testid={`step-tab-${step.id}`}
-                  className={`flex items-center gap-2 px-5 py-3.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${isActive
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground"}`}
+                  className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-full transition-colors whitespace-nowrap ${isActive
+                    ? "bg-[#0461A5] text-white shadow-md"
+                    : isDone
+                      ? "bg-[#04BB7B] text-white"
+                      : "bg-[#E5E7EB] text-[#9CA3AF] hover:bg-[#E8F2FB]"}`}
                 >
-                  <Icon className="h-4 w-4" />
-                  <span>{i + 1}. {step.label}</span>
+                  <span className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold ${isActive ? "bg-white/20" : isDone ? "bg-white/20" : "bg-white"}`}>
+                    {isDone ? "✓" : i + 1}
+                  </span>
+                  <Icon className="h-3.5 w-3.5 hidden sm:block" />
+                  <span className="hidden sm:inline">{step.label}</span>
                 </button>
               );
             })}
@@ -353,10 +520,15 @@ export default function AgentIA() {
 
           {/* ── STEP 1: CHAT ── */}
           {activeStep === "chat" && (
-            <div className="flex flex-col h-[calc(100vh-220px)] min-h-[500px]">
+            <div className="flex flex-col h-[calc(100vh-220px)] min-h-[500px] qdia-card overflow-hidden">
+              <div className="qdia-chat-header flex items-center gap-2">
+                <Sparkles className="h-4 w-4" />
+                <span className="font-semibold text-sm">{tr("agent.assistant_header")}</span>
+              </div>
+              <div className="p-4 flex flex-col flex-1">
               <div className="mb-4">
-                <h2 className="text-xl font-bold mb-1">Assistant IA</h2>
-                <p className="text-sm text-muted-foreground">Décrivez votre produit, l'agent IA vous guidera vers la publication.</p>
+                <h2 className="text-xl font-bold text-[#1A1A2E] mb-1">{tr("agent.step_assistant")}</h2>
+                <p className="text-sm text-[#656566]">{tr("agent.chat_subtitle")}</p>
               </div>
 
               {/* Messages */}
@@ -368,9 +540,9 @@ export default function AgentIA() {
                         <Sparkles className="h-4 w-4 text-primary" />
                       </div>
                     )}
-                    <div className={`max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${msg.role === "user"
-                      ? "bg-primary text-primary-foreground rounded-tr-none"
-                      : "bg-muted text-foreground rounded-tl-none"}`}>
+                    <div className={`max-w-[75%] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${msg.role === "user"
+                      ? "qdia-chat-user"
+                      : "qdia-chat-ai"}`}>
                       {msg.content || (msg.role === "assistant" && chatLoading && i === messages.length - 1
                         ? <span className="flex gap-1 items-center"><span className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce" /><span className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:0.15s]" /><span className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:0.3s]" /></span>
                         : msg.content)}
@@ -387,14 +559,8 @@ export default function AgentIA() {
 
               {/* Quick suggestions */}
               <div className="flex flex-wrap gap-2 mb-3">
-                {[
-                  "Génère une fiche pour mon huile d'olive de Béjaïa",
-                  "Calcule le prix FOB pour mes dattes Deglet Nour",
-                  "Quelles certifications pour exporter vers l'UE ?",
-                  "Aide-moi à rédiger la description en anglais",
-                ].map(s => (
-                  <button key={s} onClick={() => setChatInput(s)}
-                    className="text-xs px-3 py-1.5 rounded-full border border-border bg-card hover:bg-muted transition-colors text-muted-foreground">
+                {SUGGESTIONS.map((s, i) => (
+                  <button key={s} onClick={() => handleSuggestion(s, i === 0)} className="qdia-chip">
                     {s}
                   </button>
                 ))}
@@ -406,7 +572,7 @@ export default function AgentIA() {
                   value={chatInput}
                   onChange={e => setChatInput(e.target.value)}
                   onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
-                  placeholder="Décrivez votre produit ou posez une question à l'agent IA..."
+                  placeholder={tr("agent.chat_placeholder")}
                   className="resize-none min-h-[52px] max-h-[120px]"
                   data-testid="input-chat"
                   rows={2}
@@ -417,37 +583,38 @@ export default function AgentIA() {
               </div>
 
               <div className="mt-4 flex justify-end">
-                <Button onClick={() => setActiveStep("generate")} className="gap-2" data-testid="button-next-generate">
-                  Générer la fiche produit <ChevronRight className="h-4 w-4" />
+                <Button onClick={goToGenerate} variant="ai" className="gap-2" data-testid="button-next-generate">
+                  {tr("agent.generate_sheet_btn")} <ChevronRight className="h-4 w-4" />
                 </Button>
+              </div>
               </div>
             </div>
           )}
 
           {/* ── STEP 2: GENERATE ── */}
           {activeStep === "generate" && (
-            <div className="space-y-6">
+            <div className="space-y-6 qdia-card p-6">
               <div>
-                <h2 className="text-xl font-bold mb-1">Génération de Fiche Produit</h2>
-                <p className="text-sm text-muted-foreground">L'IA génère le titre, la description (FR/EN/AR), la catégorie, les specs et les tags SEO.</p>
+                <h2 className="text-xl font-bold mb-1">{tr("agent.generate_title")}</h2>
+                <p className="text-sm text-muted-foreground">{tr("agent.generate_subtitle")}</p>
               </div>
 
               <div className="grid md:grid-cols-2 gap-6">
                 {/* Input panel */}
                 <div className="space-y-4">
                   <div>
-                    <label className="text-sm font-medium mb-1.5 block">Description du produit *</label>
+                    <label className="text-sm font-medium mb-1.5 block">{tr("agent.product_description")}</label>
                     <Textarea
                       value={genDescription}
                       onChange={e => setGenDescription(e.target.value)}
-                      placeholder="Ex: Huile d'olive extra vierge première pression à froid, wilaya de Béjaïa, acidité < 0.8%, bouteilles en verre 750ml ou bidons 5L..."
+                      placeholder={tr("agent.describe_hint")}
                       rows={4}
                       data-testid="input-gen-description"
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-sm font-medium mb-1.5 block">Marché cible</label>
+                      <label className="text-sm font-medium mb-1.5 block">{tr("agent.target_market")}</label>
                       <select value={genTargetMarket} onChange={e => setGenTargetMarket(e.target.value)}
                         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                         data-testid="select-gen-market">
@@ -457,19 +624,19 @@ export default function AgentIA() {
                       </select>
                     </div>
                     <div>
-                      <label className="text-sm font-medium mb-1.5 block">Coût revient (DZD/unité)</label>
+                      <label className="text-sm font-medium mb-1.5 block">{tr("agent.cost_dzd")}</label>
                       <Input value={genCost} onChange={e => setGenCost(e.target.value)} placeholder="Ex: 450" type="number" data-testid="input-gen-cost" />
                     </div>
                   </div>
 
                   {/* Image upload */}
                   <div>
-                    <label className="text-sm font-medium mb-1.5 block">Photo produit (optionnel — améliore la précision)</label>
+                    <label className="text-sm font-medium mb-1.5 block">{tr("agent.product_photo_opt")}</label>
                     <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleGenImageUpload} />
                     {genImage ? (
                       <div className="relative w-full h-32 bg-muted rounded-lg overflow-hidden">
-                        <img src={`data:image/jpeg;base64,${genImage}`} alt="Product" className="w-full h-full object-contain" />
-                        <button onClick={() => setGenImage(null)} className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1">
+                        <img src={`data:${genImageMime};base64,${genImage}`} alt="Product" className="w-full h-full object-contain" />
+                        <button onClick={() => { setGenImage(null); setGenImageMime("image/jpeg"); }} className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1">
                           <X className="h-3 w-3" />
                         </button>
                       </div>
@@ -478,13 +645,13 @@ export default function AgentIA() {
                         className="w-full h-24 border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors"
                         data-testid="button-upload-image">
                         <ImagePlus className="h-5 w-5" />
-                        Cliquez pour uploader une photo
+                        {tr("agent.upload_photo_click")}
                       </button>
                     )}
                   </div>
 
                   <Button onClick={generateProduct} disabled={genLoading} className="w-full gap-2" data-testid="button-generate-product">
-                    {genLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Génération en cours...</> : <><Sparkles className="h-4 w-4" /> Générer la fiche IA</>}
+                    {genLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> {tr("agent.generating")}</> : <><Sparkles className="h-4 w-4" /> {tr("agent.generate_btn")}</>}
                   </Button>
                 </div>
 
@@ -502,15 +669,15 @@ export default function AgentIA() {
                   {!genLoading && !generatedProduct && (
                     <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground">
                       <Sparkles className="h-10 w-10 mb-3 opacity-30" />
-                      <p className="font-medium">La fiche générée apparaîtra ici</p>
-                      <p className="text-xs mt-1">Titre, description en 3 langues, catégorie, specs, certifications</p>
+                      <p className="font-medium">{tr("agent.sheet_placeholder")}</p>
+                      <p className="text-xs mt-1">{tr("agent.sheet_placeholder_hint")}</p>
                     </div>
                   )}
 
                   {generatedProduct && (
                     <div className="space-y-4 text-sm">
                       <div className="flex items-center gap-2 text-green-700 font-semibold">
-                        <CheckCircle2 className="h-4 w-4" /> Fiche générée avec succès
+                        <CheckCircle2 className="h-4 w-4" /> {tr("agent.sheet_success")}
                       </div>
 
                       <div className="space-y-1">
@@ -528,6 +695,29 @@ export default function AgentIA() {
                         <p className="font-medium mb-1 flex items-center gap-1"><Languages className="h-3.5 w-3.5" /> Description FR</p>
                         <p className="text-muted-foreground text-xs leading-relaxed line-clamp-4">{generatedProduct.description_fr}</p>
                       </div>
+
+                      <div>
+                        <p className="font-medium mb-1">Description EN</p>
+                        <p className="text-muted-foreground text-xs leading-relaxed line-clamp-3">{generatedProduct.description_en}</p>
+                      </div>
+
+                      {generatedProduct.description_ar && (
+                        <div>
+                          <p className="font-medium mb-1">Description AR</p>
+                          <p className="text-muted-foreground text-xs leading-relaxed line-clamp-3" dir="rtl">{generatedProduct.description_ar}</p>
+                        </div>
+                      )}
+
+                      {generatedProduct.seo_tags.length > 0 && (
+                        <div>
+                          <p className="font-medium mb-1.5">Tags SEO</p>
+                          <div className="flex flex-wrap gap-1">
+                            {generatedProduct.seo_tags.map(tag => (
+                              <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
                       {Object.keys(generatedProduct.specs).length > 0 && (
                         <div>
@@ -549,8 +739,8 @@ export default function AgentIA() {
                       )}
 
                       {generatedProduct.compliance_alerts.length > 0 && (
-                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                          <p className="font-medium text-amber-800 text-xs mb-1 flex items-center gap-1"><AlertTriangle className="h-3.5 w-3.5" /> Alertes conformité</p>
+                        <div className="qdia-alert-warning rounded-lg p-3">
+                          <p className="font-medium text-xs mb-1 flex items-center gap-1"><AlertTriangle className="h-3.5 w-3.5" /> Alertes conformité</p>
                           {generatedProduct.compliance_alerts.map((a, i) => (
                             <p key={i} className="text-xs text-amber-700">{a}</p>
                           ))}
@@ -559,7 +749,7 @@ export default function AgentIA() {
 
                       <div className="pt-2 flex justify-end">
                         <Button size="sm" onClick={() => setActiveStep("pricing")} className="gap-1">
-                          Calculer le pricing <ChevronRight className="h-3.5 w-3.5" />
+                          {tr("agent.calculate_pricing_btn")} <ChevronRight className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     </div>
@@ -571,38 +761,38 @@ export default function AgentIA() {
 
           {/* ── STEP 3: PRICING ── */}
           {activeStep === "pricing" && (
-            <div className="space-y-6">
+            <div className="space-y-6 qdia-card p-6">
               <div>
-                <h2 className="text-xl font-bold mb-1">Calcul Pricing Export</h2>
-                <p className="text-sm text-muted-foreground">Calculez vos prix EXW → FOB → CFR → CIF avec benchmark IA de marché.</p>
+                <h2 className="text-xl font-bold mb-1">{tr("agent.pricing_title")}</h2>
+                <p className="text-sm text-muted-foreground">{tr("agent.pricing_subtitle")}</p>
               </div>
 
               <div className="grid md:grid-cols-2 gap-6">
                 {/* Inputs */}
                 <div className="space-y-4">
                   <div className="bg-muted/30 rounded-lg p-4 text-sm text-muted-foreground border">
-                    <p className="font-medium text-foreground mb-1">Produit</p>
-                    <p>{generatedProduct?.name_fr ?? genDescription ?? "Non défini — retournez à l'étape 2"}</p>
+                    <p className="font-medium text-foreground mb-1">{tr("agent.product_label")}</p>
+                    <p>{generatedProduct?.name_fr ?? genDescription ?? tr("agent.product_undefined")}</p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-sm font-medium mb-1.5 block">Coût de revient (DZD/unité) *</label>
+                      <label className="text-sm font-medium mb-1.5 block">{tr("agent.cost_required")}</label>
                       <Input value={pricingCost} onChange={e => setPricingCost(e.target.value)} placeholder="Ex: 450" type="number" data-testid="input-pricing-cost" />
                     </div>
                     <div>
-                      <label className="text-sm font-medium mb-1.5 block">Quantité</label>
+                      <label className="text-sm font-medium mb-1.5 block">{tr("agent.quantity")}</label>
                       <Input value={pricingQty} onChange={e => setPricingQty(e.target.value)} placeholder="1000" type="number" data-testid="input-pricing-qty" />
                     </div>
                     <div>
-                      <label className="text-sm font-medium mb-1.5 block">Unité</label>
+                      <label className="text-sm font-medium mb-1.5 block">{tr("agent.unit_label")}</label>
                       <select value={pricingUnit} onChange={e => setPricingUnit(e.target.value)}
                         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
                         {["kg", "tons", "liters", "units"].map(u => <option key={u} value={u}>{u}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label className="text-sm font-medium mb-1.5 block">Destination</label>
+                      <label className="text-sm font-medium mb-1.5 block">{tr("agent.destination_label")}</label>
                       <select value={pricingDest} onChange={e => setPricingDest(e.target.value)}
                         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                         data-testid="select-pricing-dest">
@@ -612,13 +802,21 @@ export default function AgentIA() {
                       </select>
                     </div>
                     <div className="col-span-2">
-                      <label className="text-sm font-medium mb-1.5 block">Marge vendeur (%)</label>
+                      <label className="text-sm font-medium mb-1.5 block">{tr("agent.vendor_margin")}</label>
                       <Input value={pricingMargin} onChange={e => setPricingMargin(e.target.value)} placeholder="15" type="number" data-testid="input-pricing-margin" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-1.5 block">{tr("agent.packaging_cost")}</label>
+                      <Input value={pricingPackaging} onChange={e => setPricingPackaging(e.target.value)} placeholder="0" type="number" data-testid="input-pricing-packaging" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-1.5 block">{tr("agent.local_transport")}</label>
+                      <Input value={pricingTransport} onChange={e => setPricingTransport(e.target.value)} placeholder="0" type="number" data-testid="input-pricing-transport" />
                     </div>
                   </div>
 
                   <Button onClick={calculatePricing} disabled={pricingLoading || !pricingCost} className="w-full gap-2" data-testid="button-calculate-pricing">
-                    {pricingLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Calcul en cours...</> : <><DollarSign className="h-4 w-4" /> Calculer EXW/FOB/CFR/CIF</>}
+                    {pricingLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> {tr("agent.calculating")}</> : <><DollarSign className="h-4 w-4" /> {tr("agent.calculate_btn")}</>}
                   </Button>
                 </div>
 
@@ -638,19 +836,21 @@ export default function AgentIA() {
                       {/* Incoterms table */}
                       <div className="rounded-xl border overflow-hidden">
                         <div className="bg-primary px-4 py-2.5 text-primary-foreground text-xs font-semibold uppercase tracking-wide">
-                          Prix indicatifs par Incoterm (USD / {pricingUnit})
+                          Prix indicatifs par Incoterm (DZD, USD, EUR & AED / {pricingUnit})
                         </div>
                         <div className="grid grid-cols-4 divide-x">
                           {[
-                            { label: "EXW", usd: pricingResult.exw_usd, eur: pricingResult.exw_eur, desc: "Sortie usine" },
-                            { label: "FOB", usd: pricingResult.fob_usd, eur: pricingResult.fob_eur, desc: "Port Algérie" },
-                            { label: "CFR", usd: pricingResult.cfr_usd, eur: null, desc: "Port dest." },
-                            { label: "CIF", usd: pricingResult.cif_usd, eur: null, desc: "Avec assurance" },
-                          ].map(({ label, usd, eur, desc }) => (
-                            <div key={label} className="p-3 text-center bg-card">
+                            { label: "EXW", dzd: pricingResult.exw_dzd, usd: pricingResult.exw_usd, eur: pricingResult.exw_eur, aed: pricingResult.exw_aed, desc: "Sortie usine" },
+                            { label: "FOB", dzd: pricingResult.fob_dzd, usd: pricingResult.fob_usd, eur: pricingResult.fob_eur, aed: pricingResult.fob_aed, desc: "Port Algérie" },
+                            { label: "CFR", dzd: pricingResult.cfr_dzd, usd: pricingResult.cfr_usd, eur: pricingResult.cfr_eur, aed: pricingResult.cfr_aed, desc: "Port dest." },
+                            { label: "CIF", dzd: pricingResult.cif_dzd, usd: pricingResult.cif_usd, eur: pricingResult.cif_eur, aed: pricingResult.cif_aed, desc: "Avec assurance" },
+                          ].map(({ label, dzd, usd, eur, aed, desc }) => (
+                            <div key={label} className={`p-3 text-center bg-card ${label === "FOB" ? "qdia-incoterm-active rounded-lg" : ""}`}>
                               <div className="text-xs font-semibold text-muted-foreground mb-0.5">{label}</div>
-                              <div className="text-lg font-bold text-primary">${usd}</div>
-                              {eur && <div className="text-xs text-muted-foreground">€{eur}</div>}
+                              <div className="text-base font-bold text-primary">{dzd?.toLocaleString()} DZD</div>
+                              <div className="text-sm font-semibold text-primary">${usd}</div>
+                              {eur != null && <div className="text-xs text-muted-foreground">€{eur}</div>}
+                              {aed != null && <div className="text-xs text-muted-foreground">{aed} AED</div>}
                               <div className="text-[10px] text-muted-foreground mt-0.5">{desc}</div>
                             </div>
                           ))}
@@ -667,14 +867,20 @@ export default function AgentIA() {
                               <span className="font-medium">{typeof v === "number" && v < 100 ? `${v}%` : v.toLocaleString()}</span>
                             </div>
                           ))}
-                          <div className="pt-1 text-[10px] text-muted-foreground">Taux: 1 DZD = {pricingResult.exchange_rate_dzd_usd} USD</div>
+                          <div className="pt-1 text-[10px] text-muted-foreground">
+                            Taux: 1 DZD = {pricingResult.exchange_rate_dzd_usd} USD · {pricingResult.exchange_rate_dzd_eur} EUR · {pricingResult.exchange_rate_dzd_aed} AED
+                          </div>
                         </div>
                       </div>
 
+                      {pricingResult.price_range_note && (
+                        <p className="text-[10px] text-muted-foreground italic">{pricingResult.price_range_note}</p>
+                      )}
+
                       {/* AI Benchmark */}
                       {pricingResult.market_benchmark && (
-                        <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
-                          <p className="text-xs font-semibold text-primary mb-1.5 flex items-center gap-1">
+                        <div className="qdia-info-card p-4">
+                          <p className="text-xs font-semibold text-[#0461A5] mb-1.5 flex items-center gap-1">
                             <Sparkles className="h-3.5 w-3.5" /> Analyse IA du marché
                           </p>
                           <p className="text-xs leading-relaxed text-muted-foreground">{pricingResult.market_benchmark}</p>
@@ -683,7 +889,7 @@ export default function AgentIA() {
 
                       <div className="flex justify-end">
                         <Button size="sm" onClick={() => setActiveStep("studio")} className="gap-1">
-                          Studio Image <ChevronRight className="h-3.5 w-3.5" />
+                          {tr("agent.studio_image_btn")} <ChevronRight className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     </div>
@@ -692,8 +898,8 @@ export default function AgentIA() {
                   {!pricingLoading && !pricingResult && (
                     <div className="bg-muted/40 border rounded-xl p-8 flex flex-col items-center justify-center text-center text-muted-foreground min-h-[200px]">
                       <DollarSign className="h-10 w-10 mb-3 opacity-30" />
-                      <p className="font-medium">Les prix Incoterms apparaîtront ici</p>
-                      <p className="text-xs mt-1">EXW → FOB → CFR → CIF calculés automatiquement</p>
+                      <p className="font-medium">{tr("agent.pricing_placeholder")}</p>
+                      <p className="text-xs mt-1">{tr("agent.pricing_placeholder_hint")}</p>
                     </div>
                   )}
                 </div>
@@ -705,8 +911,8 @@ export default function AgentIA() {
           {activeStep === "studio" && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-xl font-bold mb-1">Studio Image IA</h2>
-                <p className="text-sm text-muted-foreground">Transformez vos photos amateurs en visuels professionnels pour le catalogue export.</p>
+                <h2 className="text-xl font-bold mb-1">{tr("agent.studio_page_title")}</h2>
+                <p className="text-sm text-muted-foreground">{tr("agent.studio_page_subtitle")}</p>
               </div>
 
               <div className="grid md:grid-cols-2 gap-6">
@@ -714,12 +920,13 @@ export default function AgentIA() {
                 <div className="space-y-4">
                   {/* Action selector */}
                   <div>
-                    <label className="text-sm font-medium mb-2 block">Type de traitement IA</label>
+                    <label className="text-sm font-medium mb-2 block">{tr("agent.treatment_type")}</label>
                     <div className="grid grid-cols-1 gap-2">
                       {[
-                        { id: "studio_scene" as const, label: "Scène Studio IA", desc: "Génère un décor professionnel adapté au produit", icon: Sparkles },
-                        { id: "white_background" as const, label: "Fond Blanc Pro", desc: "Fond blanc pur, ombre légère — style catalogue", icon: RefreshCw },
-                        { id: "enhance" as const, label: "Amélioration Photo", desc: "Lumière, netteté et qualité professionnelle", icon: Wand2 },
+                        { id: "remove_background" as const, label: "Détourage remove.bg", desc: "Suppression du fond automatique", icon: RefreshCw },
+                        { id: "studio_scene" as const, label: "Scène Studio IA", desc: "Décor professionnel (OpenAI / Gemini)", icon: Sparkles },
+                        { id: "white_background" as const, label: "Fond Blanc Pro", desc: "Packshot catalogue e-commerce", icon: RefreshCw },
+                        { id: "enhance" as const, label: "Amélioration Photo", desc: "Lumière, netteté et qualité pro", icon: Wand2 },
                       ].map(({ id, label, desc, icon: Icon }) => (
                         <button key={id} onClick={() => setStudioAction(id)}
                           data-testid={`button-studio-${id}`}
@@ -737,13 +944,13 @@ export default function AgentIA() {
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium mb-1.5 block">Nom du produit</label>
-                    <Input value={studioProductName} onChange={e => setStudioProductName(e.target.value)} placeholder="Ex: Huile d'olive extra vierge" data-testid="input-studio-product" />
+                    <label className="text-sm font-medium mb-1.5 block">{tr("studio_page.product_name")}</label>
+                    <Input value={studioProductName} onChange={e => setStudioProductName(e.target.value)} placeholder={tr("studio_page.product_name_placeholder")} data-testid="input-studio-product" />
                   </div>
 
                   {studioAction === "studio_scene" && (
                     <div>
-                      <label className="text-sm font-medium mb-1.5 block">Description de scène (optionnel)</label>
+                      <label className="text-sm font-medium mb-1.5 block">{tr("agent.scene_description")}</label>
                       <Textarea value={studioScene} onChange={e => setStudioScene(e.target.value)}
                         placeholder="Ex: Cuisine méditerranéenne ensoleillée, olives fraîches en arrière-plan..." rows={2} />
                     </div>
@@ -751,11 +958,11 @@ export default function AgentIA() {
 
                   {/* Upload */}
                   <div>
-                    <label className="text-sm font-medium mb-1.5 block">Photo produit *</label>
+                    <label className="text-sm font-medium mb-1.5 block">{tr("agent.product_photo_required")}</label>
                     <input ref={studioInputRef} type="file" accept="image/*" className="hidden" onChange={handleStudioUpload} />
                     {studioImage ? (
                       <div className="relative w-full h-40 bg-muted rounded-lg overflow-hidden">
-                        <img src={`data:image/jpeg;base64,${studioImage}`} alt="Upload" className="w-full h-full object-contain" />
+                        <img src={`data:${studioImageMime};base64,${studioImage}`} alt="Upload" className="w-full h-full object-contain" />
                         <button onClick={() => { setStudioImage(null); setStudioResult(null); }}
                           className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1">
                           <X className="h-3 w-3" />
@@ -767,14 +974,14 @@ export default function AgentIA() {
                         className="w-full h-32 border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors"
                         data-testid="button-studio-upload">
                         <Upload className="h-5 w-5" />
-                        Glissez votre photo ou cliquez pour uploader
-                        <span className="text-xs">JPG, PNG, WebP — max 10MB</span>
+                        {tr("agent.upload_drag")}
+                        <span className="text-xs">{tr("agent.upload_formats")}</span>
                       </button>
                     )}
                   </div>
 
                   <Button onClick={runStudio} disabled={studioLoading || !studioImage} className="w-full gap-2" data-testid="button-run-studio">
-                    {studioLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Traitement IA en cours...</> : <><Wand2 className="h-4 w-4" /> Lancer le Studio IA</>}
+                    {studioLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> {tr("agent.processing")}</> : <><Wand2 className="h-4 w-4" /> {tr("agent.run_studio_btn")}</>}
                   </Button>
                 </div>
 
@@ -792,31 +999,14 @@ export default function AgentIA() {
                   )}
 
                   {studioResult && !studioLoading && (
-                    <div className="bg-muted/40 border rounded-xl overflow-hidden">
-                      <div className="p-3 border-b flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-sm font-medium text-green-700">
-                          <CheckCircle2 className="h-4 w-4" /> Image traitée
-                        </div>
-                        <a href={`data:image/png;base64,${studioResult}`} download="qdia-product.png">
-                          <Button size="sm" variant="outline" className="gap-1 text-xs">
-                            <Upload className="h-3 w-3" /> Télécharger
-                          </Button>
-                        </a>
-                      </div>
-                      <div className="p-4">
-                        <img src={`data:image/png;base64,${studioResult}`} alt="Studio Result" className="w-full rounded-lg object-contain" />
-                        <div className="mt-2 flex items-center justify-center gap-1 text-[10px] text-muted-foreground">
-                          <ShieldCheck className="h-3 w-3" /> QDIA VERIFIED ASSET
-                        </div>
-                      </div>
-                    </div>
+                    <StudioCanvas originalBase64={studioImage} resultBase64={studioResult} showBadge />
                   )}
 
                   {!studioLoading && !studioResult && (
                     <div className="bg-muted/40 border rounded-xl aspect-square flex flex-col items-center justify-center text-center text-muted-foreground">
                       <Wand2 className="h-12 w-12 mb-3 opacity-20" />
-                      <p className="font-medium">L'image traitée apparaîtra ici</p>
-                      <p className="text-xs mt-1">Scène studio professionnelle générée par l'IA</p>
+                      <p className="font-medium">{tr("agent.result_placeholder")}</p>
+                      <p className="text-xs mt-1">{tr("agent.result_hint")}</p>
                     </div>
                   )}
                 </div>
@@ -825,7 +1015,7 @@ export default function AgentIA() {
               {studioResult && (
                 <div className="flex justify-end">
                   <Button onClick={() => setActiveStep("publish")} className="gap-2">
-                    Publier le produit <ChevronRight className="h-4 w-4" />
+                    {tr("agent.publish_product_btn")} <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
               )}
@@ -836,15 +1026,19 @@ export default function AgentIA() {
           {activeStep === "publish" && (
             <div className="space-y-6 max-w-xl mx-auto">
               <div className="text-center">
-                <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
-                  <CheckCircle2 className="h-8 w-8 text-green-600" />
+                <div className={`inline-flex items-center justify-center h-16 w-16 rounded-full mb-4 ${publishedId ? "bg-green-100" : "bg-green-100"}`}>
+                  {publishedId ? <CheckCircle2 className="h-8 w-8 text-green-600" /> : <CheckCircle2 className="h-8 w-8 text-green-600" />}
                 </div>
-                <h2 className="text-2xl font-bold mb-2">Prêt pour publication</h2>
-                <p className="text-muted-foreground text-sm">Votre produit a été traité par l'agent IA. Vérifiez le récapitulatif et publiez-le.</p>
+                <h2 className="text-2xl font-bold mb-2">{publishedId ? tr("agent.publish_success_title") : tr("agent.ready_publish")}</h2>
+                <p className="text-muted-foreground text-sm">
+                  {publishedId
+                    ? tr("agent.publish_pending").replace("{id}", String(publishedId))
+                    : tr("agent.publish_review")}
+                </p>
               </div>
 
               <div className="bg-card border rounded-xl p-5 space-y-4">
-                <h3 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">Récapitulatif</h3>
+                <h3 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">{tr("agent.summary")}</h3>
 
                 <div className="space-y-3 text-sm">
                   <div className="flex items-start gap-3">
@@ -852,10 +1046,10 @@ export default function AgentIA() {
                       {generatedProduct ? <CheckCircle2 className="h-3 w-3 text-green-600" /> : <span className="text-xs text-muted-foreground">1</span>}
                     </div>
                     <div>
-                      <div className="font-medium">Fiche produit</div>
+                      <div className="font-medium">{tr("agent.sheet_item")}</div>
                       {generatedProduct ? (
                         <div className="text-muted-foreground text-xs">{generatedProduct.name_fr} · {generatedProduct.category}</div>
-                      ) : <div className="text-xs text-amber-600">Non générée — retournez à l'étape 2</div>}
+                      ) : <div className="text-xs text-amber-600">{tr("agent.sheet_missing")}</div>}
                     </div>
                   </div>
 
@@ -864,10 +1058,10 @@ export default function AgentIA() {
                       {pricingResult ? <CheckCircle2 className="h-3 w-3 text-green-600" /> : <span className="text-xs text-muted-foreground">2</span>}
                     </div>
                     <div>
-                      <div className="font-medium">Prix export</div>
+                      <div className="font-medium">{tr("agent.export_price")}</div>
                       {pricingResult ? (
                         <div className="text-muted-foreground text-xs">FOB ${pricingResult.fob_usd} · CIF ${pricingResult.cif_usd} / {pricingUnit}</div>
-                      ) : <div className="text-xs text-amber-600">Non calculé — retournez à l'étape 3</div>}
+                      ) : <div className="text-xs text-amber-600">{tr("agent.price_missing")}</div>}
                     </div>
                   </div>
 
@@ -876,25 +1070,40 @@ export default function AgentIA() {
                       {studioResult ? <CheckCircle2 className="h-3 w-3 text-green-600" /> : <AlertTriangle className="h-3 w-3 text-amber-600" />}
                     </div>
                     <div>
-                      <div className="font-medium">Image studio</div>
-                      <div className="text-xs text-muted-foreground">{studioResult ? "Image traitée et prête" : "Optionnel — vous pouvez publier sans"}</div>
+                      <div className="font-medium">{tr("agent.studio_image_item")}</div>
+                      <div className="text-xs text-muted-foreground">{studioResult ? tr("agent.studio_ready") : tr("agent.studio_optional")}</div>
                     </div>
                   </div>
                 </div>
               </div>
 
               <div className="flex gap-3">
-                <Button variant="outline" className="flex-1" onClick={() => setActiveStep("generate")}>
-                  Modifier la fiche
+                <Button variant="outline" className="flex-1" onClick={() => setActiveStep("generate")} disabled={publishLoading}>
+                  {tr("agent.edit_sheet")}
                 </Button>
-                <Button className="flex-1 gap-2" disabled={!generatedProduct} data-testid="button-publish"
-                  onClick={() => toast({ title: "Produit soumis !", description: "En attente de validation par l'équipe QDIA (24-48h)." })}>
-                  <Globe className="h-4 w-4" /> Soumettre pour validation
+                <Button className="flex-1 gap-2" variant="ai" disabled={!generatedProduct || publishLoading || !!publishedId} data-testid="button-publish"
+                  onClick={publishProduct}>
+                  {publishLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
+                  {publishedId ? tr("agent.submitted_btn") : tr("agent.submit_validation")}
                 </Button>
               </div>
 
+              {publishedId && (
+                <div className="flex flex-col sm:flex-row justify-center gap-3">
+                  <Button variant="outline" asChild>
+                    <Link href="/products">{tr("agent.view_catalog")}</Link>
+                  </Button>
+                  <Button variant="gold" onClick={resetForNewProduct}>
+                    <Sparkles className="h-4 w-4 mr-2" /> {tr("agent.add_another")}
+                  </Button>
+                  <Button variant="outline" asChild>
+                    <Link href="/supplier">{tr("agent.my_products_link")}</Link>
+                  </Button>
+                </div>
+              )}
+
               <p className="text-xs text-center text-muted-foreground">
-                Après validation par l'équipe QDIA, votre produit sera visible sur le portail acheteur international.
+                {tr("agent.after_validation")}
               </p>
             </div>
           )}

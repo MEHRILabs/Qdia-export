@@ -28,6 +28,8 @@ export const productsTable = pgTable("products", {
   priceCif: real("price_cif").notNull(),
   priceCurrency: text("price_currency").notNull().default("USD"),
   priceUnit: text("price_unit").notNull().default("per liter"),
+  priceRetail: real("price_retail"),
+  priceWholesale: real("price_wholesale"),
   rating: real("rating"),
   reviewCount: integer("review_count"),
   ordersFulfilled: integer("orders_fulfilled"),
