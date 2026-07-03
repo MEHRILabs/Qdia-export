@@ -10,6 +10,63 @@ if (!process.env.DATABASE_URL) {
 }
 
 const sql = `
+CREATE TABLE IF NOT EXISTS suppliers (
+  id serial PRIMARY KEY,
+  company_name text NOT NULL,
+  country text NOT NULL DEFAULT 'Algeria',
+  wilaya text NOT NULL,
+  verified boolean NOT NULL DEFAULT false,
+  verification_level integer NOT NULL DEFAULT 1,
+  platform_years integer NOT NULL DEFAULT 1,
+  response_rate real NOT NULL DEFAULT 0,
+  transaction_count integer NOT NULL DEFAULT 0,
+  description text,
+  avatar text
+);
+
+CREATE TABLE IF NOT EXISTS categories (
+  id serial PRIMARY KEY,
+  name text NOT NULL,
+  slug text NOT NULL UNIQUE,
+  icon text NOT NULL DEFAULT 'Package',
+  product_count integer NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS products (
+  id serial PRIMARY KEY,
+  name text NOT NULL,
+  description text,
+  category text NOT NULL,
+  sku text,
+  image_url text,
+  images text[] NOT NULL DEFAULT '{}',
+  supplier_id integer NOT NULL REFERENCES suppliers(id),
+  supplier_name text,
+  supplier_location text,
+  moq real NOT NULL,
+  moq_unit text NOT NULL DEFAULT 'kg',
+  port_depart text NOT NULL DEFAULT 'Alger',
+  origin_wilaya text,
+  certifications text[] NOT NULL DEFAULT '{}',
+  packaging text,
+  processing text,
+  export_status text NOT NULL DEFAULT 'published',
+  price_exw real NOT NULL,
+  price_fob real NOT NULL,
+  price_cfr real NOT NULL,
+  price_cif real NOT NULL,
+  price_currency text NOT NULL DEFAULT 'USD',
+  price_unit text NOT NULL DEFAULT 'per kg',
+  price_retail real,
+  price_wholesale real,
+  rating real,
+  review_count integer,
+  orders_fulfilled integer,
+  target_markets text[] NOT NULL DEFAULT '{}',
+  is_featured boolean NOT NULL DEFAULT false
+);
+CREATE UNIQUE INDEX IF NOT EXISTS products_sku_unique ON products(sku) WHERE sku IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS users (
   id serial PRIMARY KEY,
   email text UNIQUE,

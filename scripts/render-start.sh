@@ -19,6 +19,15 @@ pnpm -C lib/db run push || echo "WARN: drizzle push (non bloquant)"
 echo "→ Seed données initiales…"
 node ./scripts/seed.mjs || echo "WARN: seed (non bloquant)"
 
+echo "→ Publication catalogue marketplace…"
+node ./scripts/bootstrap-products.mjs
+
+if [ -f "./data/base_de_donnees_finale.xlsx" ]; then
+  echo "→ Import Excel Master Data (catalogue complet)…"
+  node ./scripts/import-catalog-variants.mjs "./data/base_de_donnees_finale.xlsx" || echo "WARN: import Excel"
+  node ./scripts/bootstrap-products.mjs
+fi
+
 echo "=== Démarrage serveur API + site ==="
 export NODE_ENV=production
 export SERVE_WEB=1
