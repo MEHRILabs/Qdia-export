@@ -118,10 +118,10 @@ async function seedBaseProducts(client, supplierId) {
         moq, moq_unit, port_depart, origin_wilaya, certifications, packaging, export_status,
         price_exw, price_fob, price_cfr, price_cif, price_currency, price_unit,
         target_markets, is_featured, rating, review_count, orders_fulfilled
-      ) VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'published',
+      )
+      SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'published',
         $16,$17,$18,$19,'USD',$20,$21,$22,$23,$24,$25
-      ) ON CONFLICT (sku) WHERE sku IS NOT NULL DO NOTHING`,
+      WHERE NOT EXISTS (SELECT 1 FROM products WHERE sku = $4)`,
       [
         p.name, p.description, p.category, p.sku, p.image_url, [p.image_url],
         supplierId, p.supplier_name, "Algérie",
@@ -144,6 +144,50 @@ async function syncCatalogVariants(client, supplierId) {
     return 0;
   }
 
+  // Expressions de prix réutilisées (INSERT + UPDATE) — pas d'ON CONFLICT
+  // car le schéma Drizzle ne garantit pas d'index unique sur products.sku.
+  const EXW = `CASE WHEN cv.price_fob_usd > 0 THEN cv.price_fob_usd * 0.92
+      WHEN cv.price_retail_dzd > 0 THEN (cv.price_retail_dzd / 135.0) * 0.92 ELSE 0.92 END`;
+  const FOB = `CASE WHEN cv.price_fob_usd > 0 THEN cv.price_fob_usd
+      WHEN cv.price_retail_dzd > 0 THEN cv.price_retail_dzd / 135.0 ELSE 1 END`;
+  const CFR = `CASE WHEN cv.price_fob_usd > 0 THEN cv.price_fob_usd * 1.08
+      WHEN cv.price_retail_dzd > 0 THEN (cv.price_retail_dzd / 135.0) * 1.08 ELSE 1.08 END`;
+  const CIF = `CASE WHEN cv.price_fob_usd > 0 THEN cv.price_fob_usd * 1.12
+      WHEN cv.price_retail_dzd > 0 THEN (cv.price_retail_dzd / 135.0) * 1.12 ELSE 1.12 END`;
+  const WHOLESALE = `CASE WHEN cv.price_fob_usd > 0 THEN cv.price_fob_usd
+      WHEN cv.price_retail_dzd > 0 THEN cv.price_retail_dzd / 135.0 ELSE NULL END`;
+  const CATEGORY = `CASE WHEN cv.subcategory IS NOT NULL AND trim(cv.subcategory) <> ''
+      THEN cv.category_name || ' > ' || cv.subcategory ELSE cv.category_name END`;
+  const IMAGE = `COALESCE(NULLIF(trim(cv.image_url), ''), $2)`;
+  const DESC = `COALESCE(cv.description, COALESCE(cv.brand_name, '') || ' — ' || cv.name)`;
+  const NOT_EMPTY = `cv.name IS NOT NULL AND trim(cv.name) <> '' AND cv.master_id IS NOT NULL`;
+
+  // 1) Mettre à jour les produits déjà présents (même SKU)
+  await client.query(
+    `UPDATE products p SET
+        name = cv.name,
+        description = ${DESC},
+        category = ${CATEGORY},
+        image_url = ${IMAGE},
+        images = ARRAY[${IMAGE}],
+        supplier_id = $1,
+        supplier_name = COALESCE(cv.brand_name, 'Export DZ'),
+        moq = GREATEST(COALESCE(cv.moq, 100), 1),
+        moq_unit = COALESCE(cv.moq_unit, 'unité'),
+        packaging = cv.packaging_notes,
+        price_exw = ${EXW},
+        price_fob = ${FOB},
+        price_cfr = ${CFR},
+        price_cif = ${CIF},
+        price_retail = cv.price_retail_dzd,
+        price_wholesale = ${WHOLESALE},
+        export_status = 'published'
+      FROM catalog_variants cv
+      WHERE p.sku = cv.master_id AND ${NOT_EMPTY}`,
+    [supplierId, PLACEHOLDER],
+  );
+
+  // 2) Insérer les nouvelles variantes (SKU absent de products)
   const { rowCount } = await client.query(
     `INSERT INTO products (
       name, description, category, sku, image_url, images,
@@ -153,76 +197,19 @@ async function syncCatalogVariants(client, supplierId) {
       price_retail, price_wholesale, is_featured
     )
     SELECT
-      cv.name,
-      COALESCE(cv.description, COALESCE(cv.brand_name, '') || ' — ' || cv.name),
-      CASE WHEN cv.subcategory IS NOT NULL AND trim(cv.subcategory) <> ''
-        THEN cv.category_name || ' > ' || cv.subcategory
-        ELSE cv.category_name END,
-      cv.master_id,
-      COALESCE(NULLIF(trim(cv.image_url), ''), $2),
-      ARRAY[COALESCE(NULLIF(trim(cv.image_url), ''), $2)],
-      $1,
-      COALESCE(cv.brand_name, 'Export DZ'),
-      'Algérie',
-      GREATEST(COALESCE(cv.moq, 100), 1),
-      COALESCE(cv.moq_unit, 'unité'),
-      'Béjaïa',
-      'Alger',
-      '{}',
-      cv.packaging_notes,
-      'published',
-      CASE
-        WHEN cv.price_fob_usd > 0 THEN cv.price_fob_usd * 0.92
-        WHEN cv.price_retail_dzd > 0 THEN (cv.price_retail_dzd / 135.0) * 0.92
-        ELSE 0.92
-      END,
-      CASE
-        WHEN cv.price_fob_usd > 0 THEN cv.price_fob_usd
-        WHEN cv.price_retail_dzd > 0 THEN cv.price_retail_dzd / 135.0
-        ELSE 1
-      END,
-      CASE
-        WHEN cv.price_fob_usd > 0 THEN cv.price_fob_usd * 1.08
-        WHEN cv.price_retail_dzd > 0 THEN (cv.price_retail_dzd / 135.0) * 1.08
-        ELSE 1.08
-      END,
-      CASE
-        WHEN cv.price_fob_usd > 0 THEN cv.price_fob_usd * 1.12
-        WHEN cv.price_retail_dzd > 0 THEN (cv.price_retail_dzd / 135.0) * 1.12
-        ELSE 1.12
-      END,
-      'USD',
-      'unit',
-      cv.price_retail_dzd,
-      CASE
-        WHEN cv.price_fob_usd > 0 THEN cv.price_fob_usd
-        WHEN cv.price_retail_dzd > 0 THEN cv.price_retail_dzd / 135.0
-        ELSE NULL
-      END,
-      false
+      cv.name, ${DESC}, ${CATEGORY}, cv.master_id, ${IMAGE}, ARRAY[${IMAGE}],
+      $1, COALESCE(cv.brand_name, 'Export DZ'), 'Algérie',
+      GREATEST(COALESCE(cv.moq, 100), 1), COALESCE(cv.moq_unit, 'unité'),
+      'Béjaïa', 'Alger', '{}', cv.packaging_notes, 'published',
+      ${EXW}, ${FOB}, ${CFR}, ${CIF}, 'USD', 'unit',
+      cv.price_retail_dzd, ${WHOLESALE}, false
     FROM catalog_variants cv
-    WHERE cv.name IS NOT NULL AND trim(cv.name) <> '' AND cv.master_id IS NOT NULL
-    ON CONFLICT (sku) WHERE sku IS NOT NULL DO UPDATE SET
-      name = EXCLUDED.name,
-      description = EXCLUDED.description,
-      category = EXCLUDED.category,
-      image_url = EXCLUDED.image_url,
-      images = EXCLUDED.images,
-      supplier_id = EXCLUDED.supplier_id,
-      supplier_name = EXCLUDED.supplier_name,
-      moq = EXCLUDED.moq,
-      moq_unit = EXCLUDED.moq_unit,
-      packaging = EXCLUDED.packaging,
-      price_exw = EXCLUDED.price_exw,
-      price_fob = EXCLUDED.price_fob,
-      price_cfr = EXCLUDED.price_cfr,
-      price_cif = EXCLUDED.price_cif,
-      price_retail = EXCLUDED.price_retail,
-      price_wholesale = EXCLUDED.price_wholesale,
-      export_status = 'published'`,
+    WHERE ${NOT_EMPTY}
+      AND NOT EXISTS (SELECT 1 FROM products p WHERE p.sku = cv.master_id)`,
     [supplierId, PLACEHOLDER],
   );
 
+  // 3) Lier chaque variante à son produit publié
   await client.query(
     `UPDATE catalog_variants cv
      SET export_status = 'published',
@@ -233,9 +220,9 @@ async function syncCatalogVariants(client, supplierId) {
        AND cv.name IS NOT NULL AND trim(cv.name) <> ''`,
   );
 
-  const published = rowCount ?? countRows[0].n;
-  console.log(`→ ${published} variantes catalog_variants → products`);
-  return published;
+  const inserted = rowCount ?? 0;
+  console.log(`→ ${inserted} nouvelles variantes publiées (catalog_variants → products)`);
+  return inserted;
 }
 
 async function main() {
