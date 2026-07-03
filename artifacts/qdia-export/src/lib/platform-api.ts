@@ -1,4 +1,5 @@
 import { apiUrl } from "./api-base";
+import type { Product } from "@workspace/api-client-react";
 
 const BASE = import.meta.env.DEV ? "" : (import.meta.env.VITE_API_URL ?? "");
 
@@ -15,6 +16,36 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error ?? `Erreur ${res.status}`);
   return body as T;
+}
+
+export interface SupplierContact {
+  supplier_user_id: number | null;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  company: string | null;
+}
+
+export interface CheckoutResult {
+  id: number;
+  supplier_contact?: SupplierContact | null;
+}
+
+export interface CartItem {
+  id: number;
+  product_id: number;
+  quantity: number;
+  incoterm: string;
+  notes?: string;
+  product_name?: string | null;
+  product_image?: string | null;
+  product_sku?: string | null;
+  supplier_name?: string | null;
+  moq?: number | null;
+  moq_unit?: string | null;
+  unit_price?: number | null;
+  line_total?: number | null;
+  currency?: string;
 }
 
 export const platformApi = {
@@ -151,20 +182,23 @@ export const platformApi = {
       if (v != null && v !== "") q.set(k, String(v));
     });
     const qs = q.toString();
-    return api<{ data: Array<Record<string, unknown>> }>(`/api/products${qs ? `?${qs}` : ""}`);
+    return api<{ data: Product[]; total?: number }>(`/api/products${qs ? `?${qs}` : ""}`);
   },
 
   getCart: () =>
-    api<{ data: Array<{ id: number; product_id: number; quantity: number; incoterm: string; notes?: string }> }>("/api/cart"),
+    api<{ data: CartItem[] }>("/api/cart"),
 
   addToCart: (data: { product_id: number; quantity: number; incoterm?: string; notes?: string }) =>
     api("/api/cart", { method: "POST", body: JSON.stringify(data) }),
+
+  updateCartItem: (itemId: number, quantity: number) =>
+    api(`/api/cart/${itemId}`, { method: "PATCH", body: JSON.stringify({ quantity }) }),
 
   removeFromCart: (itemId: number) =>
     api(`/api/cart/${itemId}`, { method: "DELETE" }),
 
   checkoutCart: (payment_method: "escrow" | "swift" | "lc" = "escrow") =>
-    api<Record<string, unknown>>("/api/cart/checkout", { method: "POST", body: JSON.stringify({ payment_method }) }),
+    api<CheckoutResult>("/api/cart/checkout", { method: "POST", body: JSON.stringify({ payment_method }) }),
 
   getOrders: () =>
     api<{ data: Array<Record<string, unknown>> }>("/api/orders"),

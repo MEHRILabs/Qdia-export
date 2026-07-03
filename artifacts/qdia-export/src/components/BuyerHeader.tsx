@@ -4,9 +4,11 @@ import { motion } from "framer-motion";
 import { BrandLogo } from "@/components/BrandLogo";
 import { AuthModal } from "@/components/AuthModal";
 import { useAuth } from "@/contexts/AuthContext";
+import { isSupplier, defaultHomeForUser } from "@/lib/roles";
 import { Wand2, LogIn, LogOut, User, Store, Sparkles, Globe, Menu, MapPin, BookOpen, ShoppingCart, Package, Truck, Shield } from "lucide-react";
 import { useI18n } from "@/contexts/I18nContext";
 import type { Locale } from "@/lib/i18n";
+import { useCartCount } from "@/hooks/useCart";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
@@ -74,6 +76,16 @@ export function BuyerHeader() {
   const { locale, setLocale, tr } = useI18n();
   const [, setLocation] = useLocation();
   const [authOpen, setAuthOpen] = useState(false);
+  const cartCount = useCartCount();
+
+  const goToCart = useCallback(() => {
+    if (!user) {
+      sessionStorage.setItem("qdia_return_to", "/panier");
+      setAuthOpen(true);
+      return;
+    }
+    setLocation("/panier");
+  }, [user, setLocation]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -89,10 +101,10 @@ export function BuyerHeader() {
   }, []);
 
   const onAuthSuccess = useCallback(() => {
-    const returnTo = sessionStorage.getItem("qdia_return_to") ?? "/supplier";
+    const returnTo = sessionStorage.getItem("qdia_return_to") ?? defaultHomeForUser(user);
     sessionStorage.removeItem("qdia_return_to");
     setLocation(returnTo);
-  }, [setLocation]);
+  }, [setLocation, user]);
 
   const langs: { code: Locale; label: string; name: string }[] = [
     { code: "fr", label: "FR", name: "Français" },
@@ -109,7 +121,9 @@ export function BuyerHeader() {
           <BrandLogo variant="header" />
 
           <nav className="hidden md:flex items-center gap-3">
-            <EspaceFournisseurButton label={tr("header.supplier_space")} />
+            {isSupplier(user) && (
+              <EspaceFournisseurButton label={tr("header.supplier_space")} />
+            )}
           </nav>
 
           <div className="ml-auto flex items-center gap-1.5 sm:gap-2 md:gap-3">
@@ -124,25 +138,31 @@ export function BuyerHeader() {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56 p-1" onCloseAutoFocus={e => e.preventDefault()}>
-                <DropdownMenuItem asChild>
-                  <Link href="/supplier" className="cursor-pointer text-sm py-2">
-                    <Store className="h-4 w-4 mr-2 inline text-[#0461A5]" /> {tr("header.supplier_space")}
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/studio" className="cursor-pointer text-sm py-2">
-                    <Wand2 className="h-4 w-4 mr-2 inline text-[#0461A5]" /> {tr("header.studio_ia")}
-                  </Link>
-                </DropdownMenuItem>
+                {isSupplier(user) && (
+                  <>
+                    <DropdownMenuItem asChild>
+                      <Link href="/supplier" className="cursor-pointer text-sm py-2">
+                        <Store className="h-4 w-4 mr-2 inline text-[#0461A5]" /> {tr("header.supplier_space")}
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/studio" className="cursor-pointer text-sm py-2">
+                        <Wand2 className="h-4 w-4 mr-2 inline text-[#0461A5]" /> {tr("header.studio_ia")}
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 <DropdownMenuItem asChild>
                   <Link href="/products" className="cursor-pointer text-sm py-2">
                     <BookOpen className="h-4 w-4 mr-2 inline text-[#0461A5]" /> {tr("header.explore_catalog")}
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/panier" className="cursor-pointer text-sm py-2">
-                    <ShoppingCart className="h-4 w-4 mr-2 inline text-[#0461A5]" /> {tr("cart.title")}
-                  </Link>
+                <DropdownMenuItem onClick={goToCart} className="cursor-pointer text-sm py-2">
+                  <ShoppingCart className="h-4 w-4 mr-2 inline text-[#0461A5]" /> {tr("cart.title")}
+                  {cartCount > 0 && (
+                    <span className="ml-auto bg-[#0461A5] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{cartCount}</span>
+                  )}
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href="/commandes" className="cursor-pointer text-sm py-2">
@@ -211,9 +231,27 @@ export function BuyerHeader() {
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
-            <div className="hidden md:block">
-              <StudioIAButton label={tr("header.studio_ia")} />
-            </div>
+            <motion.button
+              type="button"
+              onClick={goToCart}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="relative inline-flex items-center justify-center h-9 w-9 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-lg transition-colors"
+              aria-label={tr("cart.title")}
+            >
+              <ShoppingCart className="h-4 w-4" />
+              {cartCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 h-4 min-w-4 px-0.5 rounded-full bg-[#F5C518] text-[#1A1A2E] text-[10px] font-black flex items-center justify-center">
+                  {cartCount > 9 ? "9+" : cartCount}
+                </span>
+              )}
+            </motion.button>
+
+            {isSupplier(user) && (
+              <div className="hidden md:block">
+                <StudioIAButton label={tr("header.studio_ia")} />
+              </div>
+            )}
 
             {user ? (
               <DropdownMenu>
@@ -232,13 +270,16 @@ export function BuyerHeader() {
                   </div>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link href="/facturation" className="cursor-pointer">{tr("facturation.title")}</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
                     <Link href="/panier" className="cursor-pointer">{tr("cart.title")}</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link href="/commandes" className="cursor-pointer">{tr("orders.title")}</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/favoris" className="cursor-pointer">{tr("nav.favorites")}</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/mes-rfq" className="cursor-pointer">{tr("nav.my_rfqs")}</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link href="/suivi" className="cursor-pointer">{tr("tracking.page_title")}</Link>
@@ -247,11 +288,22 @@ export function BuyerHeader() {
                     <Link href="/trade-assurance" className="cursor-pointer">{tr("trade_assurance.title")}</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/supplier" className="cursor-pointer">{tr("header.supplier_space")}</Link>
+                    <Link href="/profile" className="cursor-pointer">{tr("nav.profile")}</Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/dashboard" className="cursor-pointer">{tr("nav.dashboard")}</Link>
-                  </DropdownMenuItem>
+                  {isSupplier(user) && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild>
+                        <Link href="/supplier" className="cursor-pointer">{tr("header.supplier_space")}</Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link href="/dashboard" className="cursor-pointer">{tr("nav.dashboard")}</Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link href="/facturation" className="cursor-pointer">{tr("facturation.title")}</Link>
+                      </DropdownMenuItem>
+                    </>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={logout} className="text-red-600 cursor-pointer">
                     <LogOut className="h-4 w-4 mr-2" /> {tr("header.logout")}

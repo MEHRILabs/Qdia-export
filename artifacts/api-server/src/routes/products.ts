@@ -2,7 +2,9 @@ import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { db, pool, productsTable, suppliersTable, categoriesTable, productViewsTable } from "@workspace/db";
 import { eq, ilike, and, or, sql, gte, lte, type SQL } from "drizzle-orm";
-import { requireAuth, requireRole, type AuthedRequest } from "../middleware/auth";
+import { requireAuth, requireRole, optionalAuth, type AuthedRequest } from "../middleware/auth";
+import { writeLimiter } from "../middleware/rate-limit";
+import { canModifyProduct } from "../middleware/access-control";
 import {
   ListProductsQueryParams,
   GetProductParams,
@@ -100,7 +102,7 @@ function toProductShape(p: typeof productsTable.$inferSelect) {
   };
 }
 
-router.get("/products", async (req, res): Promise<void> => {
+router.get("/products", optionalAuth, async (req: AuthedRequest, res): Promise<void> => {
   const params = ListProductsQueryParams.safeParse(req.query);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -121,9 +123,15 @@ router.get("/products", async (req, res): Promise<void> => {
   const conditions: SQL[] = [];
 
   if (exportStatusFilter) {
-    conditions.push(eq(productsTable.exportStatus, exportStatusFilter));
-  } else if (scope === "supplier" || scope === "admin") {
-    // supplier/admin voit tous les statuts
+    if (req.user?.role === "admin" || req.user?.role === "supplier") {
+      conditions.push(eq(productsTable.exportStatus, exportStatusFilter));
+    } else {
+      conditions.push(eq(productsTable.exportStatus, "published"));
+    }
+  } else if (scope === "admin" && req.user?.role === "admin") {
+    // admin voit tous les statuts
+  } else if (scope === "supplier" && req.user && ["supplier", "admin"].includes(req.user.role)) {
+    // fournisseur authentifié voit tous les statuts
   } else {
     conditions.push(eq(productsTable.exportStatus, "published"));
   }
@@ -197,7 +205,7 @@ router.get("/products", async (req, res): Promise<void> => {
   }));
 });
 
-router.post("/products", async (req, res): Promise<void> => {
+router.post("/products", requireAuth, requireRole("supplier", "admin"), writeLimiter, async (req: AuthedRequest, res): Promise<void> => {
   const parsed = CreateProductBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -249,7 +257,7 @@ router.get("/products/import-template", (_req, res): void => {
   res.send(buffer);
 });
 
-router.post("/products/import-excel", async (req, res): Promise<void> => {
+router.post("/products/import-excel", requireAuth, requireRole("supplier", "admin"), writeLimiter, async (req: AuthedRequest, res): Promise<void> => {
   const parsed = z.object({
     file_base64: z.string().min(1),
     publish: z.boolean().optional(),
@@ -509,11 +517,20 @@ router.get("/products/featured", async (_req, res): Promise<void> => {
   res.json(ListFeaturedProductsResponse.parse(rows.map(toProductShape)));
 });
 
-router.patch("/products/:id", async (req, res): Promise<void> => {
+router.patch("/products/:id", requireAuth, requireRole("supplier", "admin"), async (req: AuthedRequest, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   if (Number.isNaN(id)) {
     res.status(400).json({ error: "Invalid product id" });
+    return;
+  }
+  const [existing] = await db.select().from(productsTable).where(eq(productsTable.id, id)).limit(1);
+  if (!existing) {
+    res.status(404).json({ error: "Product not found" });
+    return;
+  }
+  if (!canModifyProduct(req.user!, existing)) {
+    res.status(403).json({ error: "Accès non autorisé à ce produit." });
     return;
   }
   const export_status = parseExportStatus(req.body?.export_status);
@@ -567,6 +584,10 @@ router.put("/products/:id", requireAuth, requireRole("supplier", "admin"), async
     res.status(404).json({ error: "Product not found" });
     return;
   }
+  if (!canModifyProduct(req.user!, before)) {
+    res.status(403).json({ error: "Accès non autorisé à ce produit." });
+    return;
+  }
 
   let imageUrl = extras.image_url;
   let images = extras.images;
@@ -602,6 +623,15 @@ router.put("/products/:id", requireAuth, requireRole("supplier", "admin"), async
 
 router.delete("/products/:id", requireAuth, requireRole("supplier", "admin"), async (req: AuthedRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
+  const [existing] = await db.select().from(productsTable).where(eq(productsTable.id, id)).limit(1);
+  if (!existing) {
+    res.status(404).json({ error: "Product not found" });
+    return;
+  }
+  if (!canModifyProduct(req.user!, existing)) {
+    res.status(403).json({ error: "Accès non autorisé à ce produit." });
+    return;
+  }
   const [product] = await db.delete(productsTable).where(eq(productsTable.id, id)).returning();
   if (!product) {
     res.status(404).json({ error: "Product not found" });

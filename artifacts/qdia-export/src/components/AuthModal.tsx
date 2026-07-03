@@ -201,22 +201,6 @@ export function AuthModal({ open, onOpenChange, onSuccess }: Props) {
                     required
                   />
                 </div>
-                {mode === "login" && import.meta.env.DEV && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
-                    <p className="font-semibold mb-1">{tr("auth.demo_hint")}</p>
-                    <p className="mb-2">{tr("auth_page.demo_credentials")}</p>
-                    <button
-                      type="button"
-                      className="text-[#0461A5] font-bold hover:underline"
-                      onClick={() => {
-                        setEmail("supplier@qdiadz.com");
-                        setPassword("demo1234");
-                      }}
-                    >
-                      {tr("auth.demo_fill")}
-                    </button>
-                  </div>
-                )}
                 <Button type="submit" className="w-full h-10 font-bold bg-[#0461A5] hover:bg-[#073B74]" disabled={loading}>
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : mode === "register" ? tr("auth_page.register_btn") : tr("auth.login")}
                 </Button>

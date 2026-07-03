@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Link } from "wouter";
 import { useListCategories } from "@workspace/api-client-react";
+import type { Product } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
 import { BuyerHeader, BuyerFooter } from "@/components/BuyerHeader";
 import { AdvancedCatalogFilters, DEFAULT_CATALOG_FILTERS, type CatalogFilters } from "@/components/AdvancedCatalogFilters";
@@ -11,9 +12,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search, Plus, Sparkles, FileDown } from "lucide-react";
 import { ProductImage } from "@/components/ProductImage";
-import { DEMO_PRODUCTS, filterDemoProducts } from "@/lib/demo-products";
 import { platformApi } from "@/lib/platform-api";
 import { useI18n } from "@/contexts/I18nContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { isSupplier } from "@/lib/roles";
 
 export default function Catalog() {
   const [search, setSearch] = useState("");
@@ -37,7 +39,7 @@ export default function Catalog() {
 
   const incoterm = filters.incoterm || undefined;
 
-  const { data: productList, isLoading } = useQuery({
+  const { data: productList, isLoading, isError } = useQuery({
     queryKey: ["catalog-products", search, categoryName, filters],
     queryFn: () => platformApi.listProductsFiltered({
       search: search || undefined,
@@ -54,30 +56,15 @@ export default function Catalog() {
     }),
   });
 
-  const products = useMemo(() => {
-    const api = productList?.data ?? [];
-    if (api.length > 0) {
-      return api as unknown as typeof DEMO_PRODUCTS;
-    }
-    return filterDemoProducts(
-      search || undefined,
-      categoryName !== "ALL" ? categoryName : undefined,
-    );
-  }, [productList, search, categoryName]);
-
-  const usingDemo = !(productList?.data?.length);
+  const products: Product[] = (productList?.data as Product[] | undefined) ?? [];
 
   const categoryOptions = useMemo(() => {
     const fromApi = productCategories?.data?.map(c => c.name) ?? [];
     const fromDb = categories?.map(c => c.name) ?? [];
-    const merged = [...new Set([...fromApi, ...fromDb])].sort();
-    if (merged.length > 0) return merged;
-    if (usingDemo) {
-      return DEMO_PRODUCTS.map(p => p.category).filter((v, i, a) => a.indexOf(v) === i);
-    }
-    return merged;
-  }, [productCategories, categories, usingDemo]);
+    return [...new Set([...fromApi, ...fromDb])].sort();
+  }, [productCategories, categories]);
   const { tr } = useI18n();
+  const { user } = useAuth();
 
   return (
     <div className="min-h-screen qdia-buyer-page flex flex-col">
@@ -89,20 +76,19 @@ export default function Catalog() {
             <h1 className="text-[28px] font-black text-[#1A1A2E] mb-1">{tr("catalog.title")}</h1>
             <p className="text-sm text-[#656566]">
               {tr("catalog.subtitle")} 🇩🇿
-              {usingDemo && !isLoading && (
-                <span className="ml-2 text-[#0461A5]">{tr("catalog.demo_hint")}</span>
-              )}
             </p>
           </div>
           <div className="flex gap-2 shrink-0">
             <Button variant="outline" className="font-bold gap-2" onClick={() => window.open(platformApi.catalogPdfUrl(), "_blank")}>
                 <FileDown className="h-4 w-4" /> {tr("catalog.pdf")}
               </Button>
+            {isSupplier(user) && (
             <Button variant="gold" className="font-bold gap-2" asChild>
             <Link href="/agent-ia?new=1">
               <Plus className="h-4 w-4" /> {tr("supplier.add_product")}
             </Link>
             </Button>
+            )}
           </div>
         </div>
 
@@ -142,7 +128,7 @@ export default function Catalog() {
           </div>
         )}
 
-        {isLoading && !usingDemo ? (
+        {isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
             {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-80 rounded-xl" />)}
           </div>
@@ -173,12 +159,14 @@ export default function Catalog() {
                 </div>
               </Link>
             ))}
-            {products.length === 0 && (
+            {products.length === 0 && !isLoading && (
               <div className="col-span-full py-16 text-center space-y-4">
-                <p className="text-[#9CA3AF]">{tr("catalog.no_results")}</p>
+                <p className="text-[#9CA3AF]">{isError ? tr("catalog.load_error") : tr("catalog.no_results")}</p>
+                {isSupplier(user) && (
                 <Button asChild>
                   <Link href="/agent-ia?new=1"><Sparkles className="h-4 w-4 mr-2" /> {tr("catalog.publish_first")}</Link>
                 </Button>
+                )}
               </div>
             )}
           </div>

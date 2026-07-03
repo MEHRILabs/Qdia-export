@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { SupplierSidebar } from "@/components/SupplierSidebar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,6 +17,14 @@ export default function Messages() {
   const [body, setBody] = useState("");
   const [typingFrom, setTypingFrom] = useState<number | null>(null);
   const qc = useQueryClient();
+
+  useEffect(() => {
+    const userId = new URLSearchParams(window.location.search).get("user");
+    if (userId) {
+      const id = parseInt(userId, 10);
+      if (id > 0) setPartnerId(id);
+    }
+  }, []);
 
   const refresh = useCallback(() => {
     qc.invalidateQueries({ queryKey: ["message-threads"] });

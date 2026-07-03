@@ -6,9 +6,9 @@ import { sendSmsOtp } from "./sms-twilio";
 import { verifyGoogleIdToken } from "./google-verify";
 import { logger } from "../lib/logger";
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET ?? "qdia-dev-secret-change-in-production",
-);
+import { getJwtSecretBytes, isProduction } from "../lib/env-security";
+
+const JWT_SECRET = getJwtSecretBytes();
 const JWT_EXPIRES = process.env.JWT_EXPIRES_IN ?? "7d";
 
 export interface AuthTokenPayload {
@@ -102,7 +102,7 @@ export async function registerEmail(input: {
     email: input.email,
     passwordHash: await hashPassword(input.password),
     name: input.name ?? input.email.split("@")[0],
-    role: input.role ?? (input.email.includes("supplier") ? "supplier" : "buyer"),
+    role: input.role === "supplier" ? "supplier" : "buyer",
     provider: "email",
     verified: true,
   }).returning();
@@ -119,7 +119,8 @@ export async function loginEmail(email: string, password: string) {
       return { user: publicUser, token: await signToken(publicUser) };
     }
   } catch (err) {
-    logger.warn({ err, email }, "Connexion BDD échouée — mode démo");
+    logger.warn({ err, email }, "Connexion BDD échouée");
+    if (isProduction()) throw new Error("Identifiants invalides.");
   }
 
   const demo = await tryDemoLogin(email, password);
@@ -134,8 +135,7 @@ const DEMO_ACCOUNTS: Array<PublicUser & { password: string }> = [
 ];
 
 function tryDemoLogin(email: string, password: string) {
-  const allowDemo = process.env.NODE_ENV !== "production" || process.env.QDIA_DEMO_AUTH === "1";
-  if (!allowDemo) return null;
+  if (isProduction()) return null;
   const acc = DEMO_ACCOUNTS.find(a => a.email === email && a.password === password);
   if (!acc) return null;
   const { password: _, ...publicUser } = acc;
@@ -143,14 +143,18 @@ function tryDemoLogin(email: string, password: string) {
 }
 
 export async function loginGoogle(input: { email: string; name: string; googleId?: string; idToken?: string }) {
+  if (isProduction() && !input.idToken) {
+    throw new Error("Token Google requis.");
+  }
+
   if (input.idToken) {
     const verified = await verifyGoogleIdToken(input.idToken);
-    if (verified) {
-      input = { email: verified.email, name: verified.name, googleId: verified.sub };
-    } else if (!input.email) {
+    if (!verified) {
       throw new Error("Token Google invalide.");
     }
-    // Sinon : vérification réseau impossible, on garde l'email/nom déjà fournis par le client.
+    input = { email: verified.email, name: verified.name, googleId: verified.sub };
+  } else if (!input.email) {
+    throw new Error("Token Google invalide.");
   }
 
   if (!input.email) throw new Error("Email Google manquant.");
@@ -191,7 +195,6 @@ export async function sendPhoneOtp(phone: string) {
     sent: true,
     sms: smsSent,
     expires_in: 600,
-    demo_code: useDevCode ? code : undefined,
   };
 }
 
@@ -230,9 +233,10 @@ export async function getUserById(id: number) {
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, id)).limit(1);
     if (user) return toPublicUser(user);
   } catch (err) {
-    logger.warn({ err, id }, "getUserById BDD échouée — mode démo");
+    logger.warn({ err, id }, "getUserById BDD échouée");
+    if (isProduction()) return null;
   }
-  if (process.env.NODE_ENV === "production") return null;
+  if (isProduction()) return null;
   const acc = DEMO_ACCOUNTS.find(a => a.id === id);
   if (!acc) return null;
   const { password: _, ...publicUser } = acc;

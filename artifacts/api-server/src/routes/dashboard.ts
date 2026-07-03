@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db, productsTable, rfqsTable, productViewsTable } from "@workspace/db";
 import { eq, desc, sql } from "drizzle-orm";
+import { requireAuth, requireRole, type AuthedRequest } from "../middleware/auth";
 import {
   GetDashboardStatsResponse,
   GetRecentRfqsResponse,
@@ -8,6 +9,8 @@ import {
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
+
+router.use(requireAuth, requireRole("supplier", "admin"));
 
 router.get("/dashboard/stats", async (_req, res): Promise<void> => {
   const allProducts = await db.select().from(productsTable);

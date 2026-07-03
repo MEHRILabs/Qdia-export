@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db, rfqsTable, transactionsTable } from "@workspace/db";
 import { eq, desc, or, and, isNull } from "drizzle-orm";
 import { requireAuth, type AuthedRequest } from "../middleware/auth";
+import { canAccessRfq } from "../middleware/access-control";
 import { createTransactionOnRfqAccept, fundTransaction } from "../services/payments";
 import { sendPushToUser } from "../services/fcm";
 
@@ -138,11 +139,15 @@ router.post("/rfq", requireAuth, async (req: AuthedRequest, res): Promise<void> 
   res.status(201).json(toRfqShape(rfq));
 });
 
-router.get("/rfq/:id", async (req, res): Promise<void> => {
+router.get("/rfq/:id", requireAuth, async (req: AuthedRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   const [rfq] = await db.select().from(rfqsTable).where(eq(rfqsTable.id, id));
   if (!rfq) {
     res.status(404).json({ error: "RFQ not found" });
+    return;
+  }
+  if (!canAccessRfq(req.user!, rfq)) {
+    res.status(403).json({ error: "Accès refusé à ce devis." });
     return;
   }
   res.json(toRfqShape(rfq));

@@ -57,3 +57,8 @@ artifacts/qdia-export/.env
 # Uploads produits (générés en prod, pas versionnés)
 artifacts/api-server/uploads/
 artifacts/uploads/
+
+.vercel
+.env*.local
+
+.vercel

@@ -9,6 +9,7 @@ export function getProvider(kind: "chat" | "vision" | "benchmark" | "image"): Ai
   };
   const raw = map[kind]?.toLowerCase();
   if (raw === "gemini" || raw === "claude" || raw === "openai" || raw === "groq") return raw;
+  if (process.env.GROQ_API_KEY) return "groq";
   return "openai";
 }
 

@@ -1,8 +1,11 @@
 import "./load-env.js";
+import { validateSecurityEnv } from "./lib/env-security.js";
 import { createServer } from "node:http";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { attachWebSocket } from "./services/websocket";
+
+validateSecurityEnv();
 
 const rawPort = process.env["PORT"];
 

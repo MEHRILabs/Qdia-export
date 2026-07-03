@@ -10,6 +10,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useAgentSession } from "@/hooks/useAgentSession";
 import { useI18n } from "@/contexts/I18nContext";
 import { StudioCanvas } from "@/components/StudioCanvas";
+import { PricingExplanation } from "@/components/PricingExplanation";
+import { AI_CREDIT_COSTS } from "@/lib/ai-credits";
 import {
   MessageSquare, Package, Sparkles, Send, ImagePlus, ChevronRight,
   Loader2, CheckCircle2, AlertTriangle, RefreshCw,
@@ -51,6 +53,7 @@ interface PricingResult {
   breakdown: Record<string, number>;
   market_benchmark: string | null;
   price_range_note: string | null;
+  pricing_sources?: Record<string, string>;
 }
 
 // ─── STEP INDICATOR ───────────────────────────────────────────────────────────
@@ -106,6 +109,8 @@ export default function AgentIA() {
   const [pricingDest, setPricingDest] = useState("FR");
   const [pricingMargin, setPricingMargin] = useState("15");
   const [pricingPackaging, setPricingPackaging] = useState("0");
+  const [pricingPackagingSecondary, setPricingPackagingSecondary] = useState("");
+  const [pricingPackagingSecondaryCost, setPricingPackagingSecondaryCost] = useState("0");
   const [pricingTransport, setPricingTransport] = useState("0");
   const [pricingLoading, setPricingLoading] = useState(false);
   const [pricingResult, setPricingResult] = useState<PricingResult | null>(null);
@@ -328,7 +333,7 @@ export default function AgentIA() {
           quantity_unit: pricingUnit,
           destination_country: pricingDest,
           vendor_margin_pct: parseFloat(pricingMargin),
-          packaging_cost_dzd: parseFloat(pricingPackaging) || 0,
+          packaging_cost_dzd: (parseFloat(pricingPackaging) || 0) + (parseFloat(pricingPackagingSecondaryCost) || 0),
           local_transport_dzd: parseFloat(pricingTransport) || 0,
           session_id: sessionId,
         }),
@@ -416,7 +421,10 @@ export default function AgentIA() {
           port_depart: generatedProduct.suggested_port,
           origin_wilaya: specs["Origine"] ?? specs["origine"] ?? undefined,
           certifications: generatedProduct.certifications,
-          packaging: specs["Conditionnement"] ?? specs["conditionnement"] ?? undefined,
+          packaging: [
+            specs["Conditionnement"] ?? specs["conditionnement"],
+            specs["Emballage secondaire"] ?? pricingPackagingSecondary,
+          ].filter(Boolean).join(" · ") || undefined,
           processing: specs["Normes"] ?? specs["normes"] ?? undefined,
           prices: {
             exw: pricingResult?.exw_usd ?? 0,
@@ -650,6 +658,11 @@ export default function AgentIA() {
                     )}
                   </div>
 
+                  <p className="text-xs text-[#0461A5] font-semibold mb-2">
+                    {tr("agent.credits_cost_sheet").replace("{n}", String(AI_CREDIT_COSTS.product_sheet_3lang))}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mb-3">{tr("agent.credits_info")}</p>
+
                   <Button onClick={generateProduct} disabled={genLoading} className="w-full gap-2" data-testid="button-generate-product">
                     {genLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> {tr("agent.generating")}</> : <><Sparkles className="h-4 w-4" /> {tr("agent.generate_btn")}</>}
                   </Button>
@@ -767,6 +780,8 @@ export default function AgentIA() {
                 <p className="text-sm text-muted-foreground">{tr("agent.pricing_subtitle")}</p>
               </div>
 
+              <PricingExplanation />
+
               <div className="grid md:grid-cols-2 gap-6">
                 {/* Inputs */}
                 <div className="space-y-4">
@@ -808,6 +823,19 @@ export default function AgentIA() {
                     <div>
                       <label className="text-sm font-medium mb-1.5 block">{tr("agent.packaging_cost")}</label>
                       <Input value={pricingPackaging} onChange={e => setPricingPackaging(e.target.value)} placeholder="0" type="number" data-testid="input-pricing-packaging" />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="text-sm font-medium mb-1.5 block">{tr("agent.packaging_secondary")}</label>
+                      <Input
+                        value={pricingPackagingSecondary}
+                        onChange={e => setPricingPackagingSecondary(e.target.value)}
+                        placeholder={tr("agent.packaging_secondary_hint")}
+                        data-testid="input-pricing-packaging-secondary"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-1.5 block">{tr("agent.packaging_secondary_cost")}</label>
+                      <Input value={pricingPackagingSecondaryCost} onChange={e => setPricingPackagingSecondaryCost(e.target.value)} placeholder="0" type="number" />
                     </div>
                     <div>
                       <label className="text-sm font-medium mb-1.5 block">{tr("agent.local_transport")}</label>
@@ -872,6 +900,15 @@ export default function AgentIA() {
                           </div>
                         </div>
                       </div>
+
+                      {pricingResult.pricing_sources && (
+                        <div className="bg-muted/20 rounded-lg border p-3 text-[10px] text-muted-foreground space-y-1">
+                          <p className="font-semibold text-foreground">{tr("agent.pricing_tables_used")}</p>
+                          {Object.entries(pricingResult.pricing_sources).map(([k, v]) => (
+                            <p key={k}><span className="font-medium">{k}:</span> {v}</p>
+                          ))}
+                        </div>
+                      )}
 
                       {pricingResult.price_range_note && (
                         <p className="text-[10px] text-muted-foreground italic">{pricingResult.price_range_note}</p>

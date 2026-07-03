@@ -3,6 +3,7 @@ import { z } from "zod";
 import { eq, desc, sql } from "drizzle-orm";
 import { db, invoicesTable, transactionsTable, productsTable } from "@workspace/db";
 import { requireAuth, type AuthedRequest } from "../middleware/auth";
+import { canAccessInvoice, canAccessTransaction } from "../middleware/access-control";
 import { createInvoiceFromTransaction } from "../services/billing";
 import { generateInvoicePdf, type InvoiceLineItem } from "../services/pdf-generator";
 import { generateInvoiceLines } from "../services/invoice-ai";
@@ -167,6 +168,15 @@ router.post("/billing/invoices/preview-pdf", requireAuth, async (req: AuthedRequ
 router.post("/billing/invoices/from-transaction/:txId", requireAuth, async (req: AuthedRequest, res) => {
   try {
     const txId = parseInt(String(req.params.txId), 10);
+    const [tx] = await db.select().from(transactionsTable).where(eq(transactionsTable.id, txId)).limit(1);
+    if (!tx) {
+      res.status(404).json({ error: "Transaction introuvable" });
+      return;
+    }
+    if (!canAccessTransaction(req.user!, tx)) {
+      res.status(403).json({ error: "Accès refusé à cette transaction." });
+      return;
+    }
     const inv = await createInvoiceFromTransaction(txId);
     res.status(201).json(toInvoiceShape(inv));
   } catch (err) {
@@ -182,6 +192,10 @@ router.get("/billing/invoices/:id.pdf", requireAuth, async (req: AuthedRequest, 
     const [inv] = await db.select().from(invoicesTable).where(eq(invoicesTable.id, id)).limit(1);
     if (!inv) {
       res.status(404).json({ error: "Facture introuvable" });
+      return;
+    }
+    if (!canAccessInvoice(req.user!, inv)) {
+      res.status(403).json({ error: "Accès refusé à cette facture." });
       return;
     }
     let paymentMethod: string | undefined;

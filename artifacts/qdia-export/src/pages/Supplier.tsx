@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ProductImage } from "@/components/ProductImage";
 import { ExcelImportButton, ExcelImportHint } from "@/components/ExcelImportButton";
 import { BulkImportAgent } from "@/components/BulkImportAgent";
+import { BulkImportTemplateCard } from "@/components/BulkImportTemplateCard";
 import { platformApi } from "@/lib/platform-api";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -108,17 +109,12 @@ export default function Supplier() {
               </Button>
             </div>
           )}
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-3xl font-bold mb-1">{tr("supplier_page.my_products")}</h1>
               <p className="text-muted-foreground">{tr("supplier_page.catalog_desc")}</p>
             </div>
           <div className="flex gap-2 flex-wrap">
-              <Button variant="outline" className="gap-2" asChild>
-                <a href={`${BASE}/api/products/import-template`} download>
-                  <Sparkles className="h-4 w-4" /> {tr("supplier_page.excel_template")}
-                </a>
-              </Button>
               <ExcelImportButton onDone={() => {
                 setIsLoading(true);
                 fetch(`${BASE}/api/products?scope=supplier&limit=50`)
@@ -129,6 +125,8 @@ export default function Supplier() {
               </Button>
             </div>
           </div>
+
+          <BulkImportTemplateCard />
 
           <div className="grid grid-cols-3 gap-6 mb-8">
             <div className="bg-card rounded-xl border p-6">

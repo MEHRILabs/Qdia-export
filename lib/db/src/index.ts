@@ -10,7 +10,20 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const isProd = process.env.NODE_ENV === "production";
+const url = process.env.DATABASE_URL ?? "";
+const needsSsl = /render\.com|neon\.tech|supabase|vercel-storage|sslmode=require|dpg-/i.test(url);
+const strictSsl = process.env.DATABASE_SSL_REJECT_UNAUTHORIZED === "true";
+
+export const pool = new Pool({
+  connectionString: url,
+  max: 20,
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 15_000,
+  ssl: isProd || needsSsl
+    ? { rejectUnauthorized: strictSsl }
+    : undefined,
+});
 export const db = drizzle(pool, { schema });
 
 export * from "./schema";

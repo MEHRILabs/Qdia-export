@@ -57,14 +57,14 @@ function Router() {
         <ProtectedRoute><Favorites /></ProtectedRoute>
       </Route>
       <Route path="/transactions">
-        <ProtectedRoute roles={["supplier", "admin", "buyer"]}><Transactions /></ProtectedRoute>
+        <ProtectedRoute roles={["supplier", "admin"]}><Transactions /></ProtectedRoute>
       </Route>
       <Route path="/suppliers/:id" component={SupplierPublic} />
       <Route path="/supplier/products/:id/edit">
         <ProtectedRoute roles={["supplier", "admin"]}><ProductEdit /></ProtectedRoute>
       </Route>
       <Route path="/facturation">
-        <ProtectedRoute roles={["supplier", "admin", "buyer"]}><Facturation /></ProtectedRoute>
+        <ProtectedRoute roles={["supplier", "admin"]}><Facturation /></ProtectedRoute>
       </Route>
       <Route path="/legal/:page?" component={Legal} />
       <Route path="/profile">
@@ -76,21 +76,23 @@ function Router() {
       <Route path="/studio">
         <ProtectedRoute roles={["supplier", "admin"]}><Studio /></ProtectedRoute>
       </Route>
-      <Route path="/supplier" component={Supplier} />
+      <Route path="/supplier">
+        <ProtectedRoute roles={["supplier", "admin"]}><Supplier /></ProtectedRoute>
+      </Route>
       <Route path="/dashboard">
-        <ProtectedRoute roles={["supplier", "admin", "buyer"]}><Dashboard /></ProtectedRoute>
+        <ProtectedRoute roles={["supplier", "admin"]}><Dashboard /></ProtectedRoute>
       </Route>
       <Route path="/agent-ia">
-        <ProtectedRoute roles={["supplier", "admin", "buyer"]}><AgentIA /></ProtectedRoute>
+        <ProtectedRoute roles={["supplier", "admin"]}><AgentIA /></ProtectedRoute>
       </Route>
       <Route path="/inquiries">
-        <ProtectedRoute roles={["supplier", "admin", "buyer"]}><Inquiries /></ProtectedRoute>
+        <ProtectedRoute roles={["supplier", "admin"]}><Inquiries /></ProtectedRoute>
       </Route>
       <Route path="/verification">
-        <ProtectedRoute roles={["supplier", "admin", "buyer"]}><Verification /></ProtectedRoute>
+        <ProtectedRoute roles={["supplier", "admin"]}><Verification /></ProtectedRoute>
       </Route>
       <Route path="/admin">
-        <ProtectedRoute roles={["supplier", "admin"]}><AdminReview /></ProtectedRoute>
+        <ProtectedRoute roles={["admin"]}><AdminReview /></ProtectedRoute>
       </Route>
       <Route component={NotFound} />
     </Switch>

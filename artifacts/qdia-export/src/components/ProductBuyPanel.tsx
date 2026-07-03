@@ -1,5 +1,6 @@
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CreditCard, ShieldCheck, Truck, FileText, ArrowRight, ShoppingCart } from "lucide-react";
@@ -8,21 +9,30 @@ import { useI18n } from "@/contexts/I18nContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { platformApi } from "@/lib/platform-api";
+import { CART_QUERY_KEY } from "@/hooks/useCart";
+import type { IncotermKey } from "@/components/ProductIncotermPricing";
 
 type ProductPrices = Product["prices"] & { retail?: number; wholesale?: number };
 
 interface Props {
   product: Product;
+  selectedIncoterm: IncotermKey;
+  unitLabel: string;
+  moqUnitLabel: string;
 }
 
-export function ProductBuyPanel({ product }: Props) {
+export function ProductBuyPanel({ product, selectedIncoterm, unitLabel, moqUnitLabel }: Props) {
   const { tr } = useI18n();
   const { user } = useAuth();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
+  const qc = useQueryClient();
   const [qty, setQty] = useState(product.moq);
   const [adding, setAdding] = useState(false);
   const prices = product.prices as ProductPrices;
-  const rfqHref = `/rfq?product=${encodeURIComponent(product.name)}&qty=${product.moq}&unit=${encodeURIComponent(product.moq_unit)}`;
+  const selectedPrice = prices[selectedIncoterm];
+  const incotermLabel = selectedIncoterm.toUpperCase();
+  const rfqHref = `/rfq?product=${encodeURIComponent(product.name)}&qty=${product.moq}&unit=${encodeURIComponent(moqUnitLabel)}&incoterm=${incotermLabel}`;
 
   const addToCart = async () => {
     if (!user) {
@@ -32,8 +42,9 @@ export function ProductBuyPanel({ product }: Props) {
     }
     setAdding(true);
     try {
-      await platformApi.addToCart({ product_id: product.id, quantity: qty, incoterm: "FOB" });
-      toast({ title: tr("cart.added") });
+      await platformApi.addToCart({ product_id: product.id, quantity: qty, incoterm: incotermLabel });
+      await qc.invalidateQueries({ queryKey: CART_QUERY_KEY });
+      toast({ title: tr("cart.added"), description: tr("cart.added_desc") });
     } catch (e) {
       toast({ title: tr("common.error"), description: String(e instanceof Error ? e.message : e), variant: "destructive" });
     } finally {
@@ -54,6 +65,16 @@ export function ProductBuyPanel({ product }: Props) {
     tr("buy_panel.order_step4"),
   ];
 
+  const goToCart = () => {
+    if (!user) {
+      sessionStorage.setItem("qdia_return_to", "/panier");
+      toast({ title: tr("cart.login_required"), variant: "destructive" });
+      window.dispatchEvent(new Event("qdia-open-auth"));
+      return;
+    }
+    setLocation("/panier");
+  };
+
   return (
     <div className="rounded-xl border-2 border-[#0461A5]/20 bg-[#F0F4FF] p-5 space-y-5">
       <div>
@@ -62,12 +83,14 @@ export function ProductBuyPanel({ product }: Props) {
       </div>
 
       <div className="bg-white rounded-lg border border-[#E5E7EB] p-4">
-        <p className="text-xs text-[#9CA3AF] uppercase tracking-wide mb-2">{tr("buy_panel.indicative_fob")}</p>
-        <p className="text-3xl font-black text-[#0461A5]">
-          ${product.prices?.fob?.toLocaleString() ?? "—"}
-          <span className="text-sm font-normal text-[#9CA3AF] ml-2">{product.prices?.unit ?? tr("common.unit")}</span>
+        <p className="text-xs text-[#9CA3AF] uppercase tracking-wide mb-2">
+          {tr("buy_panel.indicative_incoterm").replace("{{incoterm}}", incotermLabel)}
         </p>
-        <p className="text-xs text-[#9CA3AF] mt-1">{tr("product.moq")} : {product.moq} {product.moq_unit} · {tr("product_detail.departure_port")} {product.port_depart}</p>
+        <p className="text-3xl font-black text-[#0461A5]">
+          ${selectedPrice?.toLocaleString() ?? "—"}
+          <span className="text-sm font-normal text-[#9CA3AF] ml-2">{unitLabel}</span>
+        </p>
+        <p className="text-xs text-[#9CA3AF] mt-1">{tr("product.moq")} : {product.moq} {moqUnitLabel} · {tr("product_detail.departure_port")} {product.port_depart}</p>
         {(prices?.retail != null || prices?.wholesale != null) && (
           <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
             {prices?.retail != null && (
@@ -124,13 +147,13 @@ export function ProductBuyPanel({ product }: Props) {
       <div className="flex items-center gap-2">
         <span className="text-xs text-muted-foreground">{tr("cart.qty")}</span>
         <Input type="number" className="w-24 h-8" min={product.moq} value={qty} onChange={e => setQty(parseInt(e.target.value, 10) || product.moq)} />
-        <Button size="sm" variant="outline" asChild>
-          <Link href="/panier">{tr("cart.view")}</Link>
+        <Button size="sm" variant="outline" className="gap-1.5 font-semibold border-[#0461A5] text-[#0461A5]" onClick={goToCart}>
+          <ShoppingCart className="h-3.5 w-3.5" /> {tr("cart.view")}
         </Button>
       </div>
       <div className="flex flex-col sm:flex-row gap-3">
         <Button size="lg" variant="outline" className="flex-1 border-[#0461A5] text-[#0461A5]" asChild>
-          <Link href={`/rfq?product=${encodeURIComponent(product.name)}`}>
+          <Link href={`/rfq?product=${encodeURIComponent(product.name)}&incoterm=${incotermLabel}`}>
             <Truck className="h-4 w-4 mr-2" /> {tr("product.request_quote")}
           </Link>
         </Button>

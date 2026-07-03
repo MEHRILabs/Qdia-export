@@ -4,19 +4,20 @@ import {
   registerEmail, loginEmail, loginGoogle, sendPhoneOtp, verifyPhoneOtp,
 } from "../services/auth";
 import { requireAuth, type AuthedRequest } from "../middleware/auth";
+import { authLimiter } from "../middleware/rate-limit";
 
 const router: IRouter = Router();
 
 const registerSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
-  name: z.string().optional(),
+  email: z.string().email().max(255),
+  password: z.string().min(8).max(128),
+  name: z.string().max(120).optional(),
   role: z.enum(["buyer", "supplier"]).optional(),
 });
 
 const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(4),
+  email: z.string().email().max(255),
+  password: z.string().min(4).max(128),
 });
 
 const googleSchema = z.object({
@@ -29,7 +30,7 @@ const googleSchema = z.object({
 const phoneSendSchema = z.object({ phone: z.string().min(8) });
 const phoneVerifySchema = z.object({ phone: z.string().min(8), code: z.string().min(4) });
 
-router.post("/auth/register", async (req, res) => {
+router.post("/auth/register", authLimiter, async (req, res) => {
   try {
     const body = registerSchema.parse(req.body);
     const result = await registerEmail(body);
@@ -39,7 +40,7 @@ router.post("/auth/register", async (req, res) => {
   }
 });
 
-router.post("/auth/login", async (req, res) => {
+router.post("/auth/login", authLimiter, async (req, res) => {
   try {
     const body = loginSchema.parse(req.body);
     const result = await loginEmail(body.email, body.password);
@@ -49,7 +50,7 @@ router.post("/auth/login", async (req, res) => {
   }
 });
 
-router.post("/auth/google", async (req, res) => {
+router.post("/auth/google", authLimiter, async (req, res) => {
   try {
     const body = googleSchema.parse(req.body);
     const result = await loginGoogle({
@@ -64,7 +65,7 @@ router.post("/auth/google", async (req, res) => {
   }
 });
 
-router.post("/auth/phone/send", async (req, res) => {
+router.post("/auth/phone/send", authLimiter, async (req, res) => {
   try {
     const body = phoneSendSchema.parse(req.body);
     const result = await sendPhoneOtp(body.phone);
@@ -74,7 +75,7 @@ router.post("/auth/phone/send", async (req, res) => {
   }
 });
 
-router.post("/auth/phone/verify", async (req, res) => {
+router.post("/auth/phone/verify", authLimiter, async (req, res) => {
   try {
     const body = phoneVerifySchema.parse(req.body);
     const result = await verifyPhoneOtp(body.phone, body.code);

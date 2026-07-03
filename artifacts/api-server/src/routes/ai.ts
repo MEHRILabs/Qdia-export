@@ -1,7 +1,10 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { logger } from "../lib/logger";
+import { requireAuth, requireRole } from "../middleware/auth";
+import { aiLimiter } from "../middleware/rate-limit";
 import { agentOrchestrator } from "../services/agent-orchestrator";
+import { AI_CREDIT_COSTS, getCreditsSummary } from "../services/ai-credits";
 import { previewScrapedImages, runBulkImport } from "../services/bulk-import-agent";
 import { formatAiError } from "../services/local-product-fallback";
 import {
@@ -11,6 +14,8 @@ import {
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
+
+router.use(requireAuth, requireRole("supplier", "admin"), aiLimiter);
 
 const StudioBody = z.object({
   image_base64: z.string(),
@@ -44,7 +49,8 @@ function anyAiKey(): boolean {
   );
 }
 
-function requireAi(res: import("express").Response): boolean {
+function requireAi(res: import("express").Response, opts?: { action?: string }): boolean {
+  if (opts?.action === "remove_background" && process.env.REMOVEBG_API_KEY) return true;
   if (!anyAiKey()) {
     res.status(503).json({
       error: "Aucune clé IA configurée. Ajoutez GROQ_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY ou ANTHROPIC_API_KEY dans .env",
@@ -53,6 +59,10 @@ function requireAi(res: import("express").Response): boolean {
   }
   return true;
 }
+
+router.get("/ai/credits", (_req, res) => {
+  res.json(getCreditsSummary());
+});
 
 import { hasProviderKey, getProvider } from "../services/ai/config";
 
@@ -67,6 +77,7 @@ function aiStatus() {
     vision_provider: getProvider("vision"),
     image_provider: getProvider("image"),
     fallback_enabled: process.env.AI_FALLBACK_ENABLED !== "false",
+    credit_costs: AI_CREDIT_COSTS,
   };
 }
 
@@ -199,13 +210,22 @@ router.post("/ai/calculate-pricing", async (req, res): Promise<void> => {
 
 // ─── POST /ai/studio ──────────────────────────────────────────────────────────
 router.post("/ai/studio", async (req, res): Promise<void> => {
-  if (!requireAi(res)) return;
   try {
     const parsed = StudioBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+
+    const action = parsed.data.action;
+    if (action === "remove_background") {
+      if (!process.env.REMOVEBG_API_KEY && !anyAiKey()) {
+        res.status(503).json({ error: "REMOVEBG_API_KEY ou une clé IA requise pour le studio." });
+        return;
+      }
+    } else if (!requireAi(res)) {
+      return;
+    }
 
     const { session_id, ...studioInput } = parsed.data;
     const sid = session_id ?? (await agentOrchestrator.createSession()).id;

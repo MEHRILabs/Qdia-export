@@ -30,6 +30,16 @@ services:
         generateValue: true
       - key: GROQ_API_KEY
         sync: false
+      - key: AI_CHAT_PROVIDER
+        value: groq
+      - key: AI_VISION_PROVIDER
+        value: groq
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: REMOVEBG_API_KEY
+        sync: false
+      - key: AI_FALLBACK_ENABLED
+        value: "true"
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: OPENAI_API_KEY

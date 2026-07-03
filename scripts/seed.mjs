@@ -1,4 +1,5 @@
 import pg from "pg";
+import { createDbPool } from "./db-pool.mjs";
 
 const { Pool } = pg;
 
@@ -7,16 +8,7 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
-function createPool() {
-  const url = process.env.DATABASE_URL ?? "";
-  const remote = /neon\.tech|supabase|vercel-storage|render\.com|sslmode=require/i.test(url);
-  return new Pool({
-    connectionString: url,
-    ...(remote ? { ssl: { rejectUnauthorized: false } } : {}),
-  });
-}
-
-const pool = createPool();
+const pool = createDbPool();
 
 const CATEGORIES = [
   ["Agriculture & Food", "agriculture-food", "Wheat"],

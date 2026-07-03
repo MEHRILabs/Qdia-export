@@ -1,7 +1,9 @@
 import { Link, useParams } from "wouter";
+import { useState } from "react";
 import { useGetProduct, getGetProductQueryKey } from "@workspace/api-client-react";
 import { BuyerHeader, BuyerFooter } from "@/components/BuyerHeader";
 import { ProductBuyPanel } from "@/components/ProductBuyPanel";
+import { ProductIncotermPricing, type IncotermKey } from "@/components/ProductIncotermPricing";
 import { ProductEngagement } from "@/components/ProductEngagement";
 import { ProductRecommendations } from "@/components/ProductRecommendations";
 import { OemSamplePanel } from "@/components/OemSamplePanel";
@@ -12,25 +14,22 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CheckCircle2, Star, ShieldCheck, ChevronRight, MapPin, FileDown } from "lucide-react";
 import { ProductImage } from "@/components/ProductImage";
-import { getDemoProduct, isDemoProductId } from "@/lib/demo-products";
 import { platformApi } from "@/lib/platform-api";
 import { useI18n } from "@/contexts/I18nContext";
+import { formatLocation, formatUnitLabel } from "@/lib/display-text";
 
 export default function ProductDetail() {
   const params = useParams();
   const productId = parseInt(params.id || "0");
-  const isDemo = isDemoProductId(productId);
 
-  const { data: apiProduct, isLoading } = useGetProduct(productId, {
+  const { data: product, isLoading: loading } = useGetProduct(productId, {
     query: {
-      enabled: !isDemo && productId > 0,
+      enabled: productId > 0,
       queryKey: getGetProductQueryKey(productId),
     },
   });
-
-  const product = isDemo ? getDemoProduct(productId) : apiProduct;
-  const loading = !isDemo && isLoading;
   const { tr } = useI18n();
+  const [selectedIncoterm, setSelectedIncoterm] = useState<IncotermKey>("fob");
 
   if (loading) {
     return (
@@ -64,6 +63,9 @@ export default function ProductDetail() {
   }
 
   const prices = product.prices as typeof product.prices & { retail?: number; wholesale?: number };
+  const unitLabel = formatUnitLabel(prices.unit, tr);
+  const moqUnitLabel = formatUnitLabel(product.moq_unit, tr);
+  const supplierLocation = formatLocation(product.supplier_location, tr);
 
   return (
     <div className="min-h-screen qdia-buyer-page flex flex-col">
@@ -123,25 +125,16 @@ export default function ProductDetail() {
               </div>
             )}
 
-            <div className="rounded-xl border bg-white overflow-hidden shadow-sm">
-              <div className="grid grid-cols-4 bg-[#F0F4FF] border-b text-xs font-semibold text-[#656566] uppercase text-center">
-                {(["EXW", "FOB", "CFR", "CIF"] as const).map(term => (
-                  <div key={term} className={`p-2.5 border-r last:border-r-0 ${term === "FOB" ? "text-[#0461A5]" : ""}`}>{term}</div>
-                ))}
-              </div>
-              <div className="grid grid-cols-4 text-center divide-x">
-                {(["exw", "fob", "cfr", "cif"] as const).map(key => (
-                  <div key={key} className={`p-3 ${key === "fob" ? "bg-[#E8F2FB]" : ""}`}>
-                    <div className="text-lg font-black text-[#0461A5]">${prices[key]?.toLocaleString() ?? "—"}</div>
-                    <div className="text-[10px] text-[#9CA3AF]">{prices.unit ?? tr("common.unit")}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <ProductIncotermPricing
+              prices={prices}
+              unitLabel={unitLabel}
+              selected={selectedIncoterm}
+              onSelect={setSelectedIncoterm}
+            />
 
             <div className="grid grid-cols-2 gap-4 text-sm">
               {[
-                [tr("product.moq"), `${product.moq} ${product.moq_unit}`],
+                [tr("product.moq"), `${product.moq} ${moqUnitLabel}`],
                 [tr("product_detail.departure_port"), product.port_depart],
                 [tr("product_detail.packaging"), product.packaging ?? tr("product_detail.export_standard")],
                 [tr("product.origin"), product.origin_wilaya ?? tr("common.algeria")],
@@ -163,13 +156,11 @@ export default function ProductDetail() {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-sm font-semibold">{tr("product.certifications")}</h3>
-                  {!isDemo && (
-                    <Button variant="outline" size="sm" className="gap-1" asChild>
-                      <a href={platformApi.certificatePdfUrl(productId)} target="_blank" rel="noreferrer">
-                        <FileDown className="h-3 w-3" /> {tr("product.certificate_pdf")}
-                      </a>
-                    </Button>
-                  )}
+                  <Button variant="outline" size="sm" className="gap-1" asChild>
+                    <a href={platformApi.certificatePdfUrl(productId)} target="_blank" rel="noreferrer">
+                      <FileDown className="h-3 w-3" /> {tr("product.certificate_pdf")}
+                    </a>
+                  </Button>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {product.certifications.map((cert, i) => (
@@ -194,20 +185,23 @@ export default function ProductDetail() {
             <div className="rounded-xl border bg-[#FAFBFC] p-4 flex items-start gap-3">
               <div className="flex-1">
                 <p className="font-bold text-[#1A1A2E]">{product.supplier_name ?? tr("product_detail.default_supplier")}</p>
-                <p className="text-sm text-[#9CA3AF]">{product.supplier_location}</p>
+                <p className="text-sm text-[#9CA3AF]">{supplierLocation}</p>
               </div>
               <CheckCircle2 className="h-5 w-5 text-[#0461A5] shrink-0" />
             </div>
 
-            <ProductBuyPanel product={product} />
+            <ProductBuyPanel
+              product={product}
+              selectedIncoterm={selectedIncoterm}
+              unitLabel={unitLabel}
+              moqUnitLabel={moqUnitLabel}
+            />
 
-            {!isDemo && product.supplier_id && (
+            {product.supplier_id && (
               <SupplierReviewsSection supplierId={product.supplier_id} />
             )}
 
-            {!isDemo && (
-              <OemSamplePanel productId={product.id} supplierId={product.supplier_id} />
-            )}
+            <OemSamplePanel productId={product.id} supplierId={product.supplier_id} />
 
             <ProductEngagement productId={product.id} productName={product.name} category={product.category} />
 
@@ -219,11 +213,9 @@ export default function ProductDetail() {
           </div>
         </div>
 
-        {!isDemo && (
-          <div className="mt-12">
-            <ProductRecommendations productId={product.id} />
-          </div>
-        )}
+        <div className="mt-12">
+          <ProductRecommendations productId={product.id} />
+        </div>
       </main>
       <BuyerFooter />
     </div>

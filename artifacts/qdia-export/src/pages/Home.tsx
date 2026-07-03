@@ -7,17 +7,12 @@ import { PortsCustomsPanel } from "@/components/PortsCustomsPanel";
 import { HomeHero } from "@/components/HomeHero";
 import { ExportWorkflow } from "@/components/ExportWorkflow";
 import { ProductImage } from "@/components/ProductImage";
-import { DEMO_PRODUCTS } from "@/lib/demo-products";
 import { HOME_CATEGORIES } from "@/lib/nav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ShieldCheck, Award, Ship, Camera, ArrowRight } from "lucide-react";
 import { useI18n } from "@/contexts/I18nContext";
-
-const DEMO_DISPLAY = DEMO_PRODUCTS.filter(p => p.is_featured).length
-  ? DEMO_PRODUCTS.filter(p => p.is_featured)
-  : DEMO_PRODUCTS.slice(0, 6);
 
 const TRUST_ITEMS = [
   { icon: ShieldCheck, title: "Fournisseurs vérifiés", desc: "Audit QDIA" },
@@ -46,7 +41,7 @@ function AnimatedSection({ children, className = "", id }: { children: ReactNode
 export default function Home() {
   const { tr } = useI18n();
   const { data: featuredProducts, isLoading } = useListFeaturedProducts();
-  const products = featuredProducts?.length ? featuredProducts : DEMO_DISPLAY;
+  const products = featuredProducts ?? [];
 
   return (
     <div className="min-h-screen qdia-buyer-page flex flex-col">
@@ -119,12 +114,12 @@ export default function Home() {
         <AnimatedSection className="max-w-7xl mx-auto px-6 pb-20 pt-4">
           <div className="flex items-end justify-between mb-8 gap-4">
             <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-[#0461A5] mb-1">Sélection premium</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-[#0461A5] mb-1">{tr("home.premium_selection")}</p>
               <h2 className="text-2xl md:text-3xl font-black text-[#1A1A2E]">{tr("home.featured_title")}</h2>
-              <p className="text-sm text-[#9CA3AF] mt-1">Made in Algeria · Cliquez pour voir la fiche & commander</p>
+              <p className="text-sm text-[#9CA3AF] mt-1">{tr("home.featured_subtitle")}</p>
             </div>
             <Button variant="outline" className="border-[#0461A5] text-[#0461A5] shrink-0 hidden sm:flex" asChild>
-              <Link href="/products">Tout voir <ArrowRight className="h-4 w-4 ml-1" /></Link>
+              <Link href="/products">{tr("home.see_all")} <ArrowRight className="h-4 w-4 ml-1" /></Link>
             </Button>
           </div>
 
@@ -132,6 +127,8 @@ export default function Home() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-[340px] rounded-xl" />)}
             </div>
+          ) : products.length === 0 ? (
+            <p className="text-center text-[#9CA3AF] py-12">{tr("home.empty_featured")}</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {products.slice(0, 6).map((product, i) => (
@@ -178,17 +175,17 @@ export default function Home() {
 
           <div className="mt-10 text-center sm:hidden">
             <Button variant="gold" className="font-bold" asChild>
-              <Link href="/products">Voir tout le catalogue</Link>
+              <Link href="/products">{tr("home.see_full_catalog")}</Link>
             </Button>
           </div>
         </AnimatedSection>
 
         <AnimatedSection id="emplacement" className="py-10 md:py-16 px-6 md:px-8 max-w-7xl mx-auto scroll-mt-20">
           <div className="text-center mb-8">
-            <p className="text-xs font-bold uppercase tracking-widest text-[#0461A5] mb-1">Logistique export</p>
+            <p className="text-xs font-bold uppercase tracking-widest text-[#0461A5] mb-1">{tr("home.logistics_badge")}</p>
             <h2 className="text-2xl md:text-3xl font-black text-[#1A1A2E]">{tr("home.ports_title")}</h2>
             <p className="text-sm text-[#656566] mt-2 max-w-xl mx-auto">
-              Ports algériens (Alger, Oran, Béjaïa…) et destinations France 🇫🇷 · UAE 🇦🇪 — calcul douanier intégré
+              {tr("home.ports_subtitle")}
             </p>
           </div>
           <div className="max-w-2xl mx-auto">

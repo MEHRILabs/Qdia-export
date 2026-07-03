@@ -1,13 +1,13 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createRequire } from "node:module";
+import { createDbPool } from "./db-pool.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const apiRequire = createRequire(join(__dirname, "../artifacts/api-server/"));
-apiRequire("dotenv").config({ path: join(__dirname, "../.env"), quiet: true });
 
-const dbRequire = createRequire(join(__dirname, "../lib/db/"));
-const { Pool } = dbRequire("pg");
+if (!process.env.DATABASE_URL) {
+  console.error("DATABASE_URL requis");
+  process.exit(1);
+}
 
 const sql = `
 CREATE TABLE IF NOT EXISTS users (

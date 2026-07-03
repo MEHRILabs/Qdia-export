@@ -2,9 +2,10 @@ import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { IMAGES } from "@/lib/images";
-import { DEMO_PRODUCTS } from "@/lib/demo-products";
 import { ProductImage } from "@/components/ProductImage";
 import { useI18n } from "@/contexts/I18nContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { isSupplier } from "@/lib/roles";
 import {
   ArrowRight, Sparkles, Globe, Package, Users, TrendingUp,
   ShieldCheck, Ship,
@@ -22,7 +23,11 @@ const MARQUEE_ITEMS = [
   "Textiles kabyles", "Poterie artisanale", "Phosphate", "Dattes bio",
 ];
 
-const FLOATING = DEMO_PRODUCTS.slice(0, 3);
+const FLOATING = [
+  { name: "Huile d'olive", image_url: IMAGES.oliveOil, fob: 12, href: "/products" },
+  { name: "Dattes Deglet Nour", image_url: IMAGES.dates, fob: 8, href: "/products" },
+  { name: "Miel du Sahara", image_url: IMAGES.honey, fob: 15, href: "/products" },
+];
 
 const fadeUp = {
   hidden: { opacity: 0, y: 28 },
@@ -35,6 +40,7 @@ const fadeUp = {
 
 export function HomeHero() {
   const { tr } = useI18n();
+  const { user } = useAuth();
 
   return (
     <section className="qdia-hero-immersive relative overflow-hidden">
@@ -130,8 +136,8 @@ export function HomeHero() {
                 className="btn-qdia-ai h-12 gap-2 border-0"
                 asChild
               >
-                <Link href="/agent-ia?new=1">
-                  <Sparkles className="h-4 w-4" /> {tr("home.cta_ai")}
+                <Link href={isSupplier(user) ? "/agent-ia?new=1" : "/rfq"}>
+                  <Sparkles className="h-4 w-4" /> {isSupplier(user) ? tr("home.cta_ai") : tr("home.cta_rfq")}
                 </Link>
               </Button>
             </motion.div>
@@ -156,7 +162,7 @@ export function HomeHero() {
           <div className="relative hidden lg:block h-[380px]">
             {FLOATING.map((product, i) => (
               <motion.div
-                key={product.id}
+                key={product.name}
                 initial={{ opacity: 0, y: 40, scale: 0.9 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 transition={{ delay: 0.4 + i * 0.15, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
@@ -167,7 +173,7 @@ export function HomeHero() {
                   animate={{ y: [0, -8, 0] }}
                   transition={{ duration: 3.5 + i * 0.5, repeat: Infinity, ease: "easeInOut" }}
                 >
-                  <Link href={`/products/${product.id}`} className="block group">
+                  <Link href={product.href} className="block group">
                     <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/50 p-3 w-[200px] hover:scale-[1.03] transition-transform duration-300">
                       <div className="aspect-square rounded-xl overflow-hidden bg-[#F8FAFC] mb-2">
                         <ProductImage
@@ -179,7 +185,7 @@ export function HomeHero() {
                       </div>
                       <p className="text-[11px] font-bold text-[#1A1A2E] line-clamp-2 leading-tight mb-1">{product.name}</p>
                       <p className="text-sm font-black text-[#0461A5]">
-                        ${product.prices?.fob?.toLocaleString()}
+                        ${product.fob.toLocaleString()}
                         <span className="text-[10px] font-normal text-[#9CA3AF] ml-1">FOB</span>
                       </p>
                     </div>

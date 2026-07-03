@@ -1,10 +1,11 @@
 import { type ReactNode } from "react";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { AppDownloadSection } from "@/components/AppDownloadSection";
 import { CONTACT, CERTIFICATIONS } from "@/lib/contact";
 import { Mail, MapPin, Phone, ArrowUpRight } from "lucide-react";
 import { useI18n } from "@/contexts/I18nContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { isSupplier } from "@/lib/roles";
 
 function FooterColTitle({ children }: { children: ReactNode }) {
   return (
@@ -71,13 +72,14 @@ function MobileFooterSection({ title, links }: { title: string; links: { href: s
 
 function DesktopFooter() {
   const { tr } = useI18n();
+  const { user } = useAuth();
 
-  const exportLinks = [
+  const exportLinks = isSupplier(user) ? [
     { href: "/supplier", label: tr("header.supplier_space") },
     { href: "/studio", label: tr("header.studio_ia") },
     { href: "/dashboard", label: tr("nav.dashboard") },
     { href: "/agent-ia", label: tr("nav.agent_ia") },
-  ];
+  ] : [];
 
   const platformLinks = [
     { href: "/products", label: tr("nav.catalog") },
@@ -237,18 +239,23 @@ function DesktopFooter() {
 
 function MobileFooter() {
   const { tr } = useI18n();
+  const { user } = useAuth();
 
   const mobileNav = [
-    { href: "/supplier", label: tr("header.supplier_space") },
-    { href: "/studio", label: tr("header.studio_ia") },
+    ...(isSupplier(user) ? [
+      { href: "/supplier", label: tr("header.supplier_space") },
+      { href: "/studio", label: tr("header.studio_ia") },
+    ] : []),
     { href: "/products", label: tr("nav.catalog") },
     { href: "/#emplacement", label: tr("header.location") },
   ];
 
   const mobilePlatform = [
     { href: "/rfq", label: tr("footer.rfq") },
-    { href: "/dashboard", label: tr("nav.dashboard") },
-    { href: "/agent-ia", label: tr("nav.agent_ia") },
+    ...(isSupplier(user) ? [
+      { href: "/dashboard", label: tr("nav.dashboard") },
+      { href: "/agent-ia", label: tr("nav.agent_ia") },
+    ] : []),
     { href: "/mes-rfq", label: tr("footer.my_rfqs") },
   ];
 
@@ -309,8 +316,6 @@ function MobileFooter() {
 export function BuyerFooter() {
   return (
     <footer className="mt-auto">
-      <AppDownloadSection />
-
       <div className="qdia-footer relative overflow-hidden">
         <motion.div
           className="absolute inset-0 opacity-30"

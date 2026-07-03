@@ -17,6 +17,7 @@ export function ProtectedRoute({ children, roles }: Props) {
     if (!user) {
       const returnTo = encodeURIComponent(location || "/");
       sessionStorage.setItem("qdia_return_to", location || "/");
+      window.dispatchEvent(new Event("qdia-open-auth"));
       setLocation(`/?login=1&returnTo=${returnTo}`);
       return;
     }

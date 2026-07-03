@@ -1,4 +1,28 @@
 /** Données ports & douanes — fallback si BDD vide */
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+interface ShippingTariffsFile {
+  freight_overrides_dzd?: Record<string, Record<string, number>>;
+  transit_fee_dzd?: number;
+  handling_overrides_dzd?: Record<string, number>;
+}
+
+let _customTariffs: ShippingTariffsFile | null = null;
+
+function loadCustomTariffs(): ShippingTariffsFile {
+  if (_customTariffs) return _customTariffs;
+  try {
+    const dir = dirname(fileURLToPath(import.meta.url));
+    const raw = readFileSync(join(dir, "../data/shipping-tariffs.json"), "utf8");
+    _customTariffs = JSON.parse(raw) as ShippingTariffsFile;
+  } catch {
+    _customTariffs = {};
+  }
+  return _customTariffs;
+}
+
 export const FALLBACK_PORTS = [
   { code: "DZALG", name: "Port d'Alger", city: "Alger", country: "Algérie", country_code: "DZ", type: "seaport", region: "Centre", handling_fee_dzd: 900, freight_to_fr_dzd: 1200, freight_to_ae_dzd: 2200, freight_to_us_dzd: 3500 },
   { code: "DZORN", name: "Port d'Oran", city: "Oran", country: "Algérie", country_code: "DZ", type: "seaport", region: "Ouest", handling_fee_dzd: 850, freight_to_fr_dzd: 1100, freight_to_ae_dzd: 2100, freight_to_us_dzd: 3400 },
@@ -26,12 +50,34 @@ export type PortRow = (typeof FALLBACK_PORTS)[number];
 export type CustomsRow = (typeof FALLBACK_CUSTOMS)[number];
 
 export function getFreightDzd(port: PortRow, destinationCode: string): number {
+  const custom = loadCustomTariffs();
+  const override = custom.freight_overrides_dzd?.[port.code]?.[destinationCode];
+  if (override != null) return override + (custom.transit_fee_dzd ?? 0);
   switch (destinationCode) {
-    case "FR": return port.freight_to_fr_dzd ?? 1200;
-    case "AE": return port.freight_to_ae_dzd ?? 2200;
-    case "US": return port.freight_to_us_dzd ?? 3500;
-    default: return 2000;
+    case "FR": return (port.freight_to_fr_dzd ?? 1200) + (custom.transit_fee_dzd ?? 0);
+    case "AE": return (port.freight_to_ae_dzd ?? 2200) + (custom.transit_fee_dzd ?? 0);
+    case "US": return (port.freight_to_us_dzd ?? 3500) + (custom.transit_fee_dzd ?? 0);
+    case "DE":
+    case "UK":
+    case "ES":
+    case "CA": return 2000 + (custom.transit_fee_dzd ?? 0);
+    default: return 2000 + (custom.transit_fee_dzd ?? 0);
   }
+}
+
+export function getPricingSources(portCode?: string) {
+  const custom = loadCustomTariffs();
+  return {
+    ports: "FALLBACK_PORTS (ports-customs.ts) — ports DZ/FR/AE",
+    customs: "FALLBACK_CUSTOMS (ports-customs.ts) — droits, TVA, frais par catégorie",
+    freight: custom.freight_overrides_dzd
+      ? `shipping-tariffs.json (surcharges port ${portCode ?? "DZ"})`
+      : "FALLBACK_PORTS.freight_to_*_dzd",
+    exchange_rates: "Variables DZD_USD_RATE, DZD_EUR_RATE, DZD_AED_RATE",
+    handling: "FALLBACK_PORTS.handling_fee_dzd par port",
+    margin: "Marge vendeur (saisie) + commission QDIA 3%",
+    insurance: "0,5 % de la valeur CFR",
+  };
 }
 
 export interface CustomsCalcInput {

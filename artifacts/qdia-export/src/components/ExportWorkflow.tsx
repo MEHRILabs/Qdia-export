@@ -3,10 +3,15 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { EXPORT_STEPS } from "@/lib/nav";
 import { useI18n } from "@/contexts/I18nContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { isSupplier } from "@/lib/roles";
 import { ArrowRight } from "lucide-react";
 
 export function ExportWorkflow() {
   const { tr } = useI18n();
+  const { user } = useAuth();
+
+  if (!isSupplier(user)) return null;
 
   return (
     <section className="py-16 md:py-20 bg-gradient-to-b from-[#F0F4FF] to-white relative overflow-hidden">

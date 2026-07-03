@@ -32,7 +32,7 @@ Message du producteur: "${description}"
 Nom produit extrait (à utiliser tel quel pour name_fr): "${productName}"
 IMPORTANT: Utilise "${productName}" comme name_fr — ne reprends JAMAIS la phrase de commande complète.
 ${targetMarket ? `Marché cible: ${targetMarket}` : ""}
-${costDzd ? `Coût de revient: ${costDzd} DZD` : ""}
+${costDzd ? `Prix de base HT: ${costDzd} DZD` : ""}
 
 Retourne un JSON avec exactement ces champs:
 {
@@ -43,7 +43,13 @@ Retourne un JSON avec exactement ces champs:
   "description_en": "Professional SEO description in English (150-200 words)",
   "description_ar": "وصف احترافي بالعربية",
   "category": "Agriculture & Food | Energy & Chemicals | Textiles & Apparel | Construction Materials | Handicrafts & Decor",
-  "specs": { "Origine": "Wilaya", "Conditionnement": "...", "Durée de vie": "...", "Normes": "..." },
+  "specs": {
+    "Origine": "Wilaya",
+    "Conditionnement": "Emballage primaire (sachet, bouteille, vrac…)",
+    "Emballage secondaire": "Palette, film étirable, cerclage, cartons export…",
+    "Durée de vie": "...",
+    "Normes": "..."
+  },
   "suggested_moq": 500,
   "suggested_moq_unit": "kg | liters | units | tons",
   "suggested_port": "Alger | Oran | Annaba | Béjaïa",

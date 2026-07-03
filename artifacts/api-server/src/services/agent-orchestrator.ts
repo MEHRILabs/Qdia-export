@@ -6,7 +6,7 @@ import { AGENT_SYSTEM_PROMPT, PRODUCT_SYSTEM_PROMPT, buildProductPrompt, parseJs
 import { processStudioImage, type StudioAction } from "./image-studio";
 import { logger } from "../lib/logger";
 import { generateLocalProduct, formatAiError, sanitizeGeneratedProduct } from "./local-product-fallback";
-import { FALLBACK_PORTS, getFreightDzd, calculateCustoms } from "./ports-customs";
+import { FALLBACK_PORTS, getFreightDzd, calculateCustoms, getPricingSources } from "./ports-customs";
 
 export class AgentOrchestrator {
   async createSession(supplierId?: number) {
@@ -177,7 +177,7 @@ export class AgentOrchestrator {
       exchange_rate_dzd_eur: EUR_RATE,
       exchange_rate_dzd_aed: parseFloat(AED_RATE.toFixed(6)),
       breakdown: {
-        "Coût produit (DZD)": input.cost_dzd,
+        "Coût produit — prix base HT (DZD)": input.cost_dzd,
         "Emballage (DZD)": input.packaging_cost_dzd ?? 0,
         "Transport local (DZD)": input.local_transport_dzd ?? 0,
         "Frais port + docs (DZD)": handling,
@@ -193,6 +193,7 @@ export class AgentOrchestrator {
       customs,
       market_benchmark: null as string | null,
       price_range_note: `Prix indicatif FOB pour ${input.quantity} ${input.quantity_unit ?? "kg"} vers ${input.destination_country}`,
+      pricing_sources: getPricingSources(input.port_code),
     };
 
     try {

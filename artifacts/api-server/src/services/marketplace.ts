@@ -1,9 +1,10 @@
 import {
   db, productsTable, productViewsTable, favoritesTable,
   cartItemsTable, ordersTable, disputesTable, oemRequestsTable,
-  sampleRequestsTable, supplierReviewsTable,
+  sampleRequestsTable, supplierReviewsTable, usersTable, messagesTable,
 } from "@workspace/db";
 import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
+import { sendPushToUser } from "./fcm";
 
 let nextId = 1000;
 const mem = {
@@ -24,21 +25,116 @@ async function dbOk(): Promise<boolean> {
   }
 }
 
+function priceForIncoterm(p: typeof productsTable.$inferSelect, incoterm: string) {
+  switch (incoterm.toUpperCase()) {
+    case "EXW": return p.priceExw;
+    case "CFR": return p.priceCfr;
+    case "CIF": return p.priceCif;
+    default: return p.priceFob;
+  }
+}
+
+function enrichCartItems(
+  items: Array<{ id: number; product_id: number; quantity: number; incoterm: string; notes?: string | null }>,
+  products: typeof productsTable.$inferSelect[],
+) {
+  return items.map(item => {
+    const p = products.find(pr => pr.id === item.product_id);
+    const inc = item.incoterm ?? "FOB";
+    const unitPrice = p ? priceForIncoterm(p, inc) : null;
+    return {
+      id: item.id,
+      product_id: item.product_id,
+      quantity: item.quantity,
+      incoterm: inc,
+      notes: item.notes ?? undefined,
+      product_name: p?.name ?? null,
+      product_image: p?.imageUrl ?? null,
+      product_sku: p?.sku ?? null,
+      supplier_name: p?.supplierName ?? null,
+      moq: p?.moq ?? null,
+      moq_unit: p?.moqUnit ?? null,
+      unit_price: unitPrice,
+      line_total: unitPrice != null ? unitPrice * item.quantity : null,
+      currency: p?.priceCurrency ?? "USD",
+    };
+  });
+}
+
 export async function getCart(userId: number) {
+  let items: Array<{ id: number; product_id: number; quantity: number; incoterm: string; notes?: string | null }> = [];
   if (await dbOk()) {
     try {
       const rows = await db.select().from(cartItemsTable).where(eq(cartItemsTable.userId, userId));
-      return rows.map(r => ({ id: r.id, product_id: r.productId, quantity: r.quantity, incoterm: r.incoterm, notes: r.notes }));
+      items = rows.map(r => ({ id: r.id, product_id: r.productId, quantity: r.quantity, incoterm: r.incoterm ?? "FOB", notes: r.notes }));
     } catch { /* fallback mem */ }
   }
-  return mem.cart.filter(c => c.userId === userId).map(c => ({
-    id: c.id, product_id: c.productId, quantity: c.quantity, incoterm: c.incoterm, notes: c.notes,
-  }));
+  if (!items.length) {
+    items = mem.cart.filter(c => c.userId === userId).map(c => ({
+      id: c.id, product_id: c.productId, quantity: c.quantity, incoterm: c.incoterm, notes: c.notes,
+    }));
+  }
+
+  const productIds = [...new Set(items.map(i => i.product_id))];
+  let products: typeof productsTable.$inferSelect[] = [];
+  if (productIds.length && await dbOk()) {
+    try {
+      products = await db.select().from(productsTable).where(sql`${productsTable.id} IN (${sql.join(productIds.map(id => sql`${id}`), sql`, `)})`);
+    } catch { /* ignore */ }
+  }
+  return enrichCartItems(items, products);
+}
+
+async function notifySupplierOfOrder(
+  orderId: number,
+  buyerId: number,
+  supplierId: number | null | undefined,
+  items: Array<{ product_name: string; quantity: number; incoterm: string; total: number }>,
+) {
+  if (!supplierId || !(await dbOk())) return null;
+
+  const [supplierUser] = await db.select().from(usersTable)
+    .where(eq(usersTable.supplierId, supplierId))
+    .limit(1);
+
+  const lines = items.map(i => `• ${i.product_name} × ${i.quantity} (${i.incoterm})`).join("\n");
+  const body = `Nouvelle commande #${orderId}\n${lines}\n\nMerci de confirmer disponibilité et délai.`;
+
+  if (supplierUser) {
+    try {
+      await db.insert(messagesTable).values({
+        senderId: buyerId,
+        receiverId: supplierUser.id,
+        body,
+      });
+      void sendPushToUser(supplierUser.id, "Nouvelle commande QDIA", `Commande #${orderId}`);
+    } catch { /* ignore */ }
+    return {
+      supplier_user_id: supplierUser.id,
+      name: supplierUser.name,
+      email: supplierUser.email ?? null,
+      phone: supplierUser.phone ?? null,
+      company: supplierUser.companyName ?? null,
+    };
+  }
+
+  return { supplier_user_id: null, name: null, email: null, phone: null, company: null };
 }
 
 export async function addToCart(userId: number, productId: number, quantity: number, incoterm = "FOB", notes?: string) {
   if (await dbOk()) {
     try {
+      const existing = await db.select().from(cartItemsTable)
+        .where(and(eq(cartItemsTable.userId, userId), eq(cartItemsTable.productId, productId)))
+        .limit(1);
+      if (existing[0]) {
+        const newQty = existing[0].quantity + quantity;
+        const [row] = await db.update(cartItemsTable)
+          .set({ quantity: newQty, incoterm, notes: notes ?? existing[0].notes })
+          .where(eq(cartItemsTable.id, existing[0].id))
+          .returning();
+        return { id: row.id, product_id: row.productId, quantity: row.quantity, incoterm: row.incoterm, notes: row.notes };
+      }
       const [row] = await db.insert(cartItemsTable).values({ userId, productId, quantity, incoterm, notes }).returning();
       return { id: row.id, product_id: row.productId, quantity: row.quantity, incoterm: row.incoterm, notes: row.notes };
     } catch { /* mem */ }
@@ -51,6 +147,25 @@ export async function addToCart(userId: number, productId: number, quantity: num
   const item = { id: ++nextId, userId, productId, quantity, incoterm, notes };
   mem.cart.push(item);
   return { id: item.id, product_id: item.productId, quantity: item.quantity, incoterm: item.incoterm, notes: item.notes };
+}
+
+export async function updateCartItem(userId: number, itemId: number, quantity: number) {
+  if (quantity <= 0) {
+    await removeFromCart(userId, itemId);
+    return null;
+  }
+  if (await dbOk()) {
+    try {
+      const [row] = await db.update(cartItemsTable)
+        .set({ quantity })
+        .where(and(eq(cartItemsTable.id, itemId), eq(cartItemsTable.userId, userId)))
+        .returning();
+      if (row) return { id: row.id, product_id: row.productId, quantity: row.quantity, incoterm: row.incoterm, notes: row.notes };
+    } catch { /* mem */ }
+  }
+  const item = mem.cart.find(c => c.id === itemId && c.userId === userId);
+  if (item) item.quantity = quantity;
+  return item ? { id: item.id, product_id: item.productId, quantity: item.quantity, incoterm: item.incoterm, notes: item.notes } : null;
 }
 
 export async function removeFromCart(userId: number, itemId: number) {
@@ -126,7 +241,19 @@ export async function checkout(userId: number, paymentMethod: string) {
     mem.cart = mem.cart.filter(c => c.userId !== userId);
   }
 
-  return order;
+  const supplierContact = await notifySupplierOfOrder(
+    order.id as number,
+    userId,
+    supplierId ?? null,
+    orderItems.map(i => ({
+      product_name: i.product_name,
+      quantity: i.quantity,
+      incoterm: i.incoterm,
+      total: i.total,
+    })),
+  );
+
+  return { ...order, supplier_contact: supplierContact };
 }
 
 export async function getOrders(userId: number, role: string) {

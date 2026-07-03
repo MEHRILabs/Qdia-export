@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { requireAuth, requireRole, type AuthedRequest } from "../middleware/auth";
 import {
-  getCart, addToCart, removeFromCart, checkout, getOrders, reorder,
+  getCart, addToCart, updateCartItem, removeFromCart, checkout, getOrders, reorder,
   createDispute, getDisputes, mediateDispute,
   createOemRequest, createSampleRequest,
   getSupplierReviews, postSupplierReview, getRecommendations,
@@ -34,6 +34,14 @@ router.post("/cart", requireAuth, async (req: AuthedRequest, res) => {
 router.delete("/cart/:id", requireAuth, async (req: AuthedRequest, res) => {
   await removeFromCart(req.user!.id, parseInt(String(req.params.id), 10));
   res.json({ ok: true });
+});
+
+router.patch("/cart/:id", requireAuth, async (req: AuthedRequest, res) => {
+  const parsed = z.object({ quantity: z.number().positive() }).safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  const item = await updateCartItem(req.user!.id, parseInt(String(req.params.id), 10), parsed.data.quantity);
+  if (!item) { res.status(404).json({ error: "Article introuvable" }); return; }
+  res.json(item);
 });
 
 router.post("/cart/checkout", requireAuth, async (req: AuthedRequest, res) => {
