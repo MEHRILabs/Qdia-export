@@ -1,8 +1,5 @@
 # QDIA Export — déploiement gratuit Render
 # https://render.com
-#
-# Render Dashboard → New → Blueprint → repo MEHRILabs/Qdia-export
-# Renseignez GROQ_API_KEY, GOOGLE_CLIENT_ID, etc. après le premier déploiement.
 
 databases:
   - name: qdia-db
@@ -15,20 +12,8 @@ services:
     name: qdia-export
     runtime: node
     plan: free
-    buildCommand: >-
-      corepack enable &&
-      pnpm install --no-frozen-lockfile
-      --filter @workspace/qdia-export
-      --filter @workspace/api-server
-      --filter @workspace/db
-      --filter workspace &&
-      pnpm -C artifacts/api-server build &&
-      pnpm -C lib/db run push &&
-      node ./scripts/seed.mjs &&
-      BASE_PATH=/ PORT=10000 VITE_API_URL=
-      VITE_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-      pnpm -C artifacts/qdia-export build
-    startCommand: cd artifacts/api-server && SERVE_WEB=1 node --enable-source-maps ./dist/index.mjs
+    buildCommand: bash scripts/render-build.sh
+    startCommand: bash scripts/render-start.sh
     healthCheckPath: /api/healthz
     envVars:
       - key: NODE_ENV
