@@ -111,8 +111,6 @@ export default function Home() {
 
         <ExportWorkflow />
 
-        <AppDownloadSection />
-
         {/* Products */}
         <AnimatedSection className="max-w-7xl mx-auto px-6 pb-20 pt-4">
           <div className="flex items-end justify-between mb-8 gap-4">
@@ -195,6 +193,8 @@ export default function Home() {
             <PortsCustomsPanel productCategory="Agriculture & Food" portDepart="Béjaïa" fobPrice={51000} />
           </div>
         </AnimatedSection>
+
+        <AppDownloadSection />
 
       </main>
 

@@ -99,10 +99,12 @@
     "app_feature_ia": "وكيل الذكاء الاصطناعي",
     "app_feature_verified": "موردون موثوقون",
     "app_feature_catalog": "كتالوج +19 ألف منتج",
-    "download_apk": "تحميل APK أندرويد",
+    "download_apk": "أندرويد (APK)",
     "download_apk_sub": "تثبيت مباشر",
     "apk_version": "إصدار أندرويد · مجاني",
-    "apk_install_hint": "اسمح بالمصادر غير المعروفة عند الطلب · متصل بـ qdia-export.onrender.com",
+    "apk_install_hint": "مجاني 100% · دون تسجيل",
+    "get_on": "حمّل على",
+    "soon_badge": "قريباً",
     "app_cta_mock": "انشر بالذكاء الاصطناعي →"
   },
   "search": {

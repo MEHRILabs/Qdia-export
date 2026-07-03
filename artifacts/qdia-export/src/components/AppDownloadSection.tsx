@@ -1,6 +1,5 @@
 import { motion } from "framer-motion";
-import { Smartphone, Download, Sparkles, ShieldCheck, Package, Zap } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Smartphone, Download, Sparkles, ShieldCheck, Package } from "lucide-react";
 import { useI18n } from "@/contexts/I18nContext";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -11,6 +10,22 @@ const FEATURE_KEYS = [
   { icon: ShieldCheck, key: "home.app_feature_verified" as const },
   { icon: Package, key: "home.app_feature_catalog" as const },
 ];
+
+function AndroidIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M6 18c0 .55.45 1 1 1h1v3.5a1.5 1.5 0 0 0 3 0V19h2v3.5a1.5 1.5 0 0 0 3 0V19h1c.55 0 1-.45 1-1V8H6v10ZM3.5 8A1.5 1.5 0 0 0 2 9.5v7a1.5 1.5 0 0 0 3 0v-7A1.5 1.5 0 0 0 3.5 8Zm17 0a1.5 1.5 0 0 0-1.5 1.5v7a1.5 1.5 0 0 0 3 0v-7A1.5 1.5 0 0 0 20.5 8Zm-4.97-5.84 1.3-1.3a.5.5 0 0 0-.71-.71l-1.48 1.48A5.9 5.9 0 0 0 12 1c-.96 0-1.86.23-2.66.63L7.85.15a.5.5 0 1 0-.71.71l1.31 1.31A5.9 5.9 0 0 0 6 7h12a5.9 5.9 0 0 0-2.47-4.84ZM10 5H9V4h1v1Zm5 0h-1V4h1v1Z" />
+    </svg>
+  );
+}
+
+function AppleIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 384 512" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z" />
+    </svg>
+  );
+}
 
 const FLOAT_ITEMS = [
   { label: "Huile d'olive Béjaïa", price: "FOB · Export" },
@@ -89,39 +104,44 @@ export function AppDownloadSection() {
             transition={{ delay: 0.35 }}
             className="flex flex-col sm:flex-row gap-3"
           >
-            <motion.div whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.97 }}>
-              <Button
-                size="lg"
-                className="bg-[#F5C518] text-[#1A1A2E] hover:bg-[#e6b616] font-black gap-3 h-14 px-6 min-w-[240px] shadow-lg shadow-[#F5C518]/25"
-                asChild
-              >
-                <a href={APK_URL} download="qdia-export.apk">
-                  <Download className="h-5 w-5" />
-                  <div className="text-left leading-tight">
-                    <span className="text-[9px] block opacity-70 uppercase tracking-wide">
-                      {tr("home.download_apk_sub")}
-                    </span>
-                    <span className="text-sm font-black">{tr("home.download_apk")}</span>
-                  </div>
-                </a>
-              </Button>
-            </motion.div>
-            <motion.div
-              animate={{ boxShadow: ["0 0 0 0 rgba(245,197,24,0)", "0 0 0 8px rgba(245,197,24,0.15)", "0 0 0 0 rgba(245,197,24,0)"] }}
-              transition={{ duration: 2.5, repeat: Infinity }}
-              className="rounded-xl"
+            {/* Android — téléchargement APK direct */}
+            <motion.a
+              href={APK_URL}
+              download="qdia-export.apk"
+              whileHover={{ scale: 1.04, y: -2 }}
+              whileTap={{ scale: 0.97 }}
+              animate={{ boxShadow: ["0 0 0 0 rgba(245,197,24,0)", "0 0 0 8px rgba(245,197,24,0.18)", "0 0 0 0 rgba(245,197,24,0)"] }}
+              transition={{ boxShadow: { duration: 2.5, repeat: Infinity } }}
+              className="group flex items-center gap-3 bg-[#F5C518] text-[#1A1A2E] rounded-xl h-14 px-5 min-w-[210px] shadow-lg shadow-[#F5C518]/25"
             >
-              <Button
-                size="lg"
-                variant="outline"
-                className="border-white/30 text-white bg-white/5 hover:bg-white/15 font-bold gap-2 h-14 px-5"
-                asChild
-              >
-                <a href={APK_URL}>
-                  <Zap className="h-4 w-4 text-[#F5C518]" />
-                  {tr("home.apk_version")}
-                </a>
-              </Button>
+              <AndroidIcon className="h-7 w-7 shrink-0" />
+              <div className="text-start leading-tight">
+                <span className="block text-[9px] uppercase tracking-wide opacity-70 font-bold">
+                  {tr("home.get_on")}
+                </span>
+                <span className="text-sm font-black">{tr("home.download_apk")}</span>
+              </div>
+              <Download className="h-4 w-4 ms-auto opacity-70 group-hover:translate-y-0.5 transition-transform" />
+            </motion.a>
+
+            {/* iOS — bientôt disponible */}
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+              className="relative flex items-center gap-3 bg-white/5 border border-white/25 text-white rounded-xl h-14 px-5 min-w-[210px] backdrop-blur-sm cursor-not-allowed"
+              aria-disabled="true"
+              role="button"
+              title={tr("home.soon_badge")}
+            >
+              <AppleIcon className="h-7 w-7 shrink-0 text-white/90" />
+              <div className="text-start leading-tight">
+                <span className="block text-[9px] uppercase tracking-wide opacity-60 font-bold">
+                  {tr("home.get_on")}
+                </span>
+                <span className="text-sm font-black">App Store</span>
+              </div>
+              <span className="ms-auto text-[9px] font-black bg-[#04BB7B] text-white px-2 py-0.5 rounded-full uppercase tracking-wide">
+                {tr("home.soon_badge")}
+              </span>
             </motion.div>
           </motion.div>
 
@@ -130,7 +150,7 @@ export function AppDownloadSection() {
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
             transition={{ delay: 0.5 }}
-            className="text-[11px] text-white/45 mt-4"
+            className="text-[11px] text-white/50 mt-4"
           >
             {tr("home.apk_install_hint")}
           </motion.p>

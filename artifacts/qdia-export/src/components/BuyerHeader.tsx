@@ -260,8 +260,8 @@ export function BuyerHeader() {
                     type="button"
                     className="hidden md:inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white px-3 py-2 rounded-lg text-[13px] font-semibold transition-colors"
                   >
-                    <User className="h-4 w-4 text-[#F5C518]" />
-                    <span className="max-w-[100px] truncate hidden sm:inline">{user.name}</span>
+                    <User className="h-4 w-4 text-[#F5C518] shrink-0" />
+                    <span dir="ltr" className="max-w-[120px] truncate hidden sm:inline text-start">{user.name}</span>
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48" onCloseAutoFocus={e => e.preventDefault()}>
