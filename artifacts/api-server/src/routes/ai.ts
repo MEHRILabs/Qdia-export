@@ -7,6 +7,7 @@ import { agentOrchestrator } from "../services/agent-orchestrator";
 import { AI_CREDIT_COSTS, getCreditsSummary } from "../services/ai-credits";
 import { previewScrapedImages, runBulkImport } from "../services/bulk-import-agent";
 import { formatAiError } from "../services/local-product-fallback";
+import { hasProviderKey, getProvider } from "../services/ai/config";
 import {
   AiGenerateProductBody,
   AiCalculatePricingBody,
@@ -14,6 +15,27 @@ import {
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
+
+function aiStatus() {
+  return {
+    openai: hasProviderKey("openai"),
+    groq: hasProviderKey("groq"),
+    gemini: hasProviderKey("gemini"),
+    claude: hasProviderKey("claude"),
+    removebg: !!process.env.REMOVEBG_API_KEY,
+    chat_provider: getProvider("chat"),
+    vision_provider: getProvider("vision"),
+    image_provider: getProvider("image"),
+    fallback_enabled: process.env.AI_FALLBACK_ENABLED !== "false",
+    credit_costs: AI_CREDIT_COSTS,
+  };
+}
+
+// Diagnostic PUBLIC (booléens uniquement, aucune clé exposée) — vérifier la config Render
+// Accessible via GET /api/ai/status sans authentification.
+router.get("/ai/status", (_req, res): void => {
+  res.json(aiStatus());
+});
 
 router.use(requireAuth, requireRole("supplier", "admin"), aiLimiter);
 
@@ -62,28 +84,6 @@ function requireAi(res: import("express").Response, opts?: { action?: string }):
 
 router.get("/ai/credits", (_req, res) => {
   res.json(getCreditsSummary());
-});
-
-import { hasProviderKey, getProvider } from "../services/ai/config";
-
-function aiStatus() {
-  return {
-    openai: hasProviderKey("openai"),
-    groq: hasProviderKey("groq"),
-    gemini: hasProviderKey("gemini"),
-    claude: hasProviderKey("claude"),
-    removebg: !!process.env.REMOVEBG_API_KEY,
-    chat_provider: getProvider("chat"),
-    vision_provider: getProvider("vision"),
-    image_provider: getProvider("image"),
-    fallback_enabled: process.env.AI_FALLBACK_ENABLED !== "false",
-    credit_costs: AI_CREDIT_COSTS,
-  };
-}
-
-// ─── GET /ai/status ───────────────────────────────────────────────────────────
-router.get("/ai/status", (_req, res): void => {
-  res.json(aiStatus());
 });
 
 // ─── Sessions ─────────────────────────────────────────────────────────────────
