@@ -7,12 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useI18n } from "@/contexts/I18nContext";
+import { apiUrl } from "@/lib/api-base";
+import { authJsonHeaders, getAuthToken } from "@/lib/api-auth";
 import {
   Sparkles, Eraser, ShieldCheck,
   Upload, Loader2, Wand2, X, ImageIcon, Scissors,
 } from "lucide-react";
-
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 type StudioAction = "remove_background" | "studio_scene" | "white_background" | "enhance";
 
@@ -53,12 +53,17 @@ export default function Studio() {
       toast({ title: tr("studio_page.photo_required"), description: tr("studio_page.photo_required_desc"), variant: "destructive" });
       return;
     }
+    if (!getAuthToken()) {
+      toast({ title: tr("common.error"), description: tr("studio_page.login_required"), variant: "destructive" });
+      window.dispatchEvent(new Event("qdia-open-auth"));
+      return;
+    }
     setLoading(true);
     setResult(null);
     try {
-      const resp = await fetch(`${BASE}/api/ai/studio`, {
+      const resp = await fetch(apiUrl("/api/ai/studio"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authJsonHeaders(),
         body: JSON.stringify({
           image_base64: image,
           action,

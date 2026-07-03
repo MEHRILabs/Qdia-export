@@ -757,10 +757,11 @@
     "upload_title": "Import votre photo product",
     "upload_formats": "JPG, PNG · max 10 Mo",
     "photo_required": "Photo required",
-    "photo_required_desc": "Importez une image product pour continuer.",
+    "photo_required_desc": "Upload a product image to continue.",
     "done": "Done",
-    "done_desc": "Image traitée via {provider}.",
-    "error_studio": "Error studio"
+    "done_desc": "Image processed via {provider}.",
+    "error_studio": "Studio error",
+    "login_required": "Sign in as a supplier to use the AI studio"
   },
   "inquiries_page": {
     "title": "Inquiries & RFQ",

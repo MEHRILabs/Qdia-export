@@ -12,14 +12,14 @@ import { useI18n } from "@/contexts/I18nContext";
 import { StudioCanvas } from "@/components/StudioCanvas";
 import { PricingExplanation } from "@/components/PricingExplanation";
 import { AI_CREDIT_COSTS } from "@/lib/ai-credits";
+import { apiUrl } from "@/lib/api-base";
+import { authJsonHeaders, getAuthToken } from "@/lib/api-auth";
 import {
   MessageSquare, Package, Sparkles, Send, ImagePlus, ChevronRight,
   Loader2, CheckCircle2, AlertTriangle, RefreshCw,
   Tag, Globe, Boxes, Anchor, DollarSign, Languages,
   Wand2, Upload, X, ShieldCheck,
 } from "lucide-react";
-
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 function parseUploadedImage(dataUrl: string): { base64: string; mime: string } {
   const match = dataUrl.match(/^data:(image\/[\w+.-]+);base64,(.+)$/s);
@@ -220,9 +220,9 @@ export default function AgentIA() {
     setMessages(prev => [...prev, { role: "assistant", content: "" }]);
 
     try {
-      const resp = await fetch(`${BASE}/api/ai/chat`, {
+      const resp = await fetch(apiUrl("/api/ai/chat"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authJsonHeaders(),
         body: JSON.stringify({ message: userMsg, session_id: sessionId }),
       });
 
@@ -279,9 +279,9 @@ export default function AgentIA() {
     setGeneratedProduct(null);
     try {
       const cost = genCost ? parseFloat(genCost) : undefined;
-      const resp = await fetch(`${BASE}/api/ai/generate-product`, {
+      const resp = await fetch(apiUrl("/api/ai/generate-product"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authJsonHeaders(),
         body: JSON.stringify({
           description: genDescription,
           target_market: genTargetMarket || undefined,
@@ -323,9 +323,9 @@ export default function AgentIA() {
     setPricingLoading(true);
     setPricingResult(null);
     try {
-      const resp = await fetch(`${BASE}/api/ai/calculate-pricing`, {
+      const resp = await fetch(apiUrl("/api/ai/calculate-pricing"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authJsonHeaders(),
         body: JSON.stringify({
           product_name: generatedProduct?.name_fr ?? genDescription,
           cost_dzd: parseFloat(pricingCost),
@@ -370,9 +370,9 @@ export default function AgentIA() {
     setStudioLoading(true);
     setStudioResult(null);
     try {
-      const resp = await fetch(`${BASE}/api/ai/studio`, {
+      const resp = await fetch(apiUrl("/api/ai/studio"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authJsonHeaders(),
         body: JSON.stringify({
           image_base64: studioImage,
           action: studioAction,
@@ -404,9 +404,9 @@ export default function AgentIA() {
     setPublishLoading(true);
     try {
       const specs = generatedProduct.specs;
-      const resp = await fetch(`${BASE}/api/products`, {
+      const resp = await fetch(apiUrl("/api/products"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authJsonHeaders(),
         body: JSON.stringify({
           name: generatedProduct.name_fr,
           description: [

@@ -785,7 +785,8 @@
     "photo_required_desc": "Importez une image produit pour continuer.",
     "done": "Terminé",
     "done_desc": "Image traitée via {provider}.",
-    "error_studio": "Erreur studio"
+    "error_studio": "Erreur studio",
+    "login_required": "Connectez-vous en tant que fournisseur pour utiliser le studio IA"
   },
   "inquiries_page": {
     "title": "Inquiries & RFQ",

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
+import { apiUrl } from "@/lib/api-base";
+import { authJsonHeaders } from "@/lib/api-auth";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const STORAGE_KEY = "qdia_agent_session_id";
 
 export interface AgentSessionState {
@@ -19,7 +20,7 @@ export function useAgentSession() {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async (id: string) => {
-    const resp = await fetch(`${BASE}/api/ai/sessions/${id}`);
+    const resp = await fetch(apiUrl(`/api/ai/sessions/${id}`), { headers: authJsonHeaders() });
     if (!resp.ok) return null;
     const data = await resp.json() as AgentSessionState;
     setSession(data);
@@ -27,7 +28,7 @@ export function useAgentSession() {
   }, []);
 
   const create = useCallback(async () => {
-    const resp = await fetch(`${BASE}/api/ai/sessions`, { method: "POST" });
+    const resp = await fetch(apiUrl("/api/ai/sessions"), { method: "POST", headers: authJsonHeaders() });
     if (!resp.ok) throw new Error("Session");
     const data = await resp.json() as AgentSessionState;
     setSessionId(data.id);
@@ -59,16 +60,16 @@ export function useAgentSession() {
 
   const reset = useCallback(async () => {
     if (!sessionId) return create();
-    const resp = await fetch(`${BASE}/api/ai/sessions/${sessionId}/reset`, { method: "POST" });
+    const resp = await fetch(apiUrl(`/api/ai/sessions/${sessionId}/reset`), { method: "POST", headers: authJsonHeaders() });
     if (!resp.ok) return create();
     return refresh(sessionId);
   }, [sessionId, create, refresh]);
 
   const markComplete = useCallback(async (productId: number) => {
     if (!sessionId) return;
-    await fetch(`${BASE}/api/ai/sessions/${sessionId}/complete`, {
+    await fetch(apiUrl(`/api/ai/sessions/${sessionId}/complete`), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authJsonHeaders(),
       body: JSON.stringify({ product_id: productId }),
     });
     await refresh(sessionId);

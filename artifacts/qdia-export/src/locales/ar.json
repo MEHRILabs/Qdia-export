@@ -756,11 +756,12 @@
     "new_image": "Nouvelle image",
     "upload_title": "استيراد votre photo منتج",
     "upload_formats": "JPG, PNG · max 10 Mo",
-    "photo_required": "صورة مطلوب",
-    "photo_required_desc": "استيرادez une image منتج pour continuer.",
+    "photo_required": "الصورة مطلوبة",
+    "photo_required_desc": "حمّل صورة المنتج للمتابعة.",
     "done": "تم",
-    "done_desc": "صورة traitée via {provider}.",
-    "error_studio": "خطأ studio"
+    "done_desc": "تمت معالجة الصورة عبر {provider}.",
+    "error_studio": "خطأ في الاستوديو",
+    "login_required": "سجّل الدخول كمورّد لاستخدام استوديو الذكاء الاصطناعي"
   },
   "inquiries_page": {
     "title": "Inquiries & RFQ",
