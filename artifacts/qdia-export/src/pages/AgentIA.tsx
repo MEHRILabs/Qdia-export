@@ -10,7 +10,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useAgentSession } from "@/hooks/useAgentSession";
 import { useI18n } from "@/contexts/I18nContext";
 import { StudioCanvas } from "@/components/StudioCanvas";
-import { PricingExplanation } from "@/components/PricingExplanation";
 import { AI_CREDIT_COSTS } from "@/lib/ai-credits";
 import { apiUrl } from "@/lib/api-base";
 import { authJsonHeaders, getAuthToken } from "@/lib/api-auth";
@@ -528,19 +527,19 @@ export default function AgentIA() {
 
           {/* ── STEP 1: CHAT ── */}
           {activeStep === "chat" && (
-            <div className="flex flex-col h-[calc(100vh-220px)] min-h-[500px] qdia-card overflow-hidden">
-              <div className="qdia-chat-header flex items-center gap-2">
+            <div className="flex flex-col h-[calc(100dvh-200px)] min-h-[420px] qdia-card overflow-hidden">
+              <div className="qdia-chat-header flex items-center gap-2 shrink-0">
                 <Sparkles className="h-4 w-4" />
                 <span className="font-semibold text-sm">{tr("agent.assistant_header")}</span>
               </div>
-              <div className="p-4 flex flex-col flex-1">
-              <div className="mb-4">
+              <div className="p-4 flex flex-col flex-1 min-h-0">
+              <div className="mb-4 shrink-0">
                 <h2 className="text-xl font-bold text-[#1A1A2E] mb-1">{tr("agent.step_assistant")}</h2>
                 <p className="text-sm text-[#656566]">{tr("agent.chat_subtitle")}</p>
               </div>
 
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto space-y-4 pr-1 mb-4">
+              <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1 mb-4">
                 {messages.map((msg, i) => (
                   <div key={i} className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                     {msg.role === "assistant" && (
@@ -566,7 +565,7 @@ export default function AgentIA() {
               </div>
 
               {/* Quick suggestions */}
-              <div className="flex flex-wrap gap-2 mb-3">
+              <div className="flex flex-wrap gap-2 mb-3 shrink-0">
                 {SUGGESTIONS.map((s, i) => (
                   <button key={s} onClick={() => handleSuggestion(s, i === 0)} className="qdia-chip">
                     {s}
@@ -575,7 +574,7 @@ export default function AgentIA() {
               </div>
 
               {/* Input */}
-              <div className="flex gap-2">
+              <div className="flex gap-2 shrink-0">
                 <Textarea
                   value={chatInput}
                   onChange={e => setChatInput(e.target.value)}
@@ -590,7 +589,7 @@ export default function AgentIA() {
                 </Button>
               </div>
 
-              <div className="mt-4 flex justify-end">
+              <div className="mt-4 flex justify-end shrink-0">
                 <Button onClick={goToGenerate} variant="ai" className="gap-2" data-testid="button-next-generate">
                   {tr("agent.generate_sheet_btn")} <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -780,8 +779,6 @@ export default function AgentIA() {
                 <p className="text-sm text-muted-foreground">{tr("agent.pricing_subtitle")}</p>
               </div>
 
-              <PricingExplanation />
-
               <div className="grid md:grid-cols-2 gap-6">
                 {/* Inputs */}
                 <div className="space-y-4">
@@ -790,9 +787,9 @@ export default function AgentIA() {
                     <p>{generatedProduct?.name_fr ?? genDescription ?? tr("agent.product_undefined")}</p>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-3 items-end">
                     <div>
-                      <label className="text-sm font-medium mb-1.5 block">{tr("agent.cost_required")}</label>
+                      <label className="text-sm font-medium mb-1.5 block min-h-[2.5rem] leading-tight">{tr("agent.cost_required")}</label>
                       <Input value={pricingCost} onChange={e => setPricingCost(e.target.value)} placeholder="Ex: 450" type="number" data-testid="input-pricing-cost" />
                     </div>
                     <div>

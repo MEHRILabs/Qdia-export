@@ -603,9 +603,24 @@ router.get("/products/:id", async (req, res): Promise<void> => {
   res.json({ ...GetProductResponse.parse(toProductShape(product)), view_count: views });
 });
 
+const UpdateProductBody = CreateProductBody.partial().extend({
+  // Autoriser une mise à jour partielle des prix (ex. formulaire n'éditant que le FOB)
+  prices: z
+    .object({
+      exw: z.number(),
+      fob: z.number(),
+      cfr: z.number(),
+      cif: z.number(),
+      currency: z.string().optional(),
+      unit: z.string().optional(),
+    })
+    .partial()
+    .optional(),
+});
+
 router.put("/products/:id", requireAuth, requireRole("supplier", "admin"), async (req: AuthedRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
-  const parsed = CreateProductBody.partial().safeParse(req.body);
+  const parsed = UpdateProductBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
@@ -640,12 +655,10 @@ router.put("/products/:id", requireAuth, requireRole("supplier", "admin"), async
     ...(d.certifications ? { certifications: d.certifications } : {}),
     ...(imageUrl ? { imageUrl } : {}),
     ...(images ? { images } : {}),
-    ...(d.prices ? {
-      priceExw: d.prices.exw,
-      priceFob: d.prices.fob,
-      priceCfr: d.prices.cfr,
-      priceCif: d.prices.cif,
-    } : {}),
+    ...(d.prices?.exw != null ? { priceExw: d.prices.exw } : {}),
+    ...(d.prices?.fob != null ? { priceFob: d.prices.fob } : {}),
+    ...(d.prices?.cfr != null ? { priceCfr: d.prices.cfr } : {}),
+    ...(d.prices?.cif != null ? { priceCif: d.prices.cif } : {}),
   }).where(eq(productsTable.id, id)).returning();
   if (!product) {
     res.status(404).json({ error: "Product not found" });

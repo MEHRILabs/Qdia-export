@@ -66,6 +66,7 @@ function ProductEditContent() {
   const save = async () => {
     setSaving(true);
     try {
+      const fob = Number.isFinite(priceFob) ? priceFob : 0;
       await platformApi.updateProduct(id, {
         name,
         description,
@@ -73,7 +74,14 @@ function ProductEditContent() {
         moq,
         moq_unit: moqUnit,
         port_depart: portDepart,
-        prices: { fob: priceFob, currency: "USD" },
+        // Incoterms dérivés du FOB pour rester cohérents avec le catalogue
+        prices: {
+          exw: Math.round(fob * 0.92 * 100) / 100,
+          fob,
+          cfr: Math.round(fob * 1.08 * 100) / 100,
+          cif: Math.round(fob * 1.12 * 100) / 100,
+          currency: "USD",
+        },
       });
       toast({ title: tr("product_edit.updated") });
     } catch (e) {
