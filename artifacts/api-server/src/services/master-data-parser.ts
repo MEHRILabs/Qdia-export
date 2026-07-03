@@ -35,7 +35,7 @@ export interface ParsedCatalogVariant {
 type FieldKey = keyof ParsedCatalogVariant;
 
 const ALIASES: Record<FieldKey, string[]> = {
-  master_id: ["master_id", "id_variante", "code_id", "id_produit_variante", "code_article", "id_article", "sku"],
+  master_id: ["master_id", "id_variante", "code_id", "id_produit_variante", "code_article", "id_article", "sku", "an"],
   parent_product_id: ["parent_product_id", "id_produit_mere", "id_produit", "produit_mere"],
   brand_code: ["brand_code", "code_marque"],
   brand_name: ["brand_name", "marque", "brand"],
@@ -65,8 +65,6 @@ const ALIASES: Record<FieldKey, string[]> = {
   image_url: ["image_url", "url_image", "photo", "image", "url"],
   packaging_notes: ["packaging_notes", "conditionnement", "emballage", "notes"],
 };
-
-const SHEET_PRIORITY = ["articles", "variantes", "produits", "articles_master", "catalogue"];
 
 function normalizeHeader(h: string): string {
   return h
@@ -98,18 +96,50 @@ function str(val: unknown): string | undefined {
   return s || undefined;
 }
 
-function pickSheet(workbook: XLSX.WorkBook): XLSX.WorkSheet | null {
-  const names = workbook.SheetNames.map(n => ({ raw: n, norm: normalizeHeader(n) }));
-  for (const pref of SHEET_PRIORITY) {
-    const hit = names.find(n => n.norm === pref || n.norm.includes(pref));
-    if (hit) return workbook.Sheets[hit.raw] ?? null;
+const SKIP_SHEET_HINTS = ["instruction", "controle", "integrite", "readme", "sommaire"];
+
+function isProductSheet(name: string): boolean {
+  const n = normalizeHeader(name);
+  return !SKIP_SHEET_HINTS.some(h => n.includes(h));
+}
+
+function isEmptyDataRow(row: unknown[]): boolean {
+  return row.every(c => c == null || String(c).trim() === "");
+}
+
+function sheetCategoryFallback(sheetName: string): string {
+  return sheetName.replace(/\s+/g, " ").trim() || "NON_CLASSE";
+}
+
+function parseSheetRows(
+  rows: unknown[][],
+  sheetName: string,
+  seen: Set<string>,
+  out: ParsedCatalogVariant[],
+): void {
+  if (rows.length < 2) return;
+
+  const headers = rows[0].map(h => String(h ?? ""));
+  const cols = Object.fromEntries(
+    (Object.keys(ALIASES) as FieldKey[]).map(k => [k, findCol(headers, k)]),
+  ) as Record<FieldKey, number>;
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!Array.isArray(row) || isEmptyDataRow(row)) continue;
+
+    const v = rowToVariant(row, cols, i + 1);
+    if (!v) continue;
+
+    if (!v.category_name || v.category_name === "NON_CLASSE") {
+      v.category_name = sheetCategoryFallback(sheetName);
+    }
+    if (!v.ean && v.master_id) v.ean = v.master_id;
+
+    if (seen.has(v.master_id)) continue;
+    seen.add(v.master_id);
+    out.push(v);
   }
-  for (const n of names) {
-    if (n.norm.includes("instruction") || n.norm.includes("controle") || n.norm.includes("integrite")) continue;
-    const sheet = workbook.Sheets[n.raw];
-    if (sheet) return sheet;
-  }
-  return workbook.Sheets[workbook.SheetNames[0] ?? ""] ?? null;
 }
 
 function rowToVariant(row: unknown[], cols: Record<FieldKey, number>, rowIndex: number): ParsedCatalogVariant | null {
@@ -158,26 +188,26 @@ function rowToVariant(row: unknown[], cols: Record<FieldKey, number>, rowIndex: 
 
 export function parseMasterDataExcel(buffer: Buffer): ParsedCatalogVariant[] {
   const workbook = XLSX.read(buffer, { type: "buffer" });
-  const sheet = pickSheet(workbook);
-  if (!sheet) return [];
-
-  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "" }) as unknown[][];
-  if (rows.length < 2) return [];
-
-  const headers = rows[0].map(h => String(h ?? ""));
-  const cols = Object.fromEntries(
-    (Object.keys(ALIASES) as FieldKey[]).map(k => [k, findCol(headers, k)]),
-  ) as Record<FieldKey, number>;
-
   const out: ParsedCatalogVariant[] = [];
   const seen = new Set<string>();
 
-  for (let i = 1; i < rows.length; i++) {
-    const v = rowToVariant(rows[i], cols, i + 1);
-    if (!v) continue;
-    if (seen.has(v.master_id)) continue;
-    seen.add(v.master_id);
-    out.push(v);
+  const sheetNames = workbook.SheetNames.filter(isProductSheet);
+  if (sheetNames.length === 0) return out;
+
+  // Cahier de charge multi-rayons (12 feuilles) ou fichier mono-feuille
+  if (sheetNames.length === 1) {
+    const sheet = workbook.Sheets[sheetNames[0]];
+    if (!sheet) return out;
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "" }) as unknown[][];
+    parseSheetRows(rows, sheetNames[0], seen, out);
+    return out;
+  }
+
+  for (const sheetName of sheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) continue;
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "" }) as unknown[][];
+    parseSheetRows(rows, sheetName, seen, out);
   }
   return out;
 }

@@ -19,14 +19,29 @@ pnpm -C lib/db run push || echo "WARN: drizzle push (non bloquant)"
 echo "→ Seed données initiales…"
 node ./scripts/seed.mjs || echo "WARN: seed (non bloquant)"
 
+CATALOG_XLS=""
+for f in \
+  "./data/listing_cahier_de_charge.xlsx" \
+  "./data/base_de_donnees_finale.xlsx" \
+  "./data/LISTING CAHIER DE CHARGE.xlsx"
+do
+  if [ -f "$f" ]; then
+    CATALOG_XLS="$f"
+    break
+  fi
+done
+
+if [ -n "$CATALOG_XLS" ]; then
+  if node ./scripts/should-import-catalog.mjs; then
+    echo "→ Import Excel catalogue complet ($CATALOG_XLS)…"
+    node ./scripts/import-catalog-variants.mjs "$CATALOG_XLS" || echo "WARN: import Excel"
+  else
+    echo "→ Catalogue déjà importé — skip import Excel"
+  fi
+fi
+
 echo "→ Publication catalogue marketplace…"
 node ./scripts/bootstrap-products.mjs
-
-if [ -f "./data/base_de_donnees_finale.xlsx" ]; then
-  echo "→ Import Excel Master Data (catalogue complet)…"
-  node ./scripts/import-catalog-variants.mjs "./data/base_de_donnees_finale.xlsx" || echo "WARN: import Excel"
-  node ./scripts/bootstrap-products.mjs
-fi
 
 echo "=== Démarrage serveur API + site ==="
 export NODE_ENV=production

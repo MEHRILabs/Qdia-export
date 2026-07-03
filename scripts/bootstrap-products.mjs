@@ -136,96 +136,104 @@ async function seedBaseProducts(client, supplierId) {
 }
 
 async function syncCatalogVariants(client, supplierId) {
-  const { rows: variants } = await client.query(
-    `SELECT id, master_id, name, description, category_name, subcategory, brand_name,
-            price_retail_dzd, price_fob_usd, moq, moq_unit, image_url, packaging_notes, published_product_id
-     FROM catalog_variants
-     WHERE name IS NOT NULL AND trim(name) <> ''
-     ORDER BY id
-     LIMIT 20000`,
+  const { rows: countRows } = await client.query(
+    `SELECT count(*)::int AS n FROM catalog_variants WHERE name IS NOT NULL AND trim(name) <> ''`,
   );
-  if (!variants.length) {
+  if (!countRows[0].n) {
     console.log("→ Aucune variante catalog_variants à publier");
     return 0;
   }
 
-  let published = 0;
-  for (const v of variants) {
-    const sku = v.master_id;
-    if (!sku) continue;
-    const fob = v.price_fob_usd > 0
-      ? v.price_fob_usd
-      : v.price_retail_dzd > 0
-        ? Math.round((v.price_retail_dzd / 135) * 100) / 100
-        : 1;
-    const moq = v.moq > 0 ? v.moq : 100;
-    const category = v.subcategory ? `${v.category_name} > ${v.subcategory}` : v.category_name;
-    const image = v.image_url?.trim() || PLACEHOLDER;
-    const payload = [
-      v.name,
-      v.description ?? `${v.brand_name ?? ""} — ${v.name}`.trim(),
-      category,
-      sku,
-      image,
-      [image],
-      supplierId,
-      v.brand_name ?? "Export DZ",
-      "Algérie",
-      moq,
-      v.moq_unit ?? "unité",
-      "Béjaïa",
-      "Alger",
-      [],
-      v.packaging_notes,
-      fob * 0.92,
-      fob,
-      fob * 1.08,
-      fob * 1.12,
-      "unit",
-      v.price_retail_dzd,
-      fob,
-      false,
-    ];
+  const { rowCount } = await client.query(
+    `INSERT INTO products (
+      name, description, category, sku, image_url, images,
+      supplier_id, supplier_name, supplier_location, moq, moq_unit,
+      port_depart, origin_wilaya, certifications, packaging, export_status,
+      price_exw, price_fob, price_cfr, price_cif, price_currency, price_unit,
+      price_retail, price_wholesale, is_featured
+    )
+    SELECT
+      cv.name,
+      COALESCE(cv.description, COALESCE(cv.brand_name, '') || ' — ' || cv.name),
+      CASE WHEN cv.subcategory IS NOT NULL AND trim(cv.subcategory) <> ''
+        THEN cv.category_name || ' > ' || cv.subcategory
+        ELSE cv.category_name END,
+      cv.master_id,
+      COALESCE(NULLIF(trim(cv.image_url), ''), $2),
+      ARRAY[COALESCE(NULLIF(trim(cv.image_url), ''), $2)],
+      $1,
+      COALESCE(cv.brand_name, 'Export DZ'),
+      'Algérie',
+      GREATEST(COALESCE(cv.moq, 100), 1),
+      COALESCE(cv.moq_unit, 'unité'),
+      'Béjaïa',
+      'Alger',
+      '{}',
+      cv.packaging_notes,
+      'published',
+      CASE
+        WHEN cv.price_fob_usd > 0 THEN cv.price_fob_usd * 0.92
+        WHEN cv.price_retail_dzd > 0 THEN (cv.price_retail_dzd / 135.0) * 0.92
+        ELSE 0.92
+      END,
+      CASE
+        WHEN cv.price_fob_usd > 0 THEN cv.price_fob_usd
+        WHEN cv.price_retail_dzd > 0 THEN cv.price_retail_dzd / 135.0
+        ELSE 1
+      END,
+      CASE
+        WHEN cv.price_fob_usd > 0 THEN cv.price_fob_usd * 1.08
+        WHEN cv.price_retail_dzd > 0 THEN (cv.price_retail_dzd / 135.0) * 1.08
+        ELSE 1.08
+      END,
+      CASE
+        WHEN cv.price_fob_usd > 0 THEN cv.price_fob_usd * 1.12
+        WHEN cv.price_retail_dzd > 0 THEN (cv.price_retail_dzd / 135.0) * 1.12
+        ELSE 1.12
+      END,
+      'USD',
+      'unit',
+      cv.price_retail_dzd,
+      CASE
+        WHEN cv.price_fob_usd > 0 THEN cv.price_fob_usd
+        WHEN cv.price_retail_dzd > 0 THEN cv.price_retail_dzd / 135.0
+        ELSE NULL
+      END,
+      false
+    FROM catalog_variants cv
+    WHERE cv.name IS NOT NULL AND trim(cv.name) <> '' AND cv.master_id IS NOT NULL
+    ON CONFLICT (sku) WHERE sku IS NOT NULL DO UPDATE SET
+      name = EXCLUDED.name,
+      description = EXCLUDED.description,
+      category = EXCLUDED.category,
+      image_url = EXCLUDED.image_url,
+      images = EXCLUDED.images,
+      supplier_id = EXCLUDED.supplier_id,
+      supplier_name = EXCLUDED.supplier_name,
+      moq = EXCLUDED.moq,
+      moq_unit = EXCLUDED.moq_unit,
+      packaging = EXCLUDED.packaging,
+      price_exw = EXCLUDED.price_exw,
+      price_fob = EXCLUDED.price_fob,
+      price_cfr = EXCLUDED.price_cfr,
+      price_cif = EXCLUDED.price_cif,
+      price_retail = EXCLUDED.price_retail,
+      price_wholesale = EXCLUDED.price_wholesale,
+      export_status = 'published'`,
+    [supplierId, PLACEHOLDER],
+  );
 
-    const existing = await client.query(
-      `SELECT id FROM products WHERE sku = $1 LIMIT 1`,
-      [sku],
-    );
-    let productId;
-    if (existing.rows.length) {
-      productId = existing.rows[0].id;
-      await client.query(
-        `UPDATE products SET
-          name=$1, description=$2, category=$3, image_url=$4, images=$5,
-          supplier_id=$6, supplier_name=$7, moq=$8, moq_unit=$9, packaging=$10,
-          price_exw=$11, price_fob=$12, price_cfr=$13, price_cif=$14,
-          price_retail=$15, price_wholesale=$16, export_status='published'
-         WHERE id=$17`,
-        [...payload, productId],
-      );
-    } else {
-      const ins = await client.query(
-        `INSERT INTO products (
-          name, description, category, sku, image_url, images,
-          supplier_id, supplier_name, supplier_location, moq, moq_unit,
-          port_depart, origin_wilaya, certifications, packaging, export_status,
-          price_exw, price_fob, price_cfr, price_cif, price_currency, price_unit,
-          price_retail, price_wholesale, is_featured
-        ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'published',
-          $16,$17,$18,$19,'USD',$20,$21,$22,$23
-        ) RETURNING id`,
-        payload,
-      );
-      productId = ins.rows[0].id;
-    }
-    await client.query(
-      `UPDATE catalog_variants SET export_status='published', published_product_id=$1, updated_at=NOW() WHERE id=$2`,
-      [productId, v.id],
-    );
-    published++;
-    if (published % 1000 === 0) console.log(`… ${published} variantes publiées`);
-  }
+  await client.query(
+    `UPDATE catalog_variants cv
+     SET export_status = 'published',
+         published_product_id = p.id,
+         updated_at = NOW()
+     FROM products p
+     WHERE p.sku = cv.master_id
+       AND cv.name IS NOT NULL AND trim(cv.name) <> ''`,
+  );
+
+  const published = rowCount ?? countRows[0].n;
   console.log(`→ ${published} variantes catalog_variants → products`);
   return published;
 }
