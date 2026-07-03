@@ -9,7 +9,7 @@ if (!process.env.DATABASE_URL) {
 
 function createPool() {
   const url = process.env.DATABASE_URL ?? "";
-  const remote = /neon\.tech|supabase|vercel-storage|sslmode=require/i.test(url);
+  const remote = /neon\.tech|supabase|vercel-storage|render\.com|sslmode=require/i.test(url);
   return new Pool({
     connectionString: url,
     ...(remote ? { ssl: { rejectUnauthorized: false } } : {}),
