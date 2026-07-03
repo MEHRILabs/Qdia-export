@@ -2,9 +2,9 @@ import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useI18n } from "@/contexts/I18nContext";
+import { apiUrl } from "@/lib/api-base";
+import { getAuthToken } from "@/lib/api-auth";
 import { FileSpreadsheet, Loader2, Upload } from "lucide-react";
-
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 interface Props {
   onDone?: () => void;
@@ -19,15 +19,28 @@ export function ExcelImportButton({ onDone }: Props) {
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const token = getAuthToken();
+    if (!token) {
+      toast({
+        title: tr("excel_import.import_error"),
+        description: "Connectez-vous avec un compte fournisseur avant d'importer un fichier Excel.",
+        variant: "destructive",
+      });
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
     setLoading(true);
 
     const reader = new FileReader();
     reader.onload = async ev => {
       try {
         const base64 = (ev.target?.result as string).split(",")[1];
-        const resp = await fetch(`${BASE}/api/products/import-excel`, {
+        const resp = await fetch(apiUrl("/api/products/import-excel"), {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
           body: JSON.stringify({ file_base64: base64, publish: false }),
         });
         const data = await resp.json();

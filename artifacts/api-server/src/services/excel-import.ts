@@ -22,7 +22,7 @@ const COLUMN_ALIASES: Record<string, string[]> = {
   name: ["nom", "name", "produit", "product", "product_name", "designation", "désignation", "titre"],
   description: ["description", "desc", "details"],
   category: ["category", "categorie", "catégorie", "secteur"],
-  sku: ["sku", "ref", "reference", "référence", "code"],
+  sku: ["sku", "ref", "reference", "référence", "code", "an", "code_article", "master_id"],
   moq: ["moq", "quantite_min", "quantité_min", "qty_min", "minimum"],
   moq_unit: ["moq_unit", "unite", "unité", "unit", "unite_moq"],
   port_depart: ["port", "port_depart", "port_départ", "port_export"],
@@ -74,14 +74,21 @@ function parseString(val: unknown): string | undefined {
   return s || undefined;
 }
 
-export function parseExcelProducts(buffer: Buffer): ExcelProductRow[] {
-  const workbook = XLSX.read(buffer, { type: "buffer" });
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  if (!sheet) return [];
+function makeDedupKey(sku: string | undefined, name: string, sheetName: string): string {
+  return normalizeHeader(sku || `${sheetName}-${name}`);
+}
 
-  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "" }) as unknown[][];
-  if (rows.length < 2) return [];
+function isEmptyRow(row: unknown[]): boolean {
+  return row.every(cell => parseString(cell) == null);
+}
 
+function looksLikeMasterData(headers: string[]): boolean {
+  const normalized = headers.map(normalizeHeader);
+  return ["an", "description", "rayon", "marque", "ub", "pvttc"]
+    .every(key => normalized.includes(key));
+}
+
+function parseTemplateSheet(rows: unknown[][], sheetName: string, seen: Set<string>): ExcelProductRow[] {
   const headerRow = rows[0].map(h => String(h ?? ""));
   const col = {
     name: findColumn(headerRow, "name"),
@@ -101,31 +108,30 @@ export function parseExcelProducts(buffer: Buffer): ExcelProductRow[] {
     source: findColumn(headerRow, "source_url"),
   };
 
-  if (col.name < 0) {
-    throw new Error(
-      "Colonne « nom » / « produit » introuvable. Colonnes attendues : nom, prix_par_piece, prix_gros, moq, categorie…",
-    );
-  }
+  if (col.name < 0) return [];
 
   const products: ExcelProductRow[] = [];
-
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
-    if (!row || !row.length) continue;
+    if (!row?.length || isEmptyRow(row)) continue;
 
     const name = parseString(row[col.name]);
     if (!name) continue;
 
+    const sku = col.sku >= 0 ? parseString(row[col.sku]) : undefined;
+    const dedupKey = makeDedupKey(sku, name, sheetName);
+    if (seen.has(dedupKey)) continue;
+    seen.add(dedupKey);
+
     const priceRetail = col.retail >= 0 ? parseNumber(row[col.retail]) : undefined;
     const priceWholesale = col.wholesale >= 0 ? parseNumber(row[col.wholesale]) : undefined;
-
     const certsRaw = col.certs >= 0 ? parseString(row[col.certs]) : undefined;
 
     products.push({
       name,
       description: col.description >= 0 ? parseString(row[col.description]) : undefined,
       category: col.category >= 0 ? (parseString(row[col.category]) ?? "Agriculture & Food") : "Agriculture & Food",
-      sku: col.sku >= 0 ? parseString(row[col.sku]) : undefined,
+      sku,
       moq: col.moq >= 0 ? (parseNumber(row[col.moq]) ?? 100) : 100,
       moq_unit: col.moq_unit >= 0 ? (parseString(row[col.moq_unit]) ?? "units") : "units",
       port_depart: col.port >= 0 ? (parseString(row[col.port]) ?? "Alger") : "Alger",
@@ -138,6 +144,88 @@ export function parseExcelProducts(buffer: Buffer): ExcelProductRow[] {
       image_url: col.image >= 0 ? parseString(row[col.image]) : undefined,
       source_url: col.source >= 0 ? parseString(row[col.source]) : undefined,
     });
+  }
+
+  return products;
+}
+
+function parseMasterSheet(rows: unknown[][], sheetName: string, seen: Set<string>): ExcelProductRow[] {
+  const headerRow = rows[0].map(h => String(h ?? ""));
+  const headers = headerRow.map(normalizeHeader);
+  const col = {
+    an: headers.indexOf("an"),
+    description: headers.indexOf("description"),
+    rayon: headers.indexOf("rayon"),
+    marque: headers.indexOf("marque"),
+    ub: headers.indexOf("ub"),
+    pvttc: headers.indexOf("pvttc"),
+  };
+
+  if (col.description < 0) return [];
+
+  const products: ExcelProductRow[] = [];
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row?.length || isEmptyRow(row)) continue;
+
+    const sku = col.an >= 0 ? parseString(row[col.an]) : undefined;
+    const baseName = parseString(row[col.description]);
+    if (!baseName) continue;
+
+    const brand = col.marque >= 0 ? parseString(row[col.marque]) : undefined;
+    const subcategory = col.ub >= 0 ? parseString(row[col.ub]) : undefined;
+    const category = col.rayon >= 0 ? (parseString(row[col.rayon]) ?? sheetName) : sheetName;
+    const dedupKey = makeDedupKey(sku, baseName, sheetName);
+    if (seen.has(dedupKey)) continue;
+    seen.add(dedupKey);
+
+    const descriptionParts = [baseName, brand, subcategory].filter(Boolean);
+    const retail = col.pvttc >= 0 ? parseNumber(row[col.pvttc]) : undefined;
+
+    products.push({
+      name: baseName,
+      description: descriptionParts.join(" · "),
+      category: category || "Agriculture & Food",
+      sku,
+      moq: 100,
+      moq_unit: "units",
+      port_depart: "Alger",
+      price_retail: retail,
+      price_wholesale: retail,
+      price_currency: "DZD",
+      packaging: subcategory,
+      certifications: brand ? [brand] : [],
+    });
+  }
+
+  return products;
+}
+
+export function parseExcelProducts(buffer: Buffer): ExcelProductRow[] {
+  const workbook = XLSX.read(buffer, { type: "buffer" });
+  const seen = new Set<string>();
+  const products: ExcelProductRow[] = [];
+
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) continue;
+
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "" }) as unknown[][];
+    if (rows.length < 2) continue;
+
+    const headerRow = rows[0].map(h => String(h ?? ""));
+    if (looksLikeMasterData(headerRow)) {
+      products.push(...parseMasterSheet(rows, sheetName, seen));
+      continue;
+    }
+
+    products.push(...parseTemplateSheet(rows, sheetName, seen));
+  }
+
+  if (products.length === 0) {
+    throw new Error(
+      "Colonne « nom » / « produit » introuvable. Formats acceptés : modèle QDIA (nom, prix_par_piece, prix_gros...) ou master data (AN, Description, Rayon, Marque, UB, PVTTC).",
+    );
   }
 
   return products;

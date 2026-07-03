@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
-import { db, pool, productsTable, suppliersTable, categoriesTable, productViewsTable } from "@workspace/db";
+import { db, pool, productsTable, suppliersTable, categoriesTable, productViewsTable, usersTable } from "@workspace/db";
 import { eq, ilike, and, or, sql, gte, lte, desc, type SQL } from "drizzle-orm";
 import { requireAuth, requireRole, optionalAuth, type AuthedRequest } from "../middleware/auth";
 import { writeLimiter } from "../middleware/rate-limit";
@@ -61,6 +61,26 @@ async function ensureDefaultSupplier(): Promise<number> {
     verified: true,
     verificationLevel: 2,
   }).returning();
+  return created.id;
+}
+
+async function resolveSupplierForUser(user?: AuthedRequest["user"]): Promise<number> {
+  if (user?.supplier_id) return user.supplier_id;
+  if (!user) return ensureDefaultSupplier();
+
+  const companyName = user.company_name?.trim() || user.name || "Exportateur QDIA";
+  const wilaya = user.wilaya?.trim() || "Alger";
+  const [created] = await db.insert(suppliersTable).values({
+    companyName,
+    wilaya,
+    verified: false,
+    verificationLevel: 1,
+  }).returning();
+
+  await db.update(usersTable)
+    .set({ supplierId: created.id })
+    .where(eq(usersTable.id, user.id));
+
   return created.id;
 }
 
@@ -276,10 +296,11 @@ router.post("/products/import-excel", requireAuth, requireRole("supplier", "admi
       return;
     }
 
-    const supplierId = await ensureDefaultSupplier();
+    const supplierId = await resolveSupplierForUser(req.user);
     const [supplier] = await db.select().from(suppliersTable).where(eq(suppliersTable.id, supplierId));
     const inserted: ReturnType<typeof toProductShape>[] = [];
     const errors: string[] = [];
+    const shouldEnrichNow = rows.length <= 100;
 
     for (const row of rows) {
       try {
@@ -314,7 +335,9 @@ router.post("/products/import-excel", requireAuth, requireRole("supplier", "admi
         }).returning();
 
         inserted.push(toProductShape(product));
-        scheduleProductEnrichment(product.id, { generatePhotos: true });
+        if (shouldEnrichNow) {
+          scheduleProductEnrichment(product.id, { generatePhotos: true });
+        }
       } catch (err) {
         errors.push(`${row.name}: ${err instanceof Error ? err.message : "erreur"}`);
       }
@@ -323,6 +346,7 @@ router.post("/products/import-excel", requireAuth, requireRole("supplier", "admi
     res.json({
       imported: inserted.length,
       total_rows: rows.length,
+      ai_enrichment_scheduled: shouldEnrichNow,
       products: inserted,
       errors,
     });

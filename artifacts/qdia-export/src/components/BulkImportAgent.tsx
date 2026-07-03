@@ -4,11 +4,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useI18n } from "@/contexts/I18nContext";
+import { apiUrl } from "@/lib/api-base";
+import { getAuthToken } from "@/lib/api-auth";
 import {
   Bot, Globe, ImageIcon, Loader2, ScanSearch, Upload, PackagePlus,
 } from "lucide-react";
-
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 interface ScrapedImage {
   url: string;
@@ -42,6 +42,24 @@ export function BulkImportAgent({ onDone }: Props) {
   const [preview, setPreview] = useState<ScrapedImage[]>([]);
   const [results, setResults] = useState<BulkItem[]>([]);
 
+  const authHeaders = (): Record<string, string> => {
+    const token = getAuthToken();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    return headers;
+  };
+
+  const requireSupplierLogin = () => {
+    const token = getAuthToken();
+    if (token) return token;
+    toast({
+      title: tr("bulk_import.import_error"),
+      description: "Connectez-vous avec un compte fournisseur pour utiliser l'import en masse.",
+      variant: "destructive",
+    });
+    return null;
+  };
+
   const handleExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -55,6 +73,7 @@ export function BulkImportAgent({ onDone }: Props) {
   };
 
   const scrapePreview = async () => {
+    if (!requireSupplierLogin()) return;
     const urls = sourceUrls.split("\n").map(s => s.trim()).filter(Boolean);
     if (urls.length === 0) {
       toast({ title: tr("bulk_import.urls_required"), description: tr("bulk_import.urls_required_desc"), variant: "destructive" });
@@ -62,9 +81,9 @@ export function BulkImportAgent({ onDone }: Props) {
     }
     setScraping(true);
     try {
-      const resp = await fetch(`${BASE}/api/ai/scrape-images`, {
+      const resp = await fetch(apiUrl("/api/ai/scrape-images"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders(),
         body: JSON.stringify({ source_urls: urls }),
       });
       const data = await resp.json();
@@ -79,6 +98,7 @@ export function BulkImportAgent({ onDone }: Props) {
   };
 
   const runBulkImport = async () => {
+    if (!requireSupplierLogin()) return;
     const sources = sourceUrls.split("\n").map(s => s.trim()).filter(Boolean);
     const images = imageUrls.split("\n").map(s => s.trim()).filter(Boolean);
     if (!excelB64 && sources.length === 0 && images.length === 0) {
@@ -89,30 +109,48 @@ export function BulkImportAgent({ onDone }: Props) {
     setImporting(true);
     setResults([]);
     try {
-      const resp = await fetch(`${BASE}/api/ai/bulk-import`, {
+      const onlyExcelImport = !!excelB64 && sources.length === 0 && images.length === 0;
+      const endpoint = onlyExcelImport ? apiUrl("/api/products/import-excel") : apiUrl("/api/ai/bulk-import");
+      const payload = onlyExcelImport
+        ? { file_base64: excelB64, publish: false }
+        : {
+            file_base64: excelB64 ?? undefined,
+            source_urls: sources.length ? sources : undefined,
+            image_urls: images.length ? images : undefined,
+            scrape_images: true,
+            enrich_with_ai: true,
+            publish: false,
+            destination_country: destination,
+            port_code: "DZBJA",
+          };
+
+      const resp = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          file_base64: excelB64 ?? undefined,
-          source_urls: sources.length ? sources : undefined,
-          image_urls: images.length ? images : undefined,
-          scrape_images: true,
-          enrich_with_ai: true,
-          publish: false,
-          destination_country: destination,
-          port_code: "DZBJA",
-        }),
+        headers: authHeaders(),
+        body: JSON.stringify(payload),
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error ?? "Import échoué");
-      setResults(data.items ?? []);
-      toast({
-        title: tr("bulk_import.import_done"),
-        description: tr("bulk_import.import_done_desc")
-          .replace("{imported}", String(data.imported))
-          .replace("{errors}", String(data.errors))
-          .replace("{images}", String(data.scraped_images)),
-      });
+      if (onlyExcelImport) {
+        setResults((data.products ?? []).slice(0, 30).map((product: { id: number; name: string }) => ({
+          name: product.name,
+          status: "imported",
+          product_id: product.id,
+        })));
+        toast({
+          title: tr("bulk_import.import_done"),
+          description: `${data.imported ?? 0} produit(s) importé(s) depuis Excel${data.ai_enrichment_scheduled === false ? " sans enrichissement IA immédiat" : ""}.`,
+        });
+      } else {
+        setResults(data.items ?? []);
+        toast({
+          title: tr("bulk_import.import_done"),
+          description: tr("bulk_import.import_done_desc")
+            .replace("{imported}", String(data.imported))
+            .replace("{errors}", String(data.errors))
+            .replace("{images}", String(data.scraped_images)),
+        });
+      }
       onDone?.();
     } catch (e) {
       toast({ title: tr("bulk_import.import_error"), description: String(e instanceof Error ? e.message : e), variant: "destructive" });

@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { logger } from "../lib/logger";
-import { requireAuth, requireRole } from "../middleware/auth";
+import { requireAuth, requireRole, type AuthedRequest } from "../middleware/auth";
 import { aiLimiter } from "../middleware/rate-limit";
 import { agentOrchestrator } from "../services/agent-orchestrator";
 import { AI_CREDIT_COSTS, getCreditsSummary } from "../services/ai-credits";
@@ -308,8 +308,7 @@ router.post("/ai/scrape-images", async (req, res): Promise<void> => {
 });
 
 // ─── POST /ai/bulk-import ─────────────────────────────────────────────────────
-router.post("/ai/bulk-import", async (req, res): Promise<void> => {
-  if (!requireAi(res)) return;
+router.post("/ai/bulk-import", async (req: AuthedRequest, res): Promise<void> => {
   try {
     const parsed = BulkImportBody.safeParse(req.body);
     if (!parsed.success) {
@@ -323,7 +322,11 @@ router.post("/ai/bulk-import", async (req, res): Promise<void> => {
       return;
     }
 
-    const result = await runBulkImport(parsed.data);
+    const result = await runBulkImport({
+      ...parsed.data,
+      enrich_with_ai: parsed.data.enrich_with_ai && anyAiKey(),
+      supplier_id: req.user?.supplier_id ?? undefined,
+    });
     res.json(result);
   } catch (err) {
     logger.error({ err }, "bulk-import failed");

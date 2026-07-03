@@ -1,8 +1,9 @@
-import { Download, FileSpreadsheet, CheckCircle2 } from "lucide-react";
+import { useState } from "react";
+import { Download, FileSpreadsheet, CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/contexts/I18nContext";
-
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+import { useToast } from "@/hooks/use-toast";
+import { apiUrl } from "@/lib/api-base";
 
 const COLUMNS = [
   "nom", "description", "categorie", "prix_par_piece", "prix_gros",
@@ -12,6 +13,33 @@ const COLUMNS = [
 
 export function BulkImportTemplateCard() {
   const { tr } = useI18n();
+  const { toast } = useToast();
+  const [downloading, setDownloading] = useState(false);
+
+  const downloadTemplate = async () => {
+    try {
+      setDownloading(true);
+      const res = await fetch(apiUrl("/api/products/import-template"));
+      if (!res.ok) throw new Error(`Erreur ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "qdia-produits-template.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast({
+        title: tr("common.error"),
+        description: err instanceof Error ? err.message : "Téléchargement du modèle impossible.",
+        variant: "destructive",
+      });
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   return (
     <div className="rounded-xl border-2 border-dashed border-[#0461A5]/40 bg-gradient-to-br from-[#F0F4FF] to-white p-6 mb-8">
@@ -33,10 +61,9 @@ export function BulkImportTemplateCard() {
           </ul>
         </div>
         <div className="flex flex-col gap-3 shrink-0 lg:min-w-[220px]">
-          <Button variant="gold" size="lg" className="font-bold gap-2 w-full" asChild>
-            <a href={`${BASE}/api/products/import-template`} download="qdia-produits-template.xlsx">
-              <Download className="h-5 w-5" /> {tr("supplier_page.excel_template")}
-            </a>
+          <Button variant="gold" size="lg" className="font-bold gap-2 w-full" onClick={downloadTemplate} disabled={downloading}>
+            {downloading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
+            {tr("supplier_page.excel_template")}
           </Button>
           <p className="text-[11px] text-center text-[#9CA3AF]">{tr("supplier_page.template_hint")}</p>
         </div>
