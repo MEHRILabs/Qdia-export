@@ -94,7 +94,16 @@
     "products_title": "Algerian export products 🇩🇿",
     "offline_mode": "Offline mode — cached catalog",
     "download_app": "Download QDIA Export DZ",
-    "download_subtitle": "Publish and manage your products from mobile 🇩🇿"
+    "download_subtitle": "Publish and manage your products from mobile 🇩🇿",
+    "app_mobile_badge": "Mobile app",
+    "app_feature_ia": "AI export agent",
+    "app_feature_verified": "Verified suppliers",
+    "app_feature_catalog": "19k+ product catalog",
+    "download_apk": "Download Android APK",
+    "download_apk_sub": "Direct install",
+    "apk_version": "Android version · Free",
+    "apk_install_hint": "Allow unknown sources if prompted · Connected to qdia-export.onrender.com",
+    "app_cta_mock": "Publish with AI →"
   },
   "search": {
     "popular": "Popular searches",

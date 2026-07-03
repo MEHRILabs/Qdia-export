@@ -6,6 +6,7 @@ import { BuyerHeader, BuyerFooter } from "@/components/BuyerHeader";
 import { PortsCustomsPanel } from "@/components/PortsCustomsPanel";
 import { HomeHero } from "@/components/HomeHero";
 import { ExportWorkflow } from "@/components/ExportWorkflow";
+import { AppDownloadSection } from "@/components/AppDownloadSection";
 import { ProductImage } from "@/components/ProductImage";
 import { HOME_CATEGORIES } from "@/lib/nav";
 import { Badge } from "@/components/ui/badge";
@@ -109,6 +110,8 @@ export default function Home() {
         </AnimatedSection>
 
         <ExportWorkflow />
+
+        <AppDownloadSection />
 
         {/* Products */}
         <AnimatedSection className="max-w-7xl mx-auto px-6 pb-20 pt-4">

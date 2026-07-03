@@ -245,6 +245,17 @@ async function main() {
     const supplierId = await ensureSupplier(client);
     await seedBaseProducts(client, supplierId);
     await syncCatalogVariants(client, supplierId);
+    await client.query(`
+      UPDATE products SET is_featured = false WHERE export_status = 'published';
+      UPDATE products SET is_featured = true
+      WHERE id IN (
+        SELECT DISTINCT ON (split_part(category, ' > ', 1)) id
+        FROM products
+        WHERE export_status = 'published' AND name IS NOT NULL
+        ORDER BY split_part(category, ' > ', 1), price_fob DESC NULLS LAST, id
+        LIMIT 6
+      );
+    `);
     const { rows } = await client.query(`SELECT count(*)::int AS n FROM products WHERE export_status='published'`);
     console.log(`✓ Catalogue marketplace : ${rows[0].n} produits publiés`);
   } finally {

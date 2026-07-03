@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { db, pool, productsTable, suppliersTable, categoriesTable, productViewsTable } from "@workspace/db";
-import { eq, ilike, and, or, sql, gte, lte, type SQL } from "drizzle-orm";
+import { eq, ilike, and, or, sql, gte, lte, desc, type SQL } from "drizzle-orm";
 import { requireAuth, requireRole, optionalAuth, type AuthedRequest } from "../middleware/auth";
 import { writeLimiter } from "../middleware/rate-limit";
 import { canModifyProduct } from "../middleware/access-control";
@@ -509,11 +509,20 @@ router.get("/products/recommendations", async (req, res): Promise<void> => {
 });
 
 router.get("/products/featured", async (_req, res): Promise<void> => {
-  const rows = await db.select().from(productsTable)
+  let rows = await db.select().from(productsTable)
     .where(and(
       eq(productsTable.isFeatured, true),
       eq(productsTable.exportStatus, "published"),
-    ));
+    ))
+    .limit(6);
+
+  if (rows.length === 0) {
+    rows = await db.select().from(productsTable)
+      .where(eq(productsTable.exportStatus, "published"))
+      .orderBy(desc(productsTable.rating), desc(productsTable.id))
+      .limit(6);
+  }
+
   res.json(ListFeaturedProductsResponse.parse(rows.map(toProductShape)));
 });
 
