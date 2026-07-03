@@ -327,7 +327,7 @@ CREATE INDEX IF NOT EXISTS idx_cart_items_user ON cart_items(user_id);
 CREATE INDEX IF NOT EXISTS idx_orders_buyer ON orders(buyer_id);
 `;
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = createDbPool();
 
 try {
   await pool.query(sql);

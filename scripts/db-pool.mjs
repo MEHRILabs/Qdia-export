@@ -7,17 +7,19 @@ export function createDbPool(connectionString = process.env.DATABASE_URL) {
   if (!connectionString) {
     throw new Error("DATABASE_URL requis");
   }
-  const remote = /render\.com|neon\.tech|supabase|vercel-storage|sslmode=require/i.test(connectionString);
+  const remote = /render\.com|neon\.tech|supabase|vercel-storage|sslmode=require|dpg-/i.test(connectionString);
+  const isProd = process.env.NODE_ENV === "production";
+  const useSsl = isProd || remote;
   const strictSsl = process.env.DATABASE_SSL_REJECT_UNAUTHORIZED === "true";
   return new Pool({
     connectionString,
-    ...(remote ? { ssl: { rejectUnauthorized: strictSsl } } : {}),
+    ...(useSsl ? { ssl: { rejectUnauthorized: strictSsl } } : {}),
     max: 10,
     connectionTimeoutMillis: 15_000,
   });
 }
 
-export async function testDbConnection(): Promise<boolean> {
+export async function testDbConnection() {
   const pool = createDbPool();
   try {
     await pool.query("SELECT 1");

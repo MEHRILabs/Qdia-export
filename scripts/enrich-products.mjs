@@ -34,7 +34,7 @@ const batchSize = all ? 500 : parseInt(limitArg ?? "50", 10);
 const baseUrl = process.env.API_URL ?? "http://localhost:8080";
 const token = process.env.QDIA_ADMIN_TOKEN ?? process.env.ADMIN_TOKEN;
 
-async function enrichBatch(offset = 0): Promise<{ enriched: number; done: boolean }> {
+async function enrichBatch(offset = 0) {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
 
