@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useDeferredValue } from "react";
 import { Link } from "wouter";
 import { useListCategories } from "@workspace/api-client-react";
 import type { Product } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
 import { BuyerHeader, BuyerFooter } from "@/components/BuyerHeader";
 import { AdvancedCatalogFilters, DEFAULT_CATALOG_FILTERS, type CatalogFilters } from "@/components/AdvancedCatalogFilters";
+import { translateCategoryName } from "@/lib/nav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +20,7 @@ import { isSupplier } from "@/lib/roles";
 
 export default function Catalog() {
   const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
   const [categoryName, setCategoryName] = useState<string>("ALL");
   const [filters, setFilters] = useState<CatalogFilters>(DEFAULT_CATALOG_FILTERS);
   const [showFilters, setShowFilters] = useState(false);
@@ -40,9 +42,9 @@ export default function Catalog() {
   const incoterm = filters.incoterm || undefined;
 
   const { data: productList, isLoading, isError } = useQuery({
-    queryKey: ["catalog-products", search, categoryName, filters],
+    queryKey: ["catalog-products", deferredSearch, categoryName, filters],
     queryFn: () => platformApi.listProductsFiltered({
-      search: search || undefined,
+      search: deferredSearch || undefined,
       category: categoryName !== "ALL" ? categoryName : undefined,
       category_id: categoryId ?? undefined,
       incoterm,
@@ -92,27 +94,29 @@ export default function Catalog() {
           </div>
         </div>
 
-        <div className="flex flex-col md:flex-row gap-4 mb-8">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-[#9CA3AF]" />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center mb-8">
+          <div className="relative flex-1 min-w-0">
+            <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#9CA3AF] pointer-events-none" />
             <Input
               placeholder={tr("catalog.search_placeholder")}
-              className="pl-9 h-11"
+              className="ps-9 h-11 w-full"
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
           </div>
-          <div className="flex gap-3 flex-wrap">
+          <div className="flex gap-2 w-full sm:w-auto">
             <Select value={categoryName} onValueChange={setCategoryName}>
-              <SelectTrigger className="w-[200px] h-11"><SelectValue placeholder={tr("catalog.categories_placeholder")} /></SelectTrigger>
+              <SelectTrigger className="flex-1 sm:w-[220px] h-11">
+                <SelectValue placeholder={tr("catalog.categories_placeholder")} />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">{tr("catalog.all_categories")}</SelectItem>
                 {categoryOptions.map(cat => (
-                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                  <SelectItem key={cat} value={cat}>{translateCategoryName(tr, cat)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <Button variant="outline" className="h-11" onClick={() => setShowFilters(v => !v)}>
+            <Button variant="outline" className="h-11 shrink-0 px-4" onClick={() => setShowFilters(v => !v)}>
               {tr("filters.title")}
             </Button>
           </div>
@@ -142,14 +146,14 @@ export default function Catalog() {
                     alt={product.name}
                     className="w-full h-full group-hover:scale-105 transition-transform duration-500"
                   />
-                  <span className="absolute top-3 left-3 badge-algeria text-[10px]">🇩🇿 {tr("common.algeria")}</span>
+                  <span className="absolute top-3 start-3 badge-algeria text-[10px]">🇩🇿 {tr("common.algeria")}</span>
                 </div>
                 <div className="p-4">
                   <p className="text-[11px] text-[#9CA3AF] mb-1">{product.category}</p>
                   <h3 className="font-bold text-[#1A1A2E] text-sm line-clamp-2 leading-snug mb-2">{product.name}</h3>
                   <p className="text-xl font-black text-[#0461A5]">
                     ${product.prices?.fob?.toLocaleString() ?? "—"}
-                    <span className="text-xs font-normal text-[#9CA3AF] ml-1">{tr("product.fob")}</span>
+                    <span className="text-xs font-normal text-[#9CA3AF] ms-1">{tr("product.fob")}</span>
                   </p>
                   <p className="text-xs text-[#9CA3AF] mt-1">MOQ {product.moq} {product.moq_unit} · {product.port_depart}</p>
                   <div className="mt-3 flex items-center justify-between">
@@ -164,7 +168,7 @@ export default function Catalog() {
                 <p className="text-[#9CA3AF]">{isError ? tr("catalog.load_error") : tr("catalog.no_results")}</p>
                 {isSupplier(user) && (
                 <Button asChild>
-                  <Link href="/agent-ia?new=1"><Sparkles className="h-4 w-4 mr-2" /> {tr("catalog.publish_first")}</Link>
+                  <Link href="/agent-ia?new=1"><Sparkles className="h-4 w-4 me-2" /> {tr("catalog.publish_first")}</Link>
                 </Button>
                 )}
               </div>

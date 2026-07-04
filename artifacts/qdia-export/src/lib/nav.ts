@@ -35,9 +35,25 @@ export const EXPORT_STEPS = [
 ] as const;
 
 export const HOME_CATEGORIES = [
-  { name: "Agriculture & Food", slug: "Agriculture & Food", emoji: "🌾" },
-  { name: "Energy & Chemicals", slug: "Energy & Chemicals", emoji: "⚡" },
-  { name: "Textiles & Apparel", slug: "Textiles & Apparel", emoji: "👔" },
-  { name: "Construction", slug: "Construction Materials", emoji: "🏗️" },
-  { name: "Handicrafts", slug: "Handicrafts & Decor", emoji: "🎨" },
+  { nameKey: "home.sector_agro", slug: "Agriculture & Food", emoji: "🌾" },
+  { nameKey: "home.sector_energy", slug: "Energy & Chemicals", emoji: "⚡" },
+  { nameKey: "home.sector_textiles", slug: "Textiles & Apparel", emoji: "👔" },
+  { nameKey: "home.sector_construction", slug: "Construction Materials", emoji: "🏗️" },
+  { nameKey: "home.sector_handicrafts", slug: "Handicrafts & Decor", emoji: "🎨" },
 ] as const;
+
+/** Mappe les noms de catégories API (anglais) vers des clés i18n. */
+export const CATEGORY_I18N_KEYS: Record<string, string> = {
+  "Agriculture & Food": "home.sector_agro",
+  "Energy & Chemicals": "home.sector_energy",
+  "Textiles & Apparel": "home.sector_textiles",
+  "Construction Materials": "home.sector_construction",
+  "Handicrafts & Decor": "home.sector_handicrafts",
+  Construction: "home.sector_construction",
+  Handicrafts: "home.sector_handicrafts",
+};
+
+export function translateCategoryName(tr: (key: string) => string, name: string): string {
+  const key = CATEGORY_I18N_KEYS[name];
+  return key ? tr(key) : name;
+}
