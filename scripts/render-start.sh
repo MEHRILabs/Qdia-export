@@ -50,12 +50,12 @@ fi
 if node ./scripts/should-run-bootstrap.mjs; then
   echo "→ Publication catalogue marketplace…"
   node ./scripts/bootstrap-products.mjs
-
-  echo "→ Correction catégories non classées…"
-  node ./scripts/fix-product-categories.mjs || echo "WARN: fix catégories"
 else
-  echo "→ Catalogue déjà publié et catégorisé — skip bootstrap"
+  echo "→ Catalogue déjà publié — skip bootstrap"
 fi
+
+echo "→ Correction catégories (marketplace)…"
+node ./scripts/fix-product-categories.mjs || echo "WARN: fix catégories"
 
 echo "=== Démarrage serveur API + site ==="
 export NODE_ENV=production

@@ -35,7 +35,7 @@ export function CategoryFilter({ value, onChange, options, className }: Props) {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL_CATEGORIES}>{tr("catalog.all_categories")}</SelectItem>
-            {options.map(({ slug, labelKey, emoji, count }) => (
+            {options.filter(o => (o.count ?? 0) > 0).map(({ slug, labelKey, emoji, count }) => (
               <SelectItem key={slug} value={slug}>
                 <span className="inline-flex items-center gap-2">
                   <span>{emoji}</span>

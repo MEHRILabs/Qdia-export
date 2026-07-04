@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { db, pool, productsTable, suppliersTable, categoriesTable, productViewsTable, usersTable } from "@workspace/db";
-import { eq, ilike, and, or, sql, gte, lte, desc, type SQL } from "drizzle-orm";
+import { eq, ilike, and, or, sql, gte, lte, desc, inArray, type SQL } from "drizzle-orm";
 import { requireAuth, requireRole, optionalAuth, type AuthedRequest } from "../middleware/auth";
 import { writeLimiter } from "../middleware/rate-limit";
 import { canModifyProduct } from "../middleware/access-control";
@@ -23,6 +23,11 @@ import {
 } from "../services/product-enrichment";
 import { verifyToken, getUserById } from "../services/auth";
 import { logger } from "../lib/logger";
+import {
+  MARKETPLACE_CATEGORIES,
+  resolveCategoryFilterValues,
+  toMarketplaceCategory,
+} from "../lib/category-normalize";
 import { saveCatalogImage } from "../services/catalog-image-store";
 import { normalizeImageBase64, type ImageMime } from "../lib/image-base64";
 
@@ -157,7 +162,14 @@ router.get("/products", optionalAuth, async (req: AuthedRequest, res): Promise<v
   }
 
   if (categoryName) {
-    conditions.push(eq(productsTable.category, categoryName));
+    const categoryValues = resolveCategoryFilterValues(categoryName);
+    if (categoryValues.length > 1) {
+      conditions.push(inArray(productsTable.category, categoryValues));
+    } else if (categoryValues.length === 1) {
+      conditions.push(eq(productsTable.category, categoryValues[0]));
+    } else {
+      conditions.push(eq(productsTable.category, categoryName));
+    }
   } else if (category_id != null) {
     const [cat] = await db.select().from(categoriesTable)
       .where(eq(categoriesTable.id, category_id));
@@ -467,9 +479,18 @@ router.get("/products/meta/categories", async (req, res): Promise<void> => {
         GROUP BY category
         ORDER BY category
       `);
-  res.json({
-    data: result.rows.map(r => ({ name: r.category, count: parseInt(r.count, 10) || 0 })),
-  });
+  const aggregated = new Map<string, number>();
+  for (const row of result.rows) {
+    const name = toMarketplaceCategory(row.category);
+    aggregated.set(name, (aggregated.get(name) ?? 0) + (parseInt(row.count, 10) || 0));
+  }
+  const data = [...MARKETPLACE_CATEGORIES, ...aggregated.keys()]
+    .filter((name, i, arr) => arr.indexOf(name) === i)
+    .map(name => ({ name, count: aggregated.get(name) ?? 0 }))
+    .filter(row => row.count > 0 || (MARKETPLACE_CATEGORIES as readonly string[]).includes(row.name))
+    .sort((a, b) => b.count - a.count);
+
+  res.json({ data });
 });
 
 router.get("/products/lookup", async (req, res): Promise<void> => {

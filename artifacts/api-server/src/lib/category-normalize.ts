@@ -159,3 +159,35 @@ export function resolveMarketplaceCategory(opts: {
 
   return "Agriculture & Food";
 }
+
+/** Valeurs `products.category` à matcher pour un filtre marketplace ou rayon FR. */
+export function resolveCategoryFilterValues(categoryName: string): string[] {
+  const trimmed = categoryName.trim();
+  if (!trimmed) return [];
+
+  if ((MARKETPLACE_CATEGORIES as readonly string[]).includes(trimmed)) {
+    const rayons = Object.entries(RAYON_TO_MARKETPLACE)
+      .filter(([, marketplace]) => marketplace === trimmed)
+      .map(([rayon]) => rayon);
+    return [...new Set([trimmed, ...rayons])];
+  }
+
+  const marketplace = RAYON_TO_MARKETPLACE[trimmed];
+  if (marketplace) return resolveCategoryFilterValues(marketplace);
+
+  const fuzzy = fuzzyRayonFromName(trimmed);
+  if (fuzzy && RAYON_TO_MARKETPLACE[fuzzy]) {
+    return resolveCategoryFilterValues(RAYON_TO_MARKETPLACE[fuzzy]);
+  }
+
+  return [trimmed];
+}
+
+export function toMarketplaceCategory(categoryName: string): string {
+  const trimmed = categoryName.trim();
+  if ((MARKETPLACE_CATEGORIES as readonly string[]).includes(trimmed)) return trimmed;
+  if (RAYON_TO_MARKETPLACE[trimmed]) return RAYON_TO_MARKETPLACE[trimmed];
+  const fuzzy = fuzzyRayonFromName(trimmed);
+  if (fuzzy && RAYON_TO_MARKETPLACE[fuzzy]) return RAYON_TO_MARKETPLACE[fuzzy];
+  return trimmed;
+}
