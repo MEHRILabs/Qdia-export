@@ -4,7 +4,8 @@ import { motion } from "framer-motion";
 import { BrandLogo } from "@/components/BrandLogo";
 import { AuthModal } from "@/components/AuthModal";
 import { useAuth } from "@/contexts/AuthContext";
-import { isSupplier, defaultHomeForUser } from "@/lib/roles";
+import { isSupplier, isAdmin, defaultHomeForUser } from "@/lib/roles";
+import { getStoredUser } from "@/lib/api-auth";
 import { Wand2, LogIn, LogOut, User, Store, Sparkles, Globe, Menu, MapPin, BookOpen, ShoppingCart, Package, Truck, Shield } from "lucide-react";
 import { useI18n } from "@/contexts/I18nContext";
 import type { Locale } from "@/lib/i18n";
@@ -101,10 +102,11 @@ export function BuyerHeader() {
   }, []);
 
   const onAuthSuccess = useCallback(() => {
-    const returnTo = sessionStorage.getItem("qdia_return_to") ?? defaultHomeForUser(user);
+    const loggedUser = getStoredUser();
+    const returnTo = sessionStorage.getItem("qdia_return_to") ?? defaultHomeForUser(loggedUser);
     sessionStorage.removeItem("qdia_return_to");
     setLocation(returnTo);
-  }, [setLocation, user]);
+  }, [setLocation]);
 
   const langs: { code: Locale; label: string; name: string }[] = [
     { code: "fr", label: "FR", name: "Français" },

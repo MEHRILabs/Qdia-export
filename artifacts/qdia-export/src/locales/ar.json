@@ -932,11 +932,17 @@
   },
   "auth_page": {
     "modal_title": "تسجيل الدخول QDIA تصدير",
-    "modal_desc": "ادخل إلى مساحة المصدّر الجزائري 🇩🇿",
+    "modal_desc": "مساحة المصدّر — تسجيل أو دخول 🇩🇿",
     "method_gmail": "Gmail",
-    "register_btn": "إنشاء حسابي",
+    "register_btn": "إنشاء حساب مصدّر",
+    "register_exporter": "إنشاء حساب مصدّر",
     "no_account": "ليس لديك حساب؟",
     "has_account": "لديك حساب بالفعل؟",
+    "exporter_only_hint": "التسجيل يُنشئ حساب مصدّر. الوصول الإداري محجوز.",
+    "login_role_hint": "المصدّرون: لوحة التحكم. الإدارة: وصول مخصص.",
+    "exporter_space_ready": "مساحة المصدّر جاهزة.",
+    "welcome_exporter": "مرحبًا بك في مساحة المصدّر QDIA.",
+    "welcome_admin": "مرحبًا بك في إدارة QDIA.",
     "google_desc": "اربط حساب Gmail للوصول إلى مساحة المصدّر في QDIA.",
     "login_gmail": "تسجيل الدخول عبر Gmail",
     "phone_number": "رقم الهاتف",
@@ -954,8 +960,7 @@
     "invalid_phone": "رقم غير صالح",
     "invalid_phone_desc": "أدخل رقمًا جزائريًا صالحًا.",
     "code_sent_title": "تم إرسال الرمز",
-    "code_sent_desc": "أدخل الرمز المستلَم عبر SMS (تجريبي: 1234).",
-    "demo_credentials": "supplier@qdiadz.com — كلمة المرور: demo1234"
+    "code_sent_desc": "أدخل الرمز المستلَم عبر SMS (تجريبي: 1234)."
   },
   "buy_panel": {
     "title": "الشراء والدفع",

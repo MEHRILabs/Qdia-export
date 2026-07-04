@@ -13,5 +13,7 @@ export function isAdmin(user: AuthUser | null | undefined): boolean {
 }
 
 export function defaultHomeForUser(user: AuthUser | null | undefined): string {
-  return isSupplier(user) ? "/supplier" : "/";
+  if (isAdmin(user)) return "/admin";
+  if (isSupplier(user)) return "/dashboard";
+  return "/";
 }

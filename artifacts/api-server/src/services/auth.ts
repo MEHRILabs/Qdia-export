@@ -5,6 +5,7 @@ import { db, usersTable, otpCodesTable } from "@workspace/db";
 import { sendSmsOtp } from "./sms-twilio";
 import { verifyGoogleIdToken } from "./google-verify";
 import { logger } from "../lib/logger";
+import { ADMIN_EMAIL, ADMIN_PASSWORD } from "../lib/default-accounts";
 
 import { getJwtSecretBytes, isProduction } from "../lib/env-security";
 
@@ -95,6 +96,12 @@ export async function registerEmail(input: {
   name?: string;
   role?: string;
 }) {
+  if (input.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+    throw new Error("Cet email est réservé à l'administration.");
+  }
+  if (input.role === "admin") {
+    throw new Error("Création de compte administrateur non autorisée.");
+  }
   const existing = await db.select().from(usersTable).where(eq(usersTable.email, input.email)).limit(1);
   if (existing.length) throw new Error("Cet email est déjà utilisé.");
 
@@ -102,7 +109,7 @@ export async function registerEmail(input: {
     email: input.email,
     passwordHash: await hashPassword(input.password),
     name: input.name ?? input.email.split("@")[0],
-    role: input.role === "supplier" ? "supplier" : "buyer",
+    role: input.role === "buyer" ? "buyer" : "supplier",
     provider: "email",
     verified: true,
   }).returning();
@@ -130,8 +137,7 @@ export async function loginEmail(email: string, password: string) {
 }
 
 const DEMO_ACCOUNTS: Array<PublicUser & { password: string }> = [
-  { id: 1, name: "Exportateur Demo", email: "supplier@qdiadz.com", role: "supplier", provider: "email", password: "demo1234", supplier_id: 1 },
-  { id: 2, name: "Admin QDIA", email: "admin@qdiadz.com", role: "admin", provider: "email", password: "demo1234" },
+  { id: 2, name: "Administration QDIA", email: ADMIN_EMAIL, role: "admin", provider: "email", password: ADMIN_PASSWORD },
 ];
 
 function tryDemoLogin(email: string, password: string) {

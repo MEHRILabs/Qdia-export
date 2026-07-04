@@ -135,8 +135,8 @@ class _EmailForm extends StatefulWidget {
 }
 
 class _EmailFormState extends State<_EmailForm> {
-  final _email = TextEditingController(text: 'supplier@qdiadz.com');
-  final _password = TextEditingController(text: 'demo1234');
+  final _email = TextEditingController();
+  final _password = TextEditingController();
   bool _loading = false;
 
   Future<void> _submit() async {

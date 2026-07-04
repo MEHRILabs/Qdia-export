@@ -23,6 +23,9 @@ fi
 echo "→ Seed données initiales…"
 node ./scripts/seed.mjs || echo "WARN: seed (non bloquant)"
 
+echo "→ Compte administrateur unique…"
+node ./scripts/ensure-admin.mjs || echo "WARN: ensure-admin"
+
 CATALOG_XLS=""
 for f in \
   "./data/listing_cahier_de_charge.xlsx" \

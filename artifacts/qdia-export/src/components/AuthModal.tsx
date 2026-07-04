@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
 import { useToast } from "@/hooks/use-toast";
+import { getStoredUser } from "@/lib/api-auth";
+import { isAdmin } from "@/lib/roles";
 import { GoogleSignInButton } from "@/components/GoogleSignInButton";
 import type { GoogleCredential } from "@/lib/google-auth";
 import {
@@ -74,10 +76,14 @@ export function AuthModal({ open, onOpenChange, onSuccess }: Props) {
     try {
       if (mode === "register") {
         await registerEmail(email, password);
-        toast({ title: tr("auth_page.account_created"), description: tr("auth_page.welcome") });
+        toast({ title: tr("auth_page.account_created"), description: tr("auth_page.exporter_space_ready") });
       } else {
         await loginEmail(email, password);
-        toast({ title: tr("auth_page.login_success"), description: tr("auth_page.welcome") });
+        const logged = getStoredUser();
+        const desc = isAdmin(logged)
+          ? tr("auth_page.welcome_admin")
+          : tr("auth_page.welcome_exporter");
+        toast({ title: tr("auth_page.login_success"), description: desc });
       }
       finishAuth();
     } catch (err) {
@@ -206,10 +212,13 @@ export function AuthModal({ open, onOpenChange, onSuccess }: Props) {
                 </Button>
                 <p className="text-[11px] text-center text-[#9CA3AF]">
                   {mode === "login" ? (
-                    <>{tr("auth_page.no_account")} <button type="button" className="text-[#0461A5] font-semibold hover:underline" onClick={() => setMode("register")}>{tr("auth.register")}</button></>
+                    <>{tr("auth_page.no_account")} <button type="button" className="text-[#0461A5] font-semibold hover:underline" onClick={() => setMode("register")}>{tr("auth_page.register_exporter")}</button></>
                   ) : (
                     <>{tr("auth_page.has_account")} <button type="button" className="text-[#0461A5] font-semibold hover:underline" onClick={() => setMode("login")}>{tr("auth.login")}</button></>
                   )}
+                </p>
+                <p className="text-[10px] text-center text-[#9CA3AF] leading-relaxed">
+                  {mode === "register" ? tr("auth_page.exporter_only_hint") : tr("auth_page.login_role_hint")}
                 </p>
               </motion.form>
             )}

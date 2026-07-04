@@ -944,11 +944,17 @@
   },
   "auth_page": {
     "modal_title": "Connexion QDIA Export",
-    "modal_desc": "Accédez à votre espace exportateur algérien 🇩🇿",
+    "modal_desc": "Espace exportateur — inscription ou connexion 🇩🇿",
     "method_gmail": "Gmail",
-    "register_btn": "Créer mon compte",
+    "register_btn": "Créer mon compte exportateur",
+    "register_exporter": "Créer un compte exportateur",
     "no_account": "Pas de compte ?",
     "has_account": "Déjà inscrit ?",
+    "exporter_only_hint": "L'inscription crée un compte exportateur. L'accès administration est réservé.",
+    "login_role_hint": "Exportateurs : tableau de bord. Administration : accès dédié.",
+    "exporter_space_ready": "Votre espace exportateur est prêt.",
+    "welcome_exporter": "Bienvenue dans votre espace exportateur QDIA.",
+    "welcome_admin": "Bienvenue dans l'administration QDIA.",
     "google_desc": "Connectez votre compte Gmail pour accéder à l'espace exportateur QDIA.",
     "login_gmail": "Se connecter avec Gmail",
     "phone_number": "Numéro de téléphone",
@@ -966,8 +972,7 @@
     "invalid_phone": "Numéro invalide",
     "invalid_phone_desc": "Entrez un numéro algérien valide.",
     "code_sent_title": "Code envoyé",
-    "code_sent_desc": "Entrez le code reçu par SMS (demo: 1234).",
-    "demo_credentials": "supplier@qdiadz.com — mot de passe : demo1234"
+    "code_sent_desc": "Entrez le code reçu par SMS (demo: 1234)."
   },
   "buy_panel": {
     "title": "Acheter & payer",

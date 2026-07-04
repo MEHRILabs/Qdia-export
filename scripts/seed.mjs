@@ -153,18 +153,16 @@ async function seed() {
     }
 
     const demoHash = "$2b$10$Dxhy/Kp8zT7ASr2Zs5mFV.lFjiG7kScFkQJGXe7ItcejVTzT0Yo4a";
+    // Anciens comptes démo → exportateurs (un seul admin via ensure-admin.mjs)
+    await client.query(
+      `UPDATE users SET role = 'supplier'
+       WHERE email IN ('supplier@qdiadz.com', 'admin@qdiadz.com')`,
+    );
     await client.query(
       `INSERT INTO users (email, password_hash, name, role, provider, verified, supplier_id)
        VALUES ($1, $2, $3, 'supplier', 'email', true, $4)
        ON CONFLICT (email) DO NOTHING`,
       ["supplier@qdiadz.com", demoHash, "Exportateur Demo", supplierId],
-    );
-
-    await client.query(
-      `INSERT INTO users (email, password_hash, name, role, provider, verified)
-       VALUES ($1, $2, $3, 'admin', 'email', true)
-       ON CONFLICT (email) DO NOTHING`,
-      ["admin@qdiadz.com", demoHash, "Admin QDIA"],
     );
 
     console.log("Seed terminé avec succès.");
