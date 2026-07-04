@@ -10,6 +10,11 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { createDbPool } from "./db-pool.mjs";
+import {
+  extractCodeFromMasterId,
+  isUnclassified,
+  resolveRayon,
+} from "./lib/category-normalize.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -99,18 +104,24 @@ function parseWorkbook(wb) {
 
       const masterId = str(get(row, "master_id"));
       const name = str(get(row, "name"));
-      let category = str(get(row, "category_name")) ?? sheetCategory(sheetName);
       if (!masterId || !name) continue;
       if (seen.has(masterId)) continue;
       seen.add(masterId);
 
+      const { categoryCode, categoryName } = resolveCategory(
+        masterId,
+        str(get(row, "category_code")),
+        str(get(row, "category_name")),
+        sheetName,
+      );
+
       items.push({
         masterId,
         name,
-        category,
+        category: categoryName,
         brandCode: str(get(row, "brand_code")),
         brandName: str(get(row, "brand_name")),
-        categoryCode: str(get(row, "category_code")),
+        categoryCode,
         subcategory: str(get(row, "subcategory")),
         ean: str(get(row, "ean")) ?? masterId,
         priceRetail: num(get(row, "price_retail_dzd")),

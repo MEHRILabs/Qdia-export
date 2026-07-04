@@ -51,6 +51,23 @@ export const CATEGORY_I18N_KEYS: Record<string, string> = {
   "Handicrafts & Decor": "home.sector_handicrafts",
   Construction: "home.sector_construction",
   Handicrafts: "home.sector_handicrafts",
+  Agroalimentaire: "home.sector_agro",
+  Épicerie: "home.sector_agro",
+  "Conserves & Condiments": "home.sector_agro",
+  Boissons: "home.sector_agro",
+  "Produits laitiers": "home.sector_agro",
+  "Fruits & Légumes": "home.sector_agro",
+  Charcuterie: "home.sector_agro",
+  "Boucherie & Volaille": "home.sector_agro",
+  "Boulangerie & Pâtisserie": "home.sector_agro",
+  Poissonnerie: "home.sector_agro",
+  "Hygiène & Beauté": "home.sector_energy",
+  "Droguerie & Entretien": "home.sector_energy",
+  Textiles: "home.sector_textiles",
+  Papeterie: "home.sector_handicrafts",
+  "Confort maison": "home.sector_handicrafts",
+  Artisanat: "home.sector_handicrafts",
+  NON_CLASSE: "home.sector_agro",
 };
 
 export function translateCategoryName(tr: (key: string) => string, name: string): string {

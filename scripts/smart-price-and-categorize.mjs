@@ -11,17 +11,20 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createRequire } from "node:module";
+import { createDbPool } from "./db-pool.mjs";
+import { marketplaceCategorySql } from "./lib/category-normalize.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-for (const line of readFileSync(join(__dirname, "../.env"), "utf8").split("\n")) {
-  const m = line.match(/^([^#=]+)=(.*)$/);
-  if (m && !process.env[m[1].trim()]) process.env[m[1].trim()] = m[2].trim().replace(/^["']|["']$/g, "");
-}
-const require = createRequire(join(__dirname, "../lib/db/"));
-const pool = new (require("pg").Pool)({ connectionString: process.env.DATABASE_URL });
+try {
+  for (const line of readFileSync(join(__dirname, "../.env"), "utf8").split("\n")) {
+    const m = line.match(/^([^#=]+)=(.*)$/);
+    if (m && !process.env[m[1].trim()]) process.env[m[1].trim()] = m[2].trim().replace(/^["']|["']$/g, "");
+  }
+} catch { /* .env optionnel */ }
 
-// Libellés FR par code catégorie
+const pool = createDbPool();
+
+// Libellés FR par code catégorie (rayon détaillé — conservé pour logs)
 const CATEGORY_LABEL = {
   EPI: "Épicerie",
   PAP: "Papeterie",
@@ -50,7 +53,7 @@ const PRICE_PER_UNIT = {
   BOU: 120, POI: 400,
 };
 
-const DEFAULT_CAT = "Produits divers";
+const DEFAULT_CAT = "Agriculture & Food";
 const DEFAULT_KG = 450;
 const DEFAULT_UNIT = 180;
 
@@ -114,6 +117,7 @@ function pricesFromCost(costDzd) {
 const rows = await pool.query("SELECT id, name, sku FROM products");
 console.log(`${rows.rows.length} produits à traiter…`);
 
+const marketplaceSql = marketplaceCategorySql("p", "sku", "category");
 const BATCH = 1000;
 let done = 0;
 const client = await pool.connect();
@@ -121,34 +125,36 @@ try {
   await client.query("BEGIN");
   for (let i = 0; i < rows.rows.length; i += BATCH) {
     const slice = rows.rows.slice(i, i + BATCH);
-    const ids = [], cats = [], exw = [], fob = [], cfr = [], cif = [], retail = [];
+    const ids = [], exw = [], fob = [], cfr = [], cif = [], retail = [];
     for (const r of slice) {
       const code = catCodeFromSku(r.sku);
       const qty = parseQuantity(r.name);
       const cost = computeCostDzd(code, qty);
       const p = pricesFromCost(cost);
       ids.push(r.id);
-      cats.push(CATEGORY_LABEL[code] ?? DEFAULT_CAT);
       exw.push(p.exw); fob.push(p.fob); cfr.push(p.cfr); cif.push(p.cif);
       retail.push(p.retail);
     }
     await client.query(
       `UPDATE products AS p SET
-         category = d.cat,
          price_exw = d.exw, price_fob = d.fob, price_cfr = d.cfr, price_cif = d.cif,
          price_retail = d.retail, price_currency = 'USD'
        FROM (
-         SELECT unnest($1::int[]) AS id, unnest($2::text[]) AS cat,
-                unnest($3::real[]) AS exw, unnest($4::real[]) AS fob,
-                unnest($5::real[]) AS cfr, unnest($6::real[]) AS cif,
-                unnest($7::real[]) AS retail
+         SELECT unnest($1::int[]) AS id,
+                unnest($2::real[]) AS exw, unnest($3::real[]) AS fob,
+                unnest($4::real[]) AS cfr, unnest($5::real[]) AS cif,
+                unnest($6::real[]) AS retail
        ) d
        WHERE p.id = d.id`,
-      [ids, cats, exw, fob, cfr, cif, retail],
+      [ids, exw, fob, cfr, cif, retail],
     );
     done += slice.length;
-    if (done % 5000 === 0 || done === rows.rows.length) console.log(`  … ${done} traités`);
+    if (done % 5000 === 0 || done === rows.rows.length) console.log(`  … ${done} tarifés`);
   }
+  await client.query(
+    `UPDATE products p SET category = ${marketplaceSql}
+     WHERE p.sku IS NOT NULL AND trim(p.sku) <> ''`,
+  );
   await client.query("COMMIT");
 } catch (e) {
   await client.query("ROLLBACK");

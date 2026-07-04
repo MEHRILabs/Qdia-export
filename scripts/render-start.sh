@@ -43,6 +43,9 @@ fi
 echo "→ Publication catalogue marketplace…"
 node ./scripts/bootstrap-products.mjs
 
+echo "→ Correction catégories non classées…"
+node ./scripts/fix-product-categories.mjs || echo "WARN: fix catégories"
+
 echo "=== Démarrage serveur API + site ==="
 export NODE_ENV=production
 export SERVE_WEB=1

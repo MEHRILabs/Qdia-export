@@ -1,4 +1,9 @@
 import * as XLSX from "xlsx";
+import {
+  extractCodeFromMasterId,
+  isUnclassified,
+  resolveRayon,
+} from "../lib/category-normalize";
 
 export interface ParsedCatalogVariant {
   master_id: string;
@@ -107,8 +112,20 @@ function isEmptyDataRow(row: unknown[]): boolean {
   return row.every(c => c == null || String(c).trim() === "");
 }
 
-function sheetCategoryFallback(sheetName: string): string {
-  return sheetName.replace(/\s+/g, " ").trim() || "NON_CLASSE";
+function finalizeCategory(
+  masterId: string,
+  categoryCode: string | undefined,
+  categoryName: string | undefined,
+  sheetName: string,
+): { category_code: string | undefined; category_name: string } {
+  const code = categoryCode ?? extractCodeFromMasterId(masterId) ?? undefined;
+  const rayon = resolveRayon({
+    masterId,
+    categoryCode: code,
+    categoryName: isUnclassified(categoryName) ? undefined : categoryName,
+    sheetName,
+  });
+  return { category_code: code, category_name: rayon };
 }
 
 function parseSheetRows(
@@ -151,15 +168,19 @@ function rowToVariant(row: unknown[], cols: Record<FieldKey, number>, rowIndex: 
   const masterId = str(get("master_id"));
   const name = str(get("name"));
   const category = str(get("category_name"));
+  const categoryCode = str(get("category_code"));
   if (!name && !masterId) return null;
 
+  const id = masterId ?? `ROW-${rowIndex}`;
+  const resolved = finalizeCategory(id, categoryCode, category, "");
+
   return {
-    master_id: masterId ?? `ROW-${rowIndex}`,
+    master_id: id,
     parent_product_id: str(get("parent_product_id")),
     brand_code: str(get("brand_code")),
     brand_name: str(get("brand_name")),
-    category_code: str(get("category_code")),
-    category_name: category ?? "NON_CLASSE",
+    category_code: resolved.category_code,
+    category_name: resolved.category_name,
     subcategory: str(get("subcategory")),
     name: name ?? masterId ?? "Sans nom",
     description: str(get("description")),

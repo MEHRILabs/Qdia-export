@@ -154,7 +154,16 @@ async function main() {
     try {
       await client.query("SAVEPOINT row_import");
       const seg = parseCodeId(codeId);
-      const idCat = await upsertLookup(catCache, "categories", "id_categorie", "nom_categorie", str(get(row, "categorie")) ?? "NON_CLASSE");
+      const catName = str(get(row, "categorie"));
+      const catCode = str(get(row, "categorie_code")) ?? seg.categorie_code;
+      const rayonFromCode = catCode ? {
+        EPI: "Épicerie", PAP: "Papeterie", HYG: "Hygiène & Beauté", DRO: "Droguerie & Entretien",
+        CDM: "Conserves & Condiments", BOI: "Boissons", LAI: "Produits laitiers", FRL: "Fruits & Légumes",
+        CHA: "Charcuterie", BVO: "Boucherie & Volaille", BOU: "Boulangerie & Pâtisserie", POI: "Poissonnerie",
+      }[catCode.toUpperCase()] : null;
+      const resolvedCat = (catName && !/^(non_classe|non classe|articles|variantes)$/i.test(catName))
+        ? catName : (rayonFromCode ?? "Agroalimentaire");
+      const idCat = await upsertLookup(catCache, "categories", "id_categorie", "nom_categorie", resolvedCat);
       const sousCatName = str(get(row, "sous_categorie"));
       const idSousCat = sousCatName ? await upsertLookup(sousCatCache, "sous_categories", "id_sous_categorie", "nom_sous_categorie", sousCatName) : null;
       const marqueName = str(get(row, "marque"));

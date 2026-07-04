@@ -4,6 +4,7 @@
  * 2) Publie catalog_variants → products (jusqu'à 20 000 lignes)
  */
 import { createDbPool } from "./db-pool.mjs";
+import { marketplaceCategorySql } from "./lib/category-normalize.mjs";
 
 const PLACEHOLDER = "/qdia-photo-placeholder.svg";
 
@@ -135,6 +136,34 @@ async function seedBaseProducts(client, supplierId) {
   return SEED_PRODUCTS.length;
 }
 
+async function repairCatalogVariantCategories(client) {
+  const { rowCount } = await client.query(`
+    UPDATE catalog_variants cv SET
+      category_code = COALESCE(NULLIF(trim(cv.category_code), ''), UPPER(split_part(cv.master_id, '-', 2))),
+      category_name = CASE UPPER(split_part(cv.master_id, '-', 2))
+        WHEN 'EPI' THEN 'Épicerie' WHEN 'PAP' THEN 'Papeterie' WHEN 'HYG' THEN 'Hygiène & Beauté'
+        WHEN 'DRO' THEN 'Droguerie & Entretien' WHEN 'CDM' THEN 'Conserves & Condiments'
+        WHEN 'BOI' THEN 'Boissons' WHEN 'LAI' THEN 'Produits laitiers' WHEN 'FRL' THEN 'Fruits & Légumes'
+        WHEN 'CHA' THEN 'Charcuterie' WHEN 'BVO' THEN 'Boucherie & Volaille'
+        WHEN 'BOU' THEN 'Boulangerie & Pâtisserie' WHEN 'POI' THEN 'Poissonnerie'
+        WHEN 'ALI' THEN 'Agroalimentaire' WHEN 'AGR' THEN 'Agroalimentaire'
+        WHEN 'TEX' THEN 'Textiles' WHEN 'TXT' THEN 'Textiles'
+        WHEN 'BTP' THEN 'Construction' WHEN 'CON' THEN 'Construction'
+        WHEN 'ART' THEN 'Artisanat' WHEN 'ENE' THEN 'Énergie' WHEN 'CHI' THEN 'Chimie'
+        WHEN 'PHA' THEN 'Pharmaceutique' WHEN 'CMH' THEN 'Confort maison'
+        ELSE cv.category_name
+      END,
+      updated_at = NOW()
+    WHERE cv.master_id IS NOT NULL
+      AND (
+        lower(trim(cv.category_name)) IN ('non_classe','non classe','non classé','articles','variantes','produits','catalogue')
+        OR cv.category_name IS NULL OR trim(cv.category_name) = ''
+      )
+  `);
+  console.log(`→ ${rowCount ?? 0} variantes reclassées (catalog_variants)`);
+  return rowCount ?? 0;
+}
+
 async function syncCatalogVariants(client, supplierId) {
   const { rows: countRows } = await client.query(
     `SELECT count(*)::int AS n FROM catalog_variants WHERE name IS NOT NULL AND trim(name) <> ''`,
@@ -156,8 +185,7 @@ async function syncCatalogVariants(client, supplierId) {
       WHEN cv.price_retail_dzd > 0 THEN (cv.price_retail_dzd / 135.0) * 1.12 ELSE 1.12 END`;
   const WHOLESALE = `CASE WHEN cv.price_fob_usd > 0 THEN cv.price_fob_usd
       WHEN cv.price_retail_dzd > 0 THEN cv.price_retail_dzd / 135.0 ELSE NULL END`;
-  const CATEGORY = `CASE WHEN cv.subcategory IS NOT NULL AND trim(cv.subcategory) <> ''
-      THEN cv.category_name || ' > ' || cv.subcategory ELSE cv.category_name END`;
+  const CATEGORY = marketplaceCategorySql("cv");
   const IMAGE = `COALESCE(NULLIF(trim(cv.image_url), ''), $2)`;
   const DESC = `COALESCE(cv.description, COALESCE(cv.brand_name, '') || ' — ' || cv.name)`;
   const NOT_EMPTY = `cv.name IS NOT NULL AND trim(cv.name) <> '' AND cv.master_id IS NOT NULL`;
@@ -231,6 +259,7 @@ async function main() {
   try {
     const supplierId = await ensureSupplier(client);
     await seedBaseProducts(client, supplierId);
+    await repairCatalogVariantCategories(client);
     await syncCatalogVariants(client, supplierId);
     await client.query(`
       UPDATE products SET is_featured = false WHERE export_status = 'published';
