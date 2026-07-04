@@ -588,7 +588,20 @@
     "qty": "Qty",
     "checkout": "Checkout",
     "view": "View cart",
-    "login_required": "Sign in to add to cart"
+    "login_required": "Sign in to add to cart",
+    "subtitle": "Your B2B export products — ready for quote or order",
+    "added_desc": "Check your cart to place an order",
+    "empty_title": "Empty cart",
+    "explore_catalog": "Explore catalog",
+    "items_count": "Items",
+    "summary": "Summary",
+    "subtotal": "Subtotal",
+    "shipping": "Shipping",
+    "shipping_note": "Calculated at quote",
+    "total": "Estimated total",
+    "trade_assurance": "Payment protected by QDIA Trade Assurance",
+    "continue_shopping": "Continue shopping",
+    "load_error": "Unable to load cart"
   },
   "checkout": {
     "title": "Checkout",

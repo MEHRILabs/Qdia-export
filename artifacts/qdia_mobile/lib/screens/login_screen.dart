@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:qdia_mobile/config/app_config.dart';
@@ -240,10 +241,15 @@ class _SocialLoginState extends State<_SocialLogin> {
   Future<void> _signInWithGoogle() async {
     setState(() => _loading = true);
     try {
+      // Sur Android/iOS, il ne faut PAS passer le Web client ID comme `clientId`
+      // (cela provoque une erreur DEVELOPER_ERROR / « failed »). Le Web client ID
+      // est fourni via `serverClientId` uniquement pour obtenir un idToken côté serveur.
       final googleSignIn = GoogleSignIn(
-        clientId: AppConfig.googleClientId,
-        scopes: ['email', 'profile'],
+        serverClientId: kIsWeb ? null : AppConfig.googleClientId,
+        clientId: kIsWeb ? AppConfig.googleClientId : null,
+        scopes: const ['email', 'profile'],
       );
+      await googleSignIn.signOut();
       final account = await googleSignIn.signIn();
       if (account == null) {
         setState(() => _loading = false);
@@ -258,7 +264,12 @@ class _SocialLoginState extends State<_SocialLogin> {
       widget.onLogin();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+        final raw = e.toString();
+        final isConfigError = raw.contains('ApiException: 10') ||
+            raw.toLowerCase().contains('developer_error') ||
+            raw.toLowerCase().contains('sign_in_failed');
+        final msg = isConfigError ? context.tr('auth.google_config_error') : raw;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
       }
     }
     if (mounted) setState(() => _loading = false);

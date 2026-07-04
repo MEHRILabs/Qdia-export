@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:qdia_mobile/l10n/app_strings.dart';
 import 'package:qdia_mobile/services/api_service.dart';
 import 'package:qdia_mobile/theme/qdia_theme.dart';
 
@@ -45,7 +46,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
     return Scaffold(
       backgroundColor: QdiaColors.pageBg,
       appBar: AppBar(
-        title: const Text('Tableau de bord', style: TextStyle(fontWeight: FontWeight.w800)),
+        title: Text(context.tr('analytics.title'), style: const TextStyle(fontWeight: FontWeight.w800)),
         backgroundColor: QdiaColors.primary,
         foregroundColor: Colors.white,
         actions: [
@@ -63,7 +64,6 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
   Widget _buildContent() {
     final data = _data!;
     final totaux = (data['totaux'] as Map<String, dynamic>?) ?? {};
-    final schemaReady = data['schema_ready'] == true;
     final ventes = (data['ventes_mensuelles'] as List?) ?? [];
     final achats = (data['achats_mensuels'] as List?) ?? [];
     final creances = (data['creances'] as List?) ?? [];
@@ -75,59 +75,37 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          if (!schemaReady)
-            Container(
-              margin: const EdgeInsets.only(bottom: 16),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: QdiaColors.gold.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: QdiaColors.gold),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.info_outline, color: QdiaColors.navy, size: 20),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Vues SQL non installées. Exécutez schema_postgresql_qdia_export_v2.sql.',
-                      style: TextStyle(fontSize: 12, color: QdiaColors.navy),
-                    ),
-                  ),
-                ],
-              ),
-            ),
           Row(
             children: [
-              _kpiCard('Ventes', totaux['total_ventes_dzd'] ?? 0, QdiaColors.success, Icons.trending_up_rounded),
+              _kpiCard(context.tr('analytics.sales'), totaux['total_ventes_dzd'] ?? 0, QdiaColors.success, Icons.trending_up_rounded),
               const SizedBox(width: 8),
-              _kpiCard('Achats', totaux['total_achats_dzd'] ?? 0, QdiaColors.primary, Icons.shopping_cart_outlined),
+              _kpiCard(context.tr('analytics.purchases'), totaux['total_achats_dzd'] ?? 0, QdiaColors.primary, Icons.shopping_cart_outlined),
             ],
           ),
           const SizedBox(height: 8),
           Row(
             children: [
-              _kpiCard('Créances', totaux['total_creances_dzd'] ?? 0, QdiaColors.gold, Icons.call_received_rounded),
+              _kpiCard(context.tr('analytics.receivables'), totaux['total_creances_dzd'] ?? 0, QdiaColors.gold, Icons.call_received_rounded),
               const SizedBox(width: 8),
-              _kpiCard('Dettes', totaux['total_dettes_dzd'] ?? 0, QdiaColors.danger, Icons.call_made_rounded),
+              _kpiCard(context.tr('analytics.debts'), totaux['total_dettes_dzd'] ?? 0, QdiaColors.danger, Icons.call_made_rounded),
             ],
           ),
           const SizedBox(height: 20),
-          _BarChartCard(title: 'Ventes mensuelles (DZD)', points: ventes, color: QdiaColors.success, fmt: _fmt),
+          _BarChartCard(title: context.tr('analytics.sales_monthly'), points: ventes, color: QdiaColors.success, fmt: _fmt),
           const SizedBox(height: 16),
-          _BarChartCard(title: 'Achats mensuels (DZD)', points: achats, color: QdiaColors.primary, fmt: _fmt),
+          _BarChartCard(title: context.tr('analytics.purchases_monthly'), points: achats, color: QdiaColors.primary, fmt: _fmt),
           const SizedBox(height: 16),
           _ListCard(
-            title: 'Créances clients',
-            emptyLabel: 'Aucune créance',
+            title: context.tr('analytics.receivables_clients'),
+            emptyLabel: context.tr('analytics.no_receivable'),
             rows: creances,
             color: QdiaColors.gold,
             fmt: _fmt,
           ),
           const SizedBox(height: 16),
           _ListCard(
-            title: 'Dettes fournisseurs',
-            emptyLabel: 'Aucune dette',
+            title: context.tr('analytics.debts_suppliers'),
+            emptyLabel: context.tr('analytics.no_debt'),
             rows: dettes,
             color: QdiaColors.danger,
             fmt: _fmt,
@@ -180,7 +158,7 @@ class _BarChartCard extends StatelessWidget {
     return _Card(
       title: title,
       child: points.isEmpty
-          ? const _Empty(label: 'Aucune donnée pour le moment')
+          ? _Empty(label: context.tr('analytics.no_data'))
           : SizedBox(
               height: 160,
               child: Row(
@@ -249,7 +227,7 @@ class _ListCard extends StatelessWidget {
                           children: [
                             Text(nom, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                             if (echeance.isNotEmpty)
-                              Text('Échéance $echeance', style: const TextStyle(fontSize: 11, color: QdiaColors.textMuted)),
+                              Text(context.tr('analytics.due').replaceAll('{date}', echeance), style: const TextStyle(fontSize: 11, color: QdiaColors.textMuted)),
                           ],
                         ),
                       ),
@@ -271,9 +249,9 @@ class _DelaysCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _Card(
-      title: 'Livraisons en retard',
+      title: context.tr('analytics.deliveries_late'),
       child: rows.isEmpty
-          ? const _Empty(label: 'Aucun retard')
+          ? _Empty(label: context.tr('analytics.no_delay'))
           : Column(
               children: rows.take(6).map((r) {
                 final id = r['id_livraison'];
@@ -287,7 +265,11 @@ class _DelaysCard extends StatelessWidget {
                       const Icon(Icons.local_shipping_outlined, color: QdiaColors.danger, size: 18),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: Text('Livraison #$id · $type · $statut',
+                        child: Text(
+                            context.tr('analytics.delivery')
+                                .replaceAll('{id}', '$id')
+                                .replaceAll('{type}', type)
+                                .replaceAll('{status}', statut),
                             style: const TextStyle(fontSize: 13)),
                       ),
                       Text(prevue, style: const TextStyle(fontSize: 11, color: QdiaColors.danger)),
@@ -356,7 +338,7 @@ class _ErrorView extends StatelessWidget {
             const SizedBox(height: 12),
             Text(error, textAlign: TextAlign.center, style: const TextStyle(color: QdiaColors.textMuted)),
             const SizedBox(height: 16),
-            FilledButton(onPressed: onRetry, child: const Text('Réessayer')),
+            FilledButton(onPressed: onRetry, child: Text(context.tr('common.retry'))),
           ],
         ),
       ),

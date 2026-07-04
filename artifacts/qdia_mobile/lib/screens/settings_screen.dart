@@ -122,7 +122,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: Text(context.tr('header.logout')),
-        content: const Text('Voulez-vous vraiment vous déconnecter ?'),
+        content: Text(context.tr('settings.logout_confirm')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: Text(context.tr('common.cancel'))),
           TextButton(onPressed: () => Navigator.pop(context, true), child: Text(context.tr('header.logout'))),
@@ -206,7 +206,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                 MobileSettingsGroup(
-                  title: 'Compte',
+                  title: context.tr('settings.section_account'),
                   children: [
                     MobileSettingsTile(
                       icon: Icons.person_rounded,
@@ -230,28 +230,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ],
                 ),
                 MobileSettingsGroup(
-                  title: 'Exportateur',
+                  title: context.tr('settings.section_exporter'),
                   children: [
                     MobileSettingsTile(
                       icon: Icons.bar_chart_rounded,
-                      title: 'Tableau de bord',
-                      subtitle: 'Ventes · achats · dettes · créances',
+                      title: context.tr('settings.dashboard'),
+                      subtitle: context.tr('settings.dashboard_desc'),
                       onTap: loggedIn
                           ? () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDashboardScreen()))
                           : _openLogin,
                     ),
                     MobileSettingsTile(
                       icon: Icons.inventory_2_outlined,
-                      title: 'Catalogue Master Data',
-                      subtitle: 'Import Excel · IA · publication',
+                      title: context.tr('settings.master_data'),
+                      subtitle: context.tr('settings.master_data_desc'),
                       onTap: loggedIn
                           ? () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CatalogImportScreen()))
                           : _openLogin,
                     ),
                     MobileSettingsTile(
                       icon: Icons.auto_fix_high_rounded,
-                      title: 'Enrichissement marketplace',
-                      subtitle: 'Prix · photos IA · 19k produits',
+                      title: context.tr('settings.enrichment'),
+                      subtitle: context.tr('settings.enrichment_desc'),
                       onTap: loggedIn
                           ? () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProductEnrichmentScreen()))
                           : _openLogin,
@@ -287,7 +287,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ],
                 ),
                 MobileSettingsGroup(
-                  title: 'Préférences',
+                  title: context.tr('settings.section_preferences'),
                   children: [
                     MobileSettingsTile(
                       icon: Icons.language_rounded,
@@ -308,7 +308,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     MobileSettingsTile(
                       icon: Icons.dark_mode_rounded,
-                      title: 'Mode sombre',
+                      title: context.tr('settings.dark_mode'),
                       trailingWidget: Switch(
                         value: _darkMode,
                         activeThumbColor: QdiaColors.gold,
@@ -319,11 +319,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ],
                 ),
                 MobileSettingsGroup(
-                  title: 'Application',
+                  title: context.tr('settings.section_app'),
                   children: [
                     MobileSettingsTile(
                       icon: Icons.info_outline_rounded,
-                      title: 'À propos de QDIA Export DZ',
+                      title: context.tr('settings.about'),
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutScreen())),
                     ),
                     MobileSettingsTile(
@@ -338,12 +338,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     MobileSettingsTile(
                       icon: Icons.help_outline_rounded,
-                      title: 'Centre d\'aide',
+                      title: context.tr('settings.help_center'),
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HelpScreen())),
                     ),
                     MobileSettingsTile(
                       icon: Icons.phone_outlined,
-                      title: 'Support',
+                      title: context.tr('settings.support'),
                       trailing: '+213 555 12 34 56',
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HelpScreen())),
                       showDivider: false,

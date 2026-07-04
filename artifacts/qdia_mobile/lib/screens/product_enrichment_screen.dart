@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:qdia_mobile/l10n/app_strings.dart';
 import 'package:qdia_mobile/services/api_service.dart';
 import 'package:qdia_mobile/theme/qdia_theme.dart';
 
@@ -25,24 +26,26 @@ class _ProductEnrichmentScreenState extends State<ProductEnrichmentScreen> {
       final status = await ApiService.instance.getProductEnrichmentStatus();
       if (mounted) setState(() => _status = status);
     } catch (e) {
-      if (mounted) setState(() => _message = 'Erreur statut : $e');
+      if (mounted) setState(() => _message = context.tr('enrichment.status_error').replaceAll('{error}', '$e'));
     }
   }
 
   Future<void> _enrich(int limit, {bool photos = true}) async {
     setState(() {
       _loading = true;
-      _message = 'Enrichissement de $limit produits…';
+      _message = context.tr('enrichment.enrich_running').replaceAll('{limit}', '$limit');
     });
     try {
       final r = await ApiService.instance.enrichProducts(limit: limit, generatePhotos: photos);
       setState(() {
-        _message = '${r['enriched'] ?? 0} enrichis · ${r['photos_generated'] ?? 0} photos · '
-            '${r['pricing_updated'] ?? 0} prix mis à jour';
+        _message = context.tr('enrichment.enrich_done')
+            .replaceAll('{enriched}', '${r['enriched'] ?? 0}')
+            .replaceAll('{photos}', '${r['photos_generated'] ?? 0}')
+            .replaceAll('{pricing}', '${r['pricing_updated'] ?? 0}');
       });
       await _refresh();
     } catch (e) {
-      setState(() => _message = 'Erreur : $e');
+      setState(() => _message = context.tr('enrichment.error').replaceAll('{error}', '$e'));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -73,30 +76,30 @@ class _ProductEnrichmentScreenState extends State<ProductEnrichmentScreen> {
     final s = _status;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Enrichissement produits', style: TextStyle(fontWeight: FontWeight.w800)),
+        title: Text(context.tr('enrichment.title'), style: const TextStyle(fontWeight: FontWeight.w800)),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const Text(
-            'Prix FOB/CFR/CIF et photos IA pour le catalogue marketplace (19k+ produits).',
-            style: TextStyle(color: QdiaColors.textMuted, fontSize: 13),
+          Text(
+            context.tr('enrichment.intro'),
+            style: const TextStyle(color: QdiaColors.textMuted, fontSize: 13),
           ),
           const SizedBox(height: 16),
           if (s != null) ...[
             Row(
               children: [
-                _statTile('Total', s['total'] ?? 0),
+                _statTile(context.tr('enrichment.stat_total'), s['total'] ?? 0),
                 const SizedBox(width: 8),
-                _statTile('Sans photo', s['without_photo'] ?? 0),
+                _statTile(context.tr('enrichment.stat_without_photo'), s['without_photo'] ?? 0),
               ],
             ),
             const SizedBox(height: 8),
             Row(
               children: [
-                _statTile('Sans prix', s['without_pricing'] ?? 0),
+                _statTile(context.tr('enrichment.stat_without_pricing'), s['without_pricing'] ?? 0),
                 const SizedBox(width: 8),
-                _statTile('Publiés', s['published'] ?? 0),
+                _statTile(context.tr('enrichment.stat_published'), s['published'] ?? 0),
               ],
             ),
           ],
@@ -104,19 +107,19 @@ class _ProductEnrichmentScreenState extends State<ProductEnrichmentScreen> {
           ElevatedButton.icon(
             onPressed: _loading ? null : () => _enrich(50),
             icon: const Icon(Icons.auto_fix_high_rounded),
-            label: const Text('Enrichir 50 produits'),
+            label: Text(context.tr('enrichment.enrich_50')),
           ),
           const SizedBox(height: 8),
           OutlinedButton.icon(
             onPressed: _loading ? null : () => _enrich(200, photos: false),
             icon: const Icon(Icons.payments_outlined),
-            label: const Text('Prix seulement (200)'),
+            label: Text(context.tr('enrichment.price_only_200')),
           ),
           const SizedBox(height: 8),
           OutlinedButton.icon(
             onPressed: _loading ? null : () => _refresh(),
             icon: const Icon(Icons.refresh_rounded),
-            label: const Text('Actualiser les stats'),
+            label: Text(context.tr('enrichment.refresh_stats')),
           ),
           if (_loading) ...[
             const SizedBox(height: 24),

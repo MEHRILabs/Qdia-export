@@ -107,49 +107,6 @@ class _HomeScreenState extends State<HomeScreen> {
           const SliverToBoxAdapter(child: SizedBox(height: 8)),
           const SliverToBoxAdapter(child: BannerCarousel()),
           const SliverToBoxAdapter(child: SizedBox(height: 12)),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: Row(
-                children: [
-                  MobileQuickAction(
-                    icon: Icons.receipt_long_outlined,
-                    label: context.tr('nav.billing'),
-                    onTap: widget.onFacturationTap ?? () => Navigator.pushNamed(context, '/facturation'),
-                  ),
-                  const SizedBox(width: 10),
-                  MobileQuickAction(
-                    icon: Icons.local_shipping_outlined,
-                    label: context.tr('mobile.tracking'),
-                    onTap: widget.onTrackingTap ?? () => Navigator.pushNamed(context, '/tracking'),
-                  ),
-                  const SizedBox(width: 10),
-                  MobileQuickAction(
-                    icon: Icons.chat_bubble_outline_rounded,
-                    label: context.tr('mobile.tab_messages'),
-                    onTap: widget.onMessagesTap ?? () {},
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: 10)),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: Row(
-                children: [
-                  MobileQuickAction(
-                    icon: Icons.verified_user_outlined,
-                    label: context.tr('trade_assurance.title'),
-                    color: QdiaColors.success,
-                    onTap: () => Navigator.pushNamed(context, '/trade-assurance'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: 12)),
           SliverToBoxAdapter(child: CategoryShortcuts(onCategoryTap: (_) => widget.onSearchTap())),
           const SliverToBoxAdapter(child: SizedBox(height: 8)),
           SliverToBoxAdapter(

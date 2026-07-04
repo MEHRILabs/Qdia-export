@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -281,7 +284,19 @@ class ApiService {
     try {
       final uri = Uri.parse('${ApiConfig.baseUrl}/api/billing/invoices/preview-pdf');
       final res = await http.post(uri, headers: _headers, body: jsonEncode(body));
-      return res.statusCode == 200;
+      if (res.statusCode != 200) return false;
+      final bytes = res.bodyBytes;
+      // Vérifie la signature PDF (%PDF) — sinon c'est une erreur JSON.
+      if (bytes.length < 4 || bytes[0] != 0x25 || bytes[1] != 0x50 || bytes[2] != 0x44 || bytes[3] != 0x46) {
+        return false;
+      }
+      final dir = await getTemporaryDirectory();
+      final safeName = (body['number']?.toString() ?? 'facture')
+          .replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
+      final file = File('${dir.path}/$safeName.pdf');
+      await file.writeAsBytes(bytes, flush: true);
+      final result = await OpenFilex.open(file.path, type: 'application/pdf');
+      return result.type == ResultType.done;
     } catch (_) {
       return false;
     }

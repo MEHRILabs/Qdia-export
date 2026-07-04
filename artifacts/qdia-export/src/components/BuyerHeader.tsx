@@ -126,7 +126,7 @@ export function BuyerHeader() {
             )}
           </nav>
 
-          <div className="ml-auto flex items-center gap-1.5 sm:gap-2 md:gap-3">
+          <div className="ms-auto flex items-center gap-1.5 sm:gap-2 md:gap-3">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -198,11 +198,11 @@ export function BuyerHeader() {
                 <DropdownMenuSeparator />
                 {user ? (
                   <DropdownMenuItem onClick={logout} className="text-red-600 cursor-pointer text-sm py-2">
-                    <LogOut className="h-4 w-4 mr-2 inline" /> {tr("header.logout")}
+                    <LogOut className="h-4 w-4 me-2 inline" /> {tr("header.logout")}
                   </DropdownMenuItem>
                 ) : (
                   <DropdownMenuItem onClick={() => setAuthOpen(true)} className="cursor-pointer text-sm py-2 font-semibold">
-                    <LogIn className="h-4 w-4 mr-2 inline text-[#0461A5]" /> {tr("header.login")}
+                    <LogIn className="h-4 w-4 me-2 inline text-[#0461A5]" /> {tr("header.login")}
                   </DropdownMenuItem>
                 )}
               </DropdownMenuContent>
@@ -306,7 +306,7 @@ export function BuyerHeader() {
                   )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={logout} className="text-red-600 cursor-pointer">
-                    <LogOut className="h-4 w-4 mr-2" /> {tr("header.logout")}
+                    <LogOut className="h-4 w-4 me-2" /> {tr("header.logout")}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
