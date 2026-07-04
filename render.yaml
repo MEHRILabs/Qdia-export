@@ -20,6 +20,8 @@ services:
         value: production
       - key: SERVE_WEB
         value: "1"
+      - key: SKIP_DRIZZLE_PUSH
+        value: "1"
       - key: DATABASE_URL
         fromDatabase:
           name: qdia-db

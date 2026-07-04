@@ -13,8 +13,12 @@ fi
 echo "→ Création/vérification des tables…"
 node ./scripts/ensure-app-tables.mjs
 
-echo "→ Synchronisation schéma Drizzle…"
-pnpm -C lib/db run push || echo "WARN: drizzle push (non bloquant)"
+if [ "${SKIP_DRIZZLE_PUSH:-}" != "1" ] && [ "${NODE_ENV:-}" != "production" ]; then
+  echo "→ Synchronisation schéma Drizzle…"
+  pnpm -C lib/db run push || echo "WARN: drizzle push (non bloquant)"
+else
+  echo "→ Drizzle push ignoré (production / SKIP_DRIZZLE_PUSH)"
+fi
 
 echo "→ Seed données initiales…"
 node ./scripts/seed.mjs || echo "WARN: seed (non bloquant)"
@@ -40,11 +44,15 @@ if [ -n "$CATALOG_XLS" ]; then
   fi
 fi
 
-echo "→ Publication catalogue marketplace…"
-node ./scripts/bootstrap-products.mjs
+if node ./scripts/should-run-bootstrap.mjs; then
+  echo "→ Publication catalogue marketplace…"
+  node ./scripts/bootstrap-products.mjs
 
-echo "→ Correction catégories non classées…"
-node ./scripts/fix-product-categories.mjs || echo "WARN: fix catégories"
+  echo "→ Correction catégories non classées…"
+  node ./scripts/fix-product-categories.mjs || echo "WARN: fix catégories"
+else
+  echo "→ Catalogue déjà publié et catégorisé — skip bootstrap"
+fi
 
 echo "=== Démarrage serveur API + site ==="
 export NODE_ENV=production
