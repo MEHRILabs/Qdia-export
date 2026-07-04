@@ -43,12 +43,12 @@ export const HOME_CATEGORIES = [
 ] as const;
 
 /** Mappe les noms de catégories API (anglais) vers des clés i18n. */
+const HOME_CATEGORY_KEYS = Object.fromEntries(
+  HOME_CATEGORIES.map(c => [c.slug, c.nameKey]),
+) as Record<string, string>;
+
 export const CATEGORY_I18N_KEYS: Record<string, string> = {
-  "Agriculture & Food": "home.sector_agro",
-  "Energy & Chemicals": "home.sector_energy",
-  "Textiles & Apparel": "home.sector_textiles",
-  "Construction Materials": "home.sector_construction",
-  "Handicrafts & Decor": "home.sector_handicrafts",
+  ...HOME_CATEGORY_KEYS,
   Construction: "home.sector_construction",
   Handicrafts: "home.sector_handicrafts",
   Agroalimentaire: "home.sector_agro",
