@@ -567,7 +567,30 @@
     "export_stock_countries": "Stock disponible par pays (DDP)",
     "export_approve": "Autoriser l'export",
     "export_revoke": "Révoquer",
-    "export_updated": "Produit export mis à jour"
+    "export_updated": "Produit export mis à jour",
+    "export_bulk_title": "Autorisation en lot",
+    "export_bulk_hint": "Validez plusieurs produits d'un coup pour débloquer les commandes.",
+    "export_bulk_100": "Autoriser 100",
+    "export_bulk_500": "Autoriser 500",
+    "export_bulk_revoke": "Révoquer 100 autorisés",
+    "export_bulk_done": "Lot export traité",
+    "export_bulk_count": "{count} produit(s) mis à jour",
+    "photos_batch_btn": "Photos IA ×50 (sans image)",
+    "enrich_total": "Total produits",
+    "enrich_no_photo": "Sans photo",
+    "enrich_no_price": "Sans prix",
+    "enrich_pending": "En attente validation",
+    "enrich_batch_50": "Enrichir 50 (prix + photos IA)",
+    "enrich_batch_200": "Enrichir lot 200",
+    "pending_count": "{count} en attente",
+    "edit_photo": "Photo",
+    "ai_photo": "IA",
+    "photo_generated": "Photo générée",
+    "enrich_done": "Enrichissement terminé",
+    "enrich_done_desc": "{enriched} enrichi(s) · {photos} photo(s) · {pricing} prix",
+    "tools_title": "Outils admin",
+    "export_authorized_count": "Export autorisé",
+    "export_pending_count": "Export en attente"
   },
   "footer": {
     "contact": "Contact",
@@ -615,7 +638,12 @@
     "missing_data_desc": "Excel, URLs catalogue ou URLs images requis.",
     "import_done": "Import en masse terminé",
     "import_done_desc": "{imported} importés · {errors} erreurs · {images} images",
-    "import_error": "Erreur import"
+    "import_error": "Erreur import",
+    "imported_label": "importé(s)",
+    "errors_label": "erreur(s)",
+    "success_list": "Importés",
+    "error_list": "Erreurs détaillées",
+    "row": "Ligne"
   },
   "excel_import": {
     "importing": "Import…",
@@ -690,7 +718,10 @@
     "contact_phone": "Téléphone",
     "contact_message": "Messagerie",
     "order_sent": "Votre commande a été envoyée au vendeur",
-    "view_orders": "Voir mes commandes"
+    "view_orders": "Voir mes commandes",
+    "pay_escrow": "Confirmer le paiement Escrow",
+    "transaction_created": "Transaction #{id} créée — confirmez le paiement pour valider la commande.",
+    "view_transaction": "Voir la transaction"
   },
   "customs_panel": {
     "title": "Ports & douane",
@@ -849,7 +880,9 @@
     "done": "Terminé",
     "done_desc": "Image traitée via {provider}.",
     "error_studio": "Erreur studio",
-    "login_required": "Connectez-vous en tant que fournisseur pour utiliser le studio IA"
+    "login_required": "Connectez-vous en tant que fournisseur pour utiliser le studio IA",
+    "save_to_product": "Enregistrer sur produit #{id}",
+    "saved_to_product": "Photo enregistrée sur le produit"
   },
   "inquiries_page": {
     "title": "Inquiries & RFQ",
@@ -869,18 +902,38 @@
     "status_quoted": "Devis envoyé",
     "status_accepted": "Accepté",
     "status_rejected": "Refusé",
-    "status_shipped": "Expédié"
+    "status_shipped": "Expédié",
+    "filter_all": "Toutes",
+    "filter_pending": "À traiter",
+    "filter_quoted": "Devis",
+    "filter_active": "Actives"
   },
   "transactions_page": {
     "subtitle": "Commission QDIA 3 % · Escrow, SWIFT, LC",
     "transaction": "Transaction #{id}",
-    "amount": "Montant :",
-    "commission": "Commission :",
-    "net": "Net exportateur :",
-    "method": "Mode :",
+    "amount": "Montant",
+    "commission": "Commission QDIA",
+    "net": "Net exportateur",
+    "method": "Mode de paiement",
     "empty": "Aucune transaction. Acceptez une RFQ avec paiement pour en créer une.",
     "payment_confirmed": "Paiement confirmé",
-    "funds_released": "Fonds libérés"
+    "funds_released": "Fonds libérés",
+    "status_pending": "En attente",
+    "status_funded": "Financé",
+    "status_released": "Libéré",
+    "status_disputed": "Litige",
+    "filter_all": "Toutes",
+    "filter_pending": "En attente",
+    "filter_funded": "Financées",
+    "filter_released": "Libérées",
+    "total_volume": "Volume total",
+    "pending_count": "En attente",
+    "funded_count": "Financées",
+    "released_count": "Libérées",
+    "method_escrow": "Escrow QDIA",
+    "method_swift": "Virement SWIFT",
+    "method_lc": "Lettre de crédit",
+    "linked_rfq": "RFQ liée"
   },
   "verification_page": {
     "title": "Vérification QDIA",
@@ -915,7 +968,19 @@
     "photo_ai_failed": "Génération échouée — uploadez une photo manuellement",
     "photo_invalid": "Fichier image invalide",
     "photo_too_large": "Image trop grande (max 8 Mo)",
-    "photo_hint": "Uploadez votre photo ou laissez l'IA en créer une automatiquement."
+    "photo_hint": "Uploadez votre photo ou laissez l'IA en créer une automatiquement.",
+    "new_title": "Nouveau produit",
+    "created": "Produit créé — en attente validation admin",
+    "open_studio": "Ouvrir dans Studio IA",
+    "duplicate": "Dupliquer le produit",
+    "duplicated": "Produit dupliqué — modifiez la variante"
+  },
+  "supplier_orders": {
+    "title": "Commandes reçues",
+    "empty": "Aucune commande pour vos produits.",
+    "buyer": "Acheteur",
+    "accept": "Accepter",
+    "reject": "Refuser"
   },
   "supplier_public": {
     "default_name": "Exportateur #{id}",
@@ -949,7 +1014,18 @@
     "quote_accepted": "Devis accepté",
     "quote_accepted_desc": "Transaction créée — commission QDIA 3 %",
     "swift_ref": "Référence SWIFT",
-    "lc_number": "N° lettre de crédit"
+    "lc_number": "N° lettre de crédit",
+    "status_pending": "En attente",
+    "status_quoted": "Devis reçu",
+    "status_accepted": "Accepté",
+    "status_rejected": "Refusé",
+    "status_shipped": "Expédié",
+    "status_delivered": "Livré",
+    "filter_all": "Toutes",
+    "filter_active": "En cours",
+    "filter_done": "Terminées",
+    "quantity": "Quantité",
+    "destination": "Destination"
   },
   "facturation_page": {
     "step1_title": "1. Choisir le produit",
@@ -1095,7 +1171,11 @@
     "form_incomplete": "Formulaire incomplet",
     "submit_success": "Demande envoyée",
     "submit_success_desc": "Votre RFQ a été transmise aux exportateurs vérifiés QDIA.",
-    "submit_failed": "Échec de l'envoi"
+    "submit_failed": "Échec de l'envoi",
+    "incoterm_label": "Incoterm souhaité",
+    "message_label": "Exigences supplémentaires / message",
+    "target_price_optional": "Prix cible (USD) — optionnel",
+    "step_of": "Étape {step} sur 3"
   },
   "product_detail": {
     "not_found": "Produit introuvable.",

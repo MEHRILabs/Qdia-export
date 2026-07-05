@@ -79,6 +79,15 @@ function CheckoutContent() {
             </div>
           )}
 
+          {result.transaction_id && (
+            <div className="rounded-xl border border-[#0461A5]/20 bg-[#F0F4FF] p-4 mb-4 text-sm">
+              <p className="font-semibold text-[#073B74] mb-1">{tr("checkout.transaction_created").replace("{id}", String(result.transaction_id))}</p>
+              <Button className="w-full mt-2 gap-2" asChild>
+                <Link href="/transactions"><ShieldCheck className="h-4 w-4" /> {tr("checkout.view_transaction")}</Link>
+              </Button>
+            </div>
+          )}
+
           <Button className="w-full" size="lg" onClick={() => setLocation("/commandes")}>
             {tr("checkout.view_orders")}
           </Button>

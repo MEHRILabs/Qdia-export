@@ -16,6 +16,8 @@ export interface ExcelProductRow {
   certifications?: string[];
   image_url?: string;
   source_url?: string;
+  row_number?: number;
+  sheet_name?: string;
 }
 
 const COLUMN_ALIASES: Record<string, string[]> = {
@@ -143,6 +145,8 @@ function parseTemplateSheet(rows: unknown[][], sheetName: string, seen: Set<stri
       certifications: certsRaw ? certsRaw.split(/[,;|]/).map(s => s.trim()).filter(Boolean) : [],
       image_url: col.image >= 0 ? parseString(row[col.image]) : undefined,
       source_url: col.source >= 0 ? parseString(row[col.source]) : undefined,
+      row_number: i + 1,
+      sheet_name: sheetName,
     });
   }
 
@@ -195,6 +199,8 @@ function parseMasterSheet(rows: unknown[][], sheetName: string, seen: Set<string
       price_currency: "DZD",
       packaging: subcategory,
       certifications: brand ? [brand] : [],
+      row_number: i + 1,
+      sheet_name: sheetName,
     });
   }
 

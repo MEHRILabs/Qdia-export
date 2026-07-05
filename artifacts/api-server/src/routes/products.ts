@@ -321,7 +321,7 @@ router.post("/products", requireAuth, requireRole("supplier", "admin"), writeLim
     price_wholesale?: number;
   };
   const d = parsed.data;
-  const supplierId = await ensureDefaultSupplier();
+  const supplierId = await resolveSupplierForUser(req.user);
   const [product] = await db.insert(productsTable).values({
     name: d.name,
     description: d.description,
@@ -381,7 +381,7 @@ router.post("/products/import-excel", requireAuth, requireRole("supplier", "admi
     const supplierId = await resolveSupplierForUser(req.user);
     const [supplier] = await db.select().from(suppliersTable).where(eq(suppliersTable.id, supplierId));
     const inserted: ReturnType<typeof toProductShape>[] = [];
-    const errors: string[] = [];
+    const errors: Array<{ row?: number; name: string; message: string }> = [];
     const shouldEnrichNow = rows.length <= 100;
 
     for (const row of rows) {
@@ -411,6 +411,7 @@ router.post("/products/import-excel", requireAuth, requireRole("supplier", "admi
           priceUnit: `per ${row.moq_unit}`,
           priceRetail: row.price_retail,
           priceWholesale: row.price_wholesale,
+          imageUrl: row.image_url,
           supplierId,
           supplierName: supplier?.companyName,
           supplierLocation: supplier?.wilaya,
@@ -418,10 +419,14 @@ router.post("/products/import-excel", requireAuth, requireRole("supplier", "admi
 
         inserted.push(toProductShape(product));
         if (shouldEnrichNow) {
-          scheduleProductEnrichment(product.id, { generatePhotos: true });
+          scheduleProductEnrichment(product.id, { generatePhotos: !row.image_url });
         }
       } catch (err) {
-        errors.push(`${row.name}: ${err instanceof Error ? err.message : "erreur"}`);
+        errors.push({
+          row: row.row_number,
+          name: row.name,
+          message: err instanceof Error ? err.message : "erreur",
+        });
       }
     }
 
@@ -448,6 +453,7 @@ router.post("/products/enrich", requireAuth, requireRole("supplier", "admin"), a
     limit: z.number().int().positive().max(500).optional(),
     generate_photos: z.boolean().optional(),
     skip_pricing: z.boolean().optional(),
+    only_without_photo: z.boolean().optional(),
     destination_country: z.string().length(2).optional(),
   }).safeParse(req.body);
 
@@ -460,6 +466,7 @@ router.post("/products/enrich", requireAuth, requireRole("supplier", "admin"), a
     generatePhotos: parsed.data.generate_photos,
     skipPricing: parsed.data.skip_pricing,
     destinationCountry: parsed.data.destination_country,
+    onlyWithoutPhoto: parsed.data.only_without_photo,
   });
   res.json(result);
 });
@@ -497,6 +504,53 @@ router.post("/products/:id/image", requireAuth, requireRole("supplier", "admin")
     logger.warn({ err, productId: id }, "upload image produit échoué");
     res.status(400).json({ error: err instanceof Error ? err.message : "Upload image échoué" });
   }
+});
+
+router.post("/products/:id/duplicate", requireAuth, requireRole("supplier", "admin"), writeLimiter, async (req: AuthedRequest, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  if (Number.isNaN(id)) {
+    res.status(400).json({ error: "ID invalide" });
+    return;
+  }
+  const [source] = await db.select().from(productsTable).where(eq(productsTable.id, id)).limit(1);
+  if (!source) {
+    res.status(404).json({ error: "Produit introuvable" });
+    return;
+  }
+  const supplierId = await resolveSupplierForUser(req.user);
+  if (req.user!.role !== "admin" && source.supplierId !== supplierId) {
+    res.status(403).json({ error: "Accès refusé" });
+    return;
+  }
+  const suffix = `-${Date.now().toString(36).slice(-4)}`;
+  const [product] = await db.insert(productsTable).values({
+    name: `${source.name} (copie)`,
+    description: source.description,
+    category: source.category,
+    sku: source.sku ? `${source.sku}${suffix}` : null,
+    imageUrl: source.imageUrl,
+    images: source.images ?? [],
+    moq: source.moq,
+    moqUnit: source.moqUnit,
+    portDepart: source.portDepart,
+    originWilaya: source.originWilaya,
+    certifications: source.certifications ?? [],
+    packaging: source.packaging,
+    processing: source.processing,
+    exportStatus: "pending",
+    exportAuthorized: false,
+    priceExw: source.priceExw,
+    priceFob: source.priceFob,
+    priceCfr: source.priceCfr,
+    priceCif: source.priceCif,
+    priceCurrency: source.priceCurrency ?? "USD",
+    priceUnit: source.priceUnit ?? "per kg",
+    priceRetail: source.priceRetail,
+    priceWholesale: source.priceWholesale,
+    targetMarkets: source.targetMarkets ?? [],
+    supplierId: supplierId ?? source.supplierId,
+  }).returning();
+  res.status(201).json(GetProductResponse.parse(toProductShape(product!)));
 });
 
 router.post("/products/enrich/:id", requireAuth, requireRole("supplier", "admin"), async (req, res): Promise<void> => {
@@ -639,6 +693,45 @@ router.get("/products/featured", async (_req, res): Promise<void> => {
   }
 
   res.json(ListFeaturedProductsResponse.parse(rows.map(toProductShape)));
+});
+
+router.post("/products/bulk-export-auth", requireAuth, requireRole("admin"), async (req: AuthedRequest, res): Promise<void> => {
+  const parsed = z.object({
+    export_authorized: z.boolean(),
+    ids: z.array(z.number().int().positive()).optional(),
+    filter: z.enum(["pending", "authorized", "all"]).optional(),
+    limit: z.number().int().positive().max(500).optional(),
+  }).safeParse(req.body);
+
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  let ids = parsed.data.ids ?? [];
+  if (!ids.length) {
+    const conditions: SQL[] = [eq(productsTable.exportStatus, "published")];
+    if (parsed.data.filter === "pending") {
+      conditions.push(eq(productsTable.exportAuthorized, false));
+    } else if (parsed.data.filter === "authorized") {
+      conditions.push(eq(productsTable.exportAuthorized, true));
+    }
+    const rows = await db.select({ id: productsTable.id }).from(productsTable)
+      .where(and(...conditions))
+      .limit(parsed.data.limit ?? 100);
+    ids = rows.map(r => r.id);
+  }
+
+  if (!ids.length) {
+    res.json({ updated: 0, ids: [] });
+    return;
+  }
+
+  await db.update(productsTable)
+    .set({ exportAuthorized: parsed.data.export_authorized })
+    .where(inArray(productsTable.id, ids));
+
+  res.json({ updated: ids.length, ids });
 });
 
 router.patch("/products/:id", requireAuth, requireRole("supplier", "admin"), async (req: AuthedRequest, res): Promise<void> => {

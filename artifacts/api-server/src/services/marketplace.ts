@@ -2,10 +2,13 @@ import {
   db, productsTable, productViewsTable, favoritesTable,
   cartItemsTable, ordersTable, disputesTable, oemRequestsTable,
   sampleRequestsTable, supplierReviewsTable, usersTable, messagesTable,
-  suppliersTable,
+  suppliersTable, trackingEventsTable,
 } from "@workspace/db";
 import { eq, and, or, desc, sql, inArray } from "drizzle-orm";
+import { logger } from "../lib/logger";
 import { sendPushToUser } from "./fcm";
+import { createInvoiceFromTransaction } from "./billing";
+import { createTransactionFromOrder } from "./payments";
 
 let nextId = 1000;
 const mem = {
@@ -313,6 +316,21 @@ export async function checkout(userId: number, paymentMethod: string) {
         status: "pending_payment",
       }).returning();
       order.id = row.id;
+
+      try {
+        const tx = await createTransactionFromOrder(
+          row.id,
+          userId,
+          supplierId ?? null,
+          total,
+          "USD",
+          paymentMethod as "escrow" | "swift" | "lc",
+        );
+        await db.update(ordersTable).set({ transactionId: tx.id }).where(eq(ordersTable.id, row.id));
+        (order as Record<string, unknown>).transaction_id = tx.id;
+      } catch (err) {
+        logger.warn({ err, orderId: row.id }, "Transaction escrow non créée pour la commande");
+      }
     } catch { mem.orders.push(order); }
   } else {
     mem.orders.push(order);
@@ -396,8 +414,19 @@ export async function updateOrderStatus(
     throw new Error("Accès non autorisé");
   }
 
-  if (!isAdmin && data.status && !["confirmed", "shipped"].includes(data.status)) {
-    throw new Error("Statut non autorisé");
+  if (!isAdmin && data.status) {
+    const supplierAllowed: Record<string, string[]> = {
+      pending_payment: ["confirmed", "cancelled"],
+      confirmed: ["shipped", "cancelled"],
+    };
+    if (isSupplier) {
+      const allowed = supplierAllowed[order.status] ?? [];
+      if (!allowed.includes(data.status)) {
+        throw new Error("Statut non autorisé pour le fournisseur");
+      }
+    } else if (!["confirmed", "shipped"].includes(data.status)) {
+      throw new Error("Statut non autorisé");
+    }
   }
 
   const [updated] = await db.update(ordersTable).set({
@@ -405,6 +434,24 @@ export async function updateOrderStatus(
     trackingNumber: data.tracking_number ?? order.trackingNumber,
     carrier: data.carrier ?? order.carrier,
   }).where(eq(ordersTable.id, orderId)).returning();
+
+  if (data.status === "shipped" && updated.trackingNumber) {
+    try {
+      await db.insert(trackingEventsTable).values({
+        orderId: updated.id,
+        carrier: updated.carrier ?? "DHL",
+        trackingNumber: updated.trackingNumber,
+        status: "shipped",
+        location: "Algérie",
+        description: "Colis expédié par le fournisseur",
+      });
+    } catch { /* table optionnelle */ }
+    void sendPushToUser(updated.buyerId, "Commande expédiée", `Suivi : ${updated.trackingNumber}`);
+  } else if (data.status === "confirmed") {
+    void sendPushToUser(updated.buyerId, "Commande confirmée", `Votre commande #${updated.id} est confirmée par le fournisseur`);
+  } else if (data.status === "cancelled") {
+    void sendPushToUser(updated.buyerId, "Commande annulée", `La commande #${updated.id} a été annulée`);
+  }
 
   const enriched = await enrichOrderRows([updated]);
   return enriched[0];

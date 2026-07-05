@@ -9,7 +9,7 @@ import { platformApi } from "@/lib/platform-api";
 import { useI18n } from "@/contexts/I18nContext";
 import { useToast } from "@/hooks/use-toast";
 import { BUYER_COUNTRIES } from "@/lib/incoterms-routing";
-import { Factory, CheckCircle2, XCircle, Loader2, MapPin, Search, MessageSquare } from "lucide-react";
+import { Factory, CheckCircle2, XCircle, Loader2, MapPin, Search, MessageSquare, Layers } from "lucide-react";
 
 type ExportProduct = {
   id: number;
@@ -32,6 +32,7 @@ export function AdminExportAuthPanel() {
   const [updating, setUpdating] = useState<number | null>(null);
   const [stockDraft, setStockDraft] = useState<Record<number, string>>({});
   const [contactLoading, setContactLoading] = useState<number | null>(null);
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-export-products", filter],
@@ -65,6 +66,30 @@ export function AdminExportAuthPanel() {
     else set.add(code);
     if (!set.size) set.add("DZ");
     return [...set];
+  };
+
+  const bulkAuth = async (authorized: boolean, limit = 100) => {
+    setBulkLoading(true);
+    try {
+      const result = await platformApi.bulkExportAuth({
+        export_authorized: authorized,
+        filter: authorized ? "pending" : filter === "authorized" ? "authorized" : "pending",
+        limit,
+      });
+      toast({
+        title: tr("admin.export_bulk_done"),
+        description: tr("admin.export_bulk_count").replace("{count}", String(result.updated)),
+      });
+      qc.invalidateQueries({ queryKey: ["admin-export-products"] });
+    } catch (e) {
+      toast({
+        title: tr("common.error"),
+        description: String(e instanceof Error ? e.message : e),
+        variant: "destructive",
+      });
+    } finally {
+      setBulkLoading(false);
+    }
   };
 
   const openExporterChat = async (productId: number) => {
@@ -125,6 +150,47 @@ export function AdminExportAuthPanel() {
           />
         </div>
       </div>
+
+      {filter === "pending" && (
+        <div className="flex flex-wrap gap-2 p-3 rounded-lg bg-green-50 border border-green-200">
+          <Layers className="h-4 w-4 text-green-700 shrink-0 mt-1" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold text-green-800">{tr("admin.export_bulk_title")}</p>
+            <p className="text-[11px] text-green-700">{tr("admin.export_bulk_hint")}</p>
+          </div>
+          <Button
+            size="sm"
+            className="bg-green-600 hover:bg-green-700 gap-1"
+            disabled={bulkLoading}
+            onClick={() => void bulkAuth(true, 100)}
+          >
+            {bulkLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+            {tr("admin.export_bulk_100")}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1 border-green-400 text-green-800"
+            disabled={bulkLoading}
+            onClick={() => void bulkAuth(true, 500)}
+          >
+            {tr("admin.export_bulk_500")}
+          </Button>
+        </div>
+      )}
+
+      {filter === "authorized" && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1 text-amber-700 border-amber-300"
+          disabled={bulkLoading}
+          onClick={() => void bulkAuth(false, 100)}
+        >
+          {bulkLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
+          {tr("admin.export_bulk_revoke")}
+        </Button>
+      )}
 
       {!products.length && (
         <div className="text-center py-12 text-muted-foreground border rounded-xl bg-card">

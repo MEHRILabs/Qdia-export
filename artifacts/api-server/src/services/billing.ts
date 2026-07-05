@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { db, invoicesTable, transactionsTable, rfqsTable } from "@workspace/db";
+import { db, invoicesTable, transactionsTable, rfqsTable, ordersTable } from "@workspace/db";
 
 export async function createInvoiceFromTransaction(txId: number) {
   const [tx] = await db.select().from(transactionsTable).where(eq(transactionsTable.id, txId)).limit(1);
@@ -22,6 +22,18 @@ export async function createInvoiceFromTransaction(txId: number) {
       incoterm = rfq.quoteIncoterm ?? rfq.requestedIncoterm;
       productName = rfq.productName;
     }
+  } else if (tx.notes) {
+    try {
+      const meta = JSON.parse(tx.notes) as { order_id?: number };
+      if (meta.order_id) {
+        const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, meta.order_id)).limit(1);
+        if (order) {
+          const items = order.items as Array<{ product_name?: string; incoterm?: string }>;
+          productName = items.map(i => i.product_name).filter(Boolean).join(", ") || `Commande #${meta.order_id}`;
+          incoterm = items[0]?.incoterm ?? null;
+        }
+      }
+    } catch { /* ignore */ }
   }
 
   const number = `QDIA-${new Date().getFullYear()}-${String(txId).padStart(5, "0")}`;

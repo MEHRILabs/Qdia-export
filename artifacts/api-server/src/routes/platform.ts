@@ -450,6 +450,10 @@ router.get("/admin/stats", requireAuth, requireRole("admin"), async (_req, res) 
   const orders = await db.select({ count: sql<number>`count(*)::int` }).from(ordersTable);
   const totalCommission = txs.reduce((s, t) => s + (t.commissionAmount ?? 0), 0);
   const totalVolume = txs.reduce((s, t) => s + (t.amount ?? 0), 0);
+  const withoutPhoto = products.filter(p => !p.imageUrl && !(p.images?.length)).length;
+  const withoutPricing = products.filter(p => !p.priceFob || p.priceFob <= 0).length;
+  const exportAuthorized = products.filter(p => p.exportAuthorized).length;
+  const exportPending = products.filter(p => p.exportStatus === "published" && !p.exportAuthorized).length;
   res.json({
     users: users.length,
     products: products.length,
@@ -461,6 +465,10 @@ router.get("/admin/stats", requireAuth, requireRole("admin"), async (_req, res) 
     total_commission_usd: Math.round(totalCommission * 100) / 100,
     transaction_volume_usd: Math.round(totalVolume * 100) / 100,
     transactions_count: txs.length,
+    without_photo: withoutPhoto,
+    without_pricing: withoutPricing,
+    export_authorized: exportAuthorized,
+    export_pending: exportPending,
     subscription_tiers: { bronze: 0, silver: 29, gold: 99 },
   });
 });

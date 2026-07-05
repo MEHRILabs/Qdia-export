@@ -57,9 +57,12 @@ function Router() {
         <ProtectedRoute><Favorites /></ProtectedRoute>
       </Route>
       <Route path="/transactions">
-        <ProtectedRoute roles={["supplier", "admin"]}><Transactions /></ProtectedRoute>
+        <ProtectedRoute roles={["supplier", "admin", "buyer"]}><Transactions /></ProtectedRoute>
       </Route>
       <Route path="/suppliers/:id" component={SupplierPublic} />
+      <Route path="/supplier/products/new">
+        <ProtectedRoute roles={["supplier", "admin"]}><ProductEdit /></ProtectedRoute>
+      </Route>
       <Route path="/supplier/products/:id/edit">
         <ProtectedRoute roles={["supplier", "admin"]}><ProductEdit /></ProtectedRoute>
       </Route>

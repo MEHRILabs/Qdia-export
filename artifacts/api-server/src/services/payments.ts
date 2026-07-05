@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { db, transactionsTable, rfqsTable } from "@workspace/db";
+import { db, transactionsTable, rfqsTable, usersTable, ordersTable } from "@workspace/db";
 import { calcCommission, COMMISSION_RATE } from "./commission";
 import { sendPushToUser } from "./fcm";
 import { createInvoiceFromTransaction } from "./billing";
@@ -7,7 +7,7 @@ import { createInvoiceFromTransaction } from "./billing";
 export type PaymentMethod = "escrow" | "swift" | "lc" | "stripe";
 
 export async function createTransaction(input: {
-  rfqId: number;
+  rfqId?: number | null;
   buyerId: number;
   supplierId?: number | null;
   amount: number;
@@ -15,10 +15,11 @@ export async function createTransaction(input: {
   paymentMethod: PaymentMethod;
   swiftReference?: string;
   lcNumber?: string;
+  notes?: string;
 }) {
   const { commissionAmount, netAmount, commissionRate } = calcCommission(input.amount);
   const [tx] = await db.insert(transactionsTable).values({
-    rfqId: input.rfqId,
+    rfqId: input.rfqId ?? null,
     buyerId: input.buyerId,
     supplierId: input.supplierId,
     amount: input.amount,
@@ -30,6 +31,7 @@ export async function createTransaction(input: {
     status: "pending",
     swiftReference: input.swiftReference,
     lcNumber: input.lcNumber,
+    notes: input.notes,
   }).returning();
 
   try {
@@ -53,11 +55,25 @@ export async function fundTransaction(txId: number, userId: number, refs?: { swi
   }).where(eq(transactionsTable.id, txId)).returning();
 
   if (tx.supplierId) {
-    await sendPushToUser(
-      tx.supplierId,
-      "Paiement reçu (Escrow)",
-      `Fonds bloqués : ${tx.amount} ${tx.currency} — commission QDIA ${(COMMISSION_RATE * 100).toFixed(0)}%`,
-    );
+    const [supplierUser] = await db.select().from(usersTable)
+      .where(eq(usersTable.supplierId, tx.supplierId))
+      .limit(1);
+    if (supplierUser) {
+      await sendPushToUser(
+        supplierUser.id,
+        "Paiement reçu (Escrow)",
+        `Fonds bloqués : ${tx.amount} ${tx.currency} — commission QDIA ${(COMMISSION_RATE * 100).toFixed(0)}%`,
+      );
+    }
+  }
+
+  if (tx.notes) {
+    try {
+      const meta = JSON.parse(tx.notes) as { order_id?: number };
+      if (meta.order_id) {
+        await db.update(ordersTable).set({ status: "confirmed" }).where(eq(ordersTable.id, meta.order_id));
+      }
+    } catch { /* ignore */ }
   }
   return updated;
 }
@@ -91,4 +107,40 @@ export async function createTransactionOnRfqAccept(rfqId: number, buyerId: numbe
     currency: rfq.quoteCurrency ?? "USD",
     paymentMethod,
   });
+}
+
+export async function createTransactionFromOrder(
+  orderId: number,
+  buyerId: number,
+  supplierId: number | null | undefined,
+  amount: number,
+  currency: string,
+  paymentMethod: PaymentMethod,
+) {
+  const tx = await createTransaction({
+    buyerId,
+    supplierId: supplierId ?? null,
+    amount,
+    currency,
+    paymentMethod,
+    notes: JSON.stringify({ order_id: orderId }),
+  });
+  await sendPushToUser(
+    buyerId,
+    "Commande enregistrée",
+    `Commande #${orderId} — confirmez le paiement Escrow (${amount.toFixed(2)} ${currency})`,
+  );
+  if (supplierId) {
+    const [supplierUser] = await db.select().from(usersTable)
+      .where(eq(usersTable.supplierId, supplierId))
+      .limit(1);
+    if (supplierUser) {
+      await sendPushToUser(
+        supplierUser.id,
+        "Nouvelle commande",
+        `Commande #${orderId} en attente de paiement — ${amount.toFixed(2)} ${currency}`,
+      );
+    }
+  }
+  return tx;
 }

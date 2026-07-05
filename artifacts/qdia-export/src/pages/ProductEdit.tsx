@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useRoute, Link } from "wouter";
+import { useRoute, Link, useLocation } from "wouter";
 import { SupplierSidebar } from "@/components/SupplierSidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useI18n } from "@/contexts/I18nContext";
 import { ProductImage } from "@/components/ProductImage";
-import { ArrowLeft, Save, Upload, Sparkles, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, Upload, Sparkles, Loader2, Wand2, Copy } from "lucide-react";
 
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -23,8 +23,10 @@ function readFileAsDataUrl(file: File): Promise<string> {
 }
 
 function ProductEditContent() {
+  const [location, setLocation] = useLocation();
+  const isNew = location === "/supplier/products/new";
   const [, params] = useRoute("/supplier/products/:id/edit");
-  const id = parseInt(params?.id ?? "0", 10);
+  const id = isNew ? 0 : parseInt(params?.id ?? "0", 10);
   const { toast } = useToast();
   const { tr } = useI18n();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -32,6 +34,7 @@ function ProductEditContent() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -60,21 +63,21 @@ function ProductEditContent() {
   };
 
   useEffect(() => {
-    loadProduct();
-  }, [id]);
+    if (!isNew) loadProduct();
+    else setLoading(false);
+  }, [id, isNew]);
 
   const save = async () => {
     setSaving(true);
     try {
       const fob = Number.isFinite(priceFob) ? priceFob : 0;
-      await platformApi.updateProduct(id, {
+      const payload = {
         name,
         description,
-        category,
+        category: category || "Agriculture & Food",
         moq,
         moq_unit: moqUnit,
         port_depart: portDepart,
-        // Incoterms dérivés du FOB pour rester cohérents avec le catalogue
         prices: {
           exw: Math.round(fob * 0.92 * 100) / 100,
           fob,
@@ -82,8 +85,15 @@ function ProductEditContent() {
           cif: Math.round(fob * 1.12 * 100) / 100,
           currency: "USD",
         },
-      });
-      toast({ title: tr("product_edit.updated") });
+      };
+      if (isNew) {
+        const created = await platformApi.createProduct({ ...payload, export_status: "pending" }) as { id: number };
+        toast({ title: tr("product_edit.created") });
+        setLocation(`/supplier/products/${created.id}/edit`);
+      } else {
+        await platformApi.updateProduct(id, payload);
+        toast({ title: tr("product_edit.updated") });
+      }
     } catch (e) {
       toast({ title: tr("common.error"), description: String(e instanceof Error ? e.message : e), variant: "destructive" });
     } finally {
@@ -129,6 +139,21 @@ function ProductEditContent() {
     }
   };
 
+  const duplicate = async () => {
+    if (!id) return;
+    setDuplicating(true);
+    try {
+      const copy = await platformApi.duplicateProduct(id);
+      const newId = (copy as { id?: number }).id;
+      toast({ title: tr("product_edit.duplicated") });
+      if (newId) setLocation(`/supplier/products/${newId}/edit`);
+    } catch (e) {
+      toast({ title: tr("common.error"), description: String(e instanceof Error ? e.message : e), variant: "destructive" });
+    } finally {
+      setDuplicating(false);
+    }
+  };
+
   if (loading) return <p className="p-8">{tr("common.loading")}</p>;
 
   return (
@@ -138,8 +163,9 @@ function ProductEditContent() {
         <Link href="/supplier" className="text-sm text-[#0461A5] font-semibold flex items-center gap-1 mb-4">
           <ArrowLeft className="h-4 w-4" /> {tr("product_edit.back")}
         </Link>
-        <h1 className="text-2xl font-black mb-6">{tr("product_edit.title")}</h1>
+        <h1 className="text-2xl font-black mb-6">{isNew ? tr("product_edit.new_title") : tr("product_edit.title")}</h1>
         <div className="space-y-4 border rounded-xl p-6 bg-white">
+          {!isNew && (
           <div className="space-y-3">
             <Label>{tr("product_edit.photo")}</Label>
             <div className="flex flex-col sm:flex-row gap-4 items-start">
@@ -178,10 +204,16 @@ function ProductEditContent() {
                   {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                   {generating ? tr("product_edit.photo_generating") : tr("product_edit.photo_ai")}
                 </Button>
+                <Button type="button" variant="outline" className="gap-2 justify-start" asChild>
+                  <Link href={`/studio?product=${id}`}>
+                    <Wand2 className="h-4 w-4" /> {tr("product_edit.open_studio")}
+                  </Link>
+                </Button>
                 <p className="text-xs text-muted-foreground">{tr("product_edit.photo_hint")}</p>
               </div>
             </div>
           </div>
+          )}
           <div className="space-y-1.5"><Label>{tr("product_edit.name")}</Label><Input value={name} onChange={e => setName(e.target.value)} /></div>
           <div className="space-y-1.5"><Label>{tr("product_edit.description")}</Label><Textarea value={description} onChange={e => setDescription(e.target.value)} rows={4} /></div>
           <div className="space-y-1.5"><Label>{tr("product_edit.category")}</Label><Input value={category} onChange={e => setCategory(e.target.value)} /></div>
@@ -193,9 +225,17 @@ function ProductEditContent() {
             <div className="space-y-1.5"><Label>{tr("product_edit.departure_port")}</Label><Input value={portDepart} onChange={e => setPortDepart(e.target.value)} /></div>
             <div className="space-y-1.5"><Label>{tr("product_edit.fob_price")}</Label><Input type="number" step="0.01" value={priceFob} onChange={e => setPriceFob(parseFloat(e.target.value) || 0)} /></div>
           </div>
-          <Button className="gap-2" onClick={() => void save()} disabled={saving}>
-            <Save className="h-4 w-4" /> {saving ? tr("common.saving") : tr("common.save")}
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button className="gap-2 flex-1" onClick={() => void save()} disabled={saving}>
+              <Save className="h-4 w-4" /> {saving ? tr("common.saving") : tr("common.save")}
+            </Button>
+            {!isNew && (
+              <Button type="button" variant="outline" className="gap-2" disabled={duplicating} onClick={() => void duplicate()}>
+                {duplicating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
+                {tr("product_edit.duplicate")}
+              </Button>
+            )}
+          </div>
         </div>
       </main>
     </div>

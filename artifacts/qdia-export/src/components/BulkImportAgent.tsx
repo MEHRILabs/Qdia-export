@@ -22,6 +22,13 @@ interface BulkItem {
   product_id?: number;
   image_url?: string;
   message?: string;
+  row?: number;
+}
+
+interface ImportError {
+  row?: number;
+  name: string;
+  message: string;
 }
 
 interface Props {
@@ -41,6 +48,7 @@ export function BulkImportAgent({ onDone }: Props) {
   const [importing, setImporting] = useState(false);
   const [preview, setPreview] = useState<ScrapedImage[]>([]);
   const [results, setResults] = useState<BulkItem[]>([]);
+  const [importErrors, setImportErrors] = useState<ImportError[]>([]);
 
   const authHeaders = (): Record<string, string> => {
     const token = getAuthToken();
@@ -108,6 +116,7 @@ export function BulkImportAgent({ onDone }: Props) {
 
     setImporting(true);
     setResults([]);
+    setImportErrors([]);
     try {
       const onlyExcelImport = !!excelB64 && sources.length === 0 && images.length === 0;
       const endpoint = onlyExcelImport ? apiUrl("/api/products/import-excel") : apiUrl("/api/ai/bulk-import");
@@ -132,14 +141,15 @@ export function BulkImportAgent({ onDone }: Props) {
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error ?? "Import échoué");
       if (onlyExcelImport) {
-        setResults((data.products ?? []).slice(0, 30).map((product: { id: number; name: string }) => ({
+        setResults((data.products ?? []).map((product: { id: number; name: string }) => ({
           name: product.name,
           status: "imported",
           product_id: product.id,
         })));
+        setImportErrors((data.errors ?? []) as ImportError[]);
         toast({
           title: tr("bulk_import.import_done"),
-          description: `${data.imported ?? 0} produit(s) importé(s) depuis Excel${data.ai_enrichment_scheduled === false ? " sans enrichissement IA immédiat" : ""}.`,
+          description: `${data.imported ?? 0}/${data.total_rows ?? 0} ${tr("bulk_import.imported_label")}${(data.errors?.length ?? 0) ? ` · ${data.errors.length} ${tr("bulk_import.errors_label")}` : ""}`,
         });
       } else {
         setResults(data.items ?? []);
@@ -243,12 +253,25 @@ export function BulkImportAgent({ onDone }: Props) {
 
       {results.length > 0 && (
         <div className="rounded-lg border p-3 max-h-40 overflow-y-auto text-xs space-y-1">
+          <p className="font-bold text-green-700 mb-1">{tr("bulk_import.success_list")} ({results.length})</p>
           {results.map((r, i) => (
             <div key={i} className="flex justify-between gap-2">
               <span className="truncate">{r.name}</span>
-              <span className={r.status === "imported" ? "text-green-600 font-semibold" : "text-red-500"}>
+              <span className="text-green-600 font-semibold shrink-0">
                 {r.status}{r.product_id ? ` #${r.product_id}` : ""}
               </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {importErrors.length > 0 && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 max-h-48 overflow-y-auto text-xs space-y-1">
+          <p className="font-bold text-red-700 mb-1">{tr("bulk_import.error_list")} ({importErrors.length})</p>
+          {importErrors.map((e, i) => (
+            <div key={i} className="text-red-800">
+              {e.row ? `${tr("bulk_import.row")} ${e.row} · ` : ""}
+              <strong>{e.name}</strong> — {e.message}
             </div>
           ))}
         </div>

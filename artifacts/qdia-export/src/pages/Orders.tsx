@@ -8,7 +8,8 @@ import { useI18n } from "@/contexts/I18nContext";
 import { useToast } from "@/hooks/use-toast";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { TrackingTimeline } from "@/components/TrackingTimeline";
-import { Package, RefreshCw, MapPin } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Package, RefreshCw, MapPin, Shield, DollarSign } from "lucide-react";
 
 type OrderRow = {
   id: number;
@@ -16,10 +17,19 @@ type OrderRow = {
   total_amount?: number;
   currency?: string;
   payment_method?: string;
+  transaction_id?: number;
   tracking_number?: string;
   carrier?: string;
   created_at?: string;
   items?: Array<{ product_name?: string; quantity?: number }>;
+};
+
+const STATUS_STYLE: Record<string, string> = {
+  pending_payment: "bg-amber-100 text-amber-800",
+  confirmed: "bg-blue-100 text-blue-800",
+  shipped: "bg-green-100 text-green-800",
+  delivered: "bg-emerald-100 text-emerald-800",
+  cancelled: "bg-red-100 text-red-800",
 };
 
 function OrdersContent() {
@@ -42,25 +52,41 @@ function OrdersContent() {
     }
   };
 
+  const fund = async (txId: number) => {
+    try {
+      await platformApi.fundPayment(txId);
+      toast({ title: tr("transactions_page.payment_confirmed") });
+      qc.invalidateQueries({ queryKey: ["orders"] });
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+    } catch (e) {
+      toast({ title: tr("common.error"), description: String(e instanceof Error ? e.message : e), variant: "destructive" });
+    }
+  };
+
   return (
     <div className="min-h-screen qdia-buyer-page flex flex-col">
       <BuyerHeader />
-      <main className="flex-1 p-6 md:p-8 max-w-3xl mx-auto w-full">
-        <h1 className="text-2xl font-black mb-6 flex items-center gap-2">
-          <Package className="h-7 w-7 text-[#0461A5]" /> {tr("orders.title")}
+      <main className="flex-1 p-4 md:p-8 max-w-3xl mx-auto w-full">
+        <h1 className="text-xl md:text-2xl font-black mb-6 flex items-center gap-2">
+          <Package className="h-6 w-6 md:h-7 md:w-7 text-[#0461A5]" /> {tr("orders.title")}
         </h1>
         {isLoading && <p className="text-muted-foreground">{tr("common.loading")}</p>}
-        <div className="space-y-4">
+        <div className="space-y-3">
           {orders.map(o => (
-            <div key={o.id} className="border rounded-xl p-4 space-y-2">
+            <div key={o.id} className="border rounded-xl p-4 space-y-2 bg-card shadow-sm">
               <div className="flex justify-between items-start gap-2">
                 <span className="font-semibold">{tr("orders.order").replace("{id}", String(o.id))}</span>
-                <Badge>{o.status}</Badge>
+                <Badge className={cn("text-[10px]", STATUS_STYLE[o.status] ?? "")}>{o.status}</Badge>
               </div>
               {o.total_amount != null && (
                 <p className="text-sm">{tr("orders.total")} <strong>{o.total_amount.toFixed(2)} {o.currency ?? "USD"}</strong></p>
               )}
               {o.payment_method && <p className="text-xs text-muted-foreground">{tr("transactions_page.method")} {o.payment_method}</p>}
+              {o.transaction_id && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <DollarSign className="h-3 w-3" /> {tr("transactions_page.transaction").replace("{id}", String(o.transaction_id))}
+                </p>
+              )}
               {o.items?.map((it, i) => (
                 <p key={i} className="text-sm text-muted-foreground">{it.product_name} × {it.quantity}</p>
               ))}
@@ -74,6 +100,11 @@ function OrdersContent() {
                 <TrackingTimeline status={o.status} trackingNumber={o.tracking_number} />
               )}
               <div className="flex flex-wrap gap-2 pt-1">
+                {o.status === "pending_payment" && o.transaction_id && (
+                  <Button size="sm" className="gap-1 flex-1 sm:flex-none" onClick={() => void fund(o.transaction_id!)}>
+                    <Shield className="h-3 w-3" /> {tr("checkout.pay_escrow")}
+                  </Button>
+                )}
                 <Button size="sm" variant="outline" className="gap-1" onClick={() => void reorder(o.id)}>
                   <RefreshCw className="h-3 w-3" /> {tr("reorder.button")}
                 </Button>
@@ -82,6 +113,11 @@ function OrdersContent() {
                     <Link href={`/suivi?number=${encodeURIComponent(o.tracking_number)}${o.carrier ? `&carrier=${o.carrier}` : ""}`}>
                       {tr("tracking.page_title")}
                     </Link>
+                  </Button>
+                )}
+                {o.transaction_id && (
+                  <Button size="sm" variant="ghost" asChild>
+                    <Link href="/transactions">{tr("checkout.view_transaction")}</Link>
                   </Button>
                 )}
               </div>

@@ -11,6 +11,7 @@ import { ProductImage } from "@/components/ProductImage";
 import { ExcelImportButton, ExcelImportHint } from "@/components/ExcelImportButton";
 import { BulkImportAgent } from "@/components/BulkImportAgent";
 import { BulkImportTemplateCard } from "@/components/BulkImportTemplateCard";
+import { SupplierOrdersPanel } from "@/components/SupplierOrdersPanel";
 import { platformApi } from "@/lib/platform-api";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -120,6 +121,9 @@ export default function Supplier() {
                 fetch(`${BASE}/api/products?scope=supplier&limit=50`)
                   .then(r => r.json()).then(setProductList).finally(() => setIsLoading(false));
               }} />
+              <Button variant="outline" className="gap-2 font-semibold" asChild>
+                <Link href="/supplier/products/new"><Plus className="h-4 w-4" /> {tr("product_edit.new_title")}</Link>
+              </Button>
               <Button className="gap-2 font-semibold" asChild>
                 <Link href="/agent-ia?new=1"><Plus className="h-4 w-4" /> {tr("supplier_page.new_product")}</Link>
               </Button>
@@ -156,6 +160,11 @@ export default function Supplier() {
               fetch(`${BASE}/api/products?scope=supplier&limit=50`)
                 .then(r => r.json()).then(setProductList).finally(() => setIsLoading(false));
             }} />
+          </div>
+
+          <div className="mb-8">
+            <h2 className="font-semibold mb-3">{tr("supplier_orders.title")}</h2>
+            <SupplierOrdersPanel compact />
           </div>
 
           <div className="bg-card rounded-xl border overflow-hidden shadow-sm">

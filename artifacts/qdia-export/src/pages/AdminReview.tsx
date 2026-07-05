@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
-import { CheckCircle2, XCircle, Clock, Loader2, Database, Sparkles, ImageIcon, DollarSign, Pencil, Package, MessageSquare, Factory } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, Loader2, Database, Sparkles, ImageIcon, DollarSign, Pencil, Package, MessageSquare, Factory, ChevronDown } from "lucide-react";
 import { ProductImage } from "@/components/ProductImage";
 import { platformApi } from "@/lib/platform-api";
 import { useI18n } from "@/contexts/I18nContext";
@@ -89,6 +89,14 @@ export default function AdminReview() {
   const [photoUpdating, setPhotoUpdating] = useState<number | null>(null);
 
   const [activeTab, setActiveTab] = useState("products");
+  const [toolsOpen, setToolsOpen] = useState(false);
+
+  const getAuthHeaders = (): HeadersInit => {
+    const token = localStorage.getItem("qdia_auth_token");
+    return token
+      ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
+      : { "Content-Type": "application/json" };
+  };
 
   const loadPending = useCallback(async () => {
     setLoading(true);
@@ -118,7 +126,7 @@ export default function AdminReview() {
       if (!result.ok || !result.photo_updated) {
         throw new Error("Photo IA non générée — vérifiez OPENAI_API_KEY");
       }
-      toast({ title: "Photo générée", description: `Produit #${productId}` });
+      toast({ title: tr("admin.photo_generated"), description: `#${productId}` });
       loadPending();
     } catch (e) {
       toast({
@@ -136,8 +144,11 @@ export default function AdminReview() {
     try {
       const result = await platformApi.enrichProductsBatch({ limit, generate_photos: true });
       toast({
-        title: "Enrichissement terminé",
-        description: `${result.enriched} enrichi(s) · ${result.photos_generated} photo(s) · ${result.pricing_updated} prix`,
+        title: tr("admin.enrich_done"),
+        description: tr("admin.enrich_done_desc")
+          .replace("{enriched}", String(result.enriched))
+          .replace("{photos}", String(result.photos_generated))
+          .replace("{pricing}", String(result.pricing_updated)),
       });
       const status = await platformApi.getEnrichmentStatus();
       setEnrichStatus(status);
@@ -160,7 +171,7 @@ export default function AdminReview() {
     try {
       const resp = await fetch(`${BASE}/api/products/${id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ export_status }),
       });
       if (!resp.ok) throw new Error("Échec");
@@ -200,12 +211,21 @@ export default function AdminReview() {
             <span className="font-bold text-sm">{tr("nav.admin")}</span>
             <span className="w-16" aria-hidden />
           </header>
-          <h1 className="text-xl md:text-2xl font-bold mb-1 flex items-center gap-2">
-            <Clock className="h-5 w-5 md:h-6 md:w-6 text-primary" /> {tr("admin.page_title")}
-          </h1>
-          <p className="text-muted-foreground text-xs md:text-sm">{tr("admin.page_subtitle")}</p>
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <h1 className="text-xl md:text-2xl font-bold mb-1 flex items-center gap-2">
+                <Clock className="h-5 w-5 md:h-6 md:w-6 text-primary" /> {tr("admin.page_title")}
+              </h1>
+              <p className="text-muted-foreground text-xs md:text-sm">{tr("admin.page_subtitle")}</p>
+            </div>
+            {activeTab === "products" && !loading && products.length > 0 && (
+              <Badge variant="secondary" className="shrink-0 mt-1">
+                {tr("admin.pending_count").replace("{count}", String(products.length))}
+              </Badge>
+            )}
+          </div>
           {adminStats && (activeTab === "products" || !isMobile) && (
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 md:gap-3 mt-3 md:mt-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 md:gap-3 mt-3 md:mt-4">
               {(
                 [
                   [tr("admin.users"), adminStats.users],
@@ -213,6 +233,8 @@ export default function AdminReview() {
                   [tr("admin.orders_count"), adminStats.orders_count ?? 0],
                   [tr("admin.volume_usd"), adminStats.transaction_volume_usd ?? 0],
                   [tr("admin.commission"), `$${adminStats.total_commission_usd ?? 0}`],
+                  [tr("admin.export_authorized_count"), adminStats.export_authorized ?? 0],
+                  [tr("admin.export_pending_count"), adminStats.export_pending ?? 0],
                 ] as [string, string | number][]
               ).map(([label, val]) => (
                 <div key={String(label)} className="rounded-lg border bg-card p-3 text-center">
@@ -223,27 +245,43 @@ export default function AdminReview() {
             </div>
           )}
           {enrichStatus && activeTab === "products" && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 mt-3 md:mt-4">
               {(
                 [
-                  ["Total produits", enrichStatus.total, DollarSign],
-                  ["Sans photo", enrichStatus.without_photo, ImageIcon],
-                  ["Sans prix", enrichStatus.without_pricing, DollarSign],
-                  ["En attente validation", enrichStatus.ready_for_review, Clock],
+                  [tr("admin.enrich_total"), enrichStatus.total, DollarSign],
+                  [tr("admin.enrich_no_photo"), enrichStatus.without_photo, ImageIcon],
+                  [tr("admin.enrich_no_price"), enrichStatus.without_pricing, DollarSign],
+                  [tr("admin.enrich_pending"), enrichStatus.ready_for_review, Clock],
                 ] as const
               ).map(([label, val, Icon]) => (
-                <div key={label} className="rounded-lg border bg-card p-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Icon className="h-4 w-4 text-primary" />
-                    <p className="text-[10px] text-muted-foreground uppercase">{label}</p>
+                <div key={label} className="rounded-lg border bg-card p-2.5 md:p-3">
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <Icon className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <p className="text-[9px] md:text-[10px] text-muted-foreground uppercase leading-tight">{label}</p>
                   </div>
-                  <p className="text-xl font-black text-primary">{val}</p>
+                  <p className="text-lg md:text-xl font-black text-primary">{val}</p>
                 </div>
               ))}
             </div>
           )}
           {activeTab === "products" && (
-          <div className="flex flex-col sm:flex-row flex-wrap gap-2 mt-3 md:mt-4">
+          <div className="mt-3 md:mt-4">
+            <button
+              type="button"
+              className="md:hidden w-full flex items-center justify-between rounded-lg border bg-card px-3 py-2.5 text-sm font-medium"
+              onClick={() => setToolsOpen(o => !o)}
+            >
+              <span className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                {tr("admin.tools_title")}
+              </span>
+              <ChevronDown className={cn("h-4 w-4 transition-transform", toolsOpen && "rotate-180")} />
+            </button>
+            <div className={cn(
+              "flex flex-col sm:flex-row flex-wrap gap-2",
+              "md:flex",
+              toolsOpen ? "flex mt-2" : "hidden md:flex",
+            )}>
             <Button variant="outline" size="sm" className="gap-2" onClick={migrateMysql}>
               <Database className="h-4 w-4" /> {tr("admin.migrate_mysql")}
             </Button>
@@ -255,7 +293,7 @@ export default function AdminReview() {
               onClick={() => runEnrichment(50)}
             >
               {enriching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              Enrichir 50 produits (prix + photos IA)
+              {tr("admin.enrich_batch_50")}
             </Button>
             <Button
               variant="outline"
@@ -264,8 +302,38 @@ export default function AdminReview() {
               disabled={enriching}
               onClick={() => runEnrichment(200)}
             >
-              Enrichir lot 200
+              {tr("admin.enrich_batch_200")}
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              disabled={enriching}
+              onClick={async () => {
+                setEnriching(true);
+                try {
+                  const result = await platformApi.enrichProductsBatch({
+                    limit: 50,
+                    generate_photos: true,
+                    skip_pricing: true,
+                    only_without_photo: true,
+                  });
+                  toast({
+                    title: tr("admin.photos_batch_btn"),
+                    description: `${result.photos_generated} photo(s) · ${result.enriched} enrichi(s)`,
+                  });
+                  loadPending();
+                } catch (e) {
+                  toast({ title: tr("common.error"), description: String(e instanceof Error ? e.message : e), variant: "destructive" });
+                } finally {
+                  setEnriching(false);
+                }
+              }}
+            >
+              {enriching ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
+              {tr("admin.photos_batch_btn")}
+            </Button>
+          </div>
           </div>
           )}
         </div>
@@ -293,43 +361,44 @@ export default function AdminReview() {
 
         <div className="space-y-3">
           {products.map(p => (
-            <div key={p.id} className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-3 sm:p-4 border rounded-xl bg-card">
-              <div className="flex items-center gap-3 min-w-0 flex-1">
-              <div className="h-14 w-14 rounded-lg bg-muted overflow-hidden shrink-0 flex items-center justify-center">
+            <div key={p.id} className="flex flex-col gap-3 p-3 sm:p-4 border rounded-xl bg-card shadow-sm">
+              <div className="flex items-start gap-3 min-w-0">
+              <div className="h-16 w-16 sm:h-14 sm:w-14 rounded-lg bg-muted overflow-hidden shrink-0 flex items-center justify-center">
                 <ProductImage src={p.image_url} alt={p.name} compact className="h-full w-full" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-medium truncate">{p.name}</div>
-                <div className="text-xs text-muted-foreground flex flex-wrap gap-2 mt-0.5">
-                  <Badge variant="outline">{p.category}</Badge>
-                  <span>FOB ${p.prices.fob} · CIF ${p.prices.cif}</span>
+                <div className="font-semibold text-sm sm:text-base leading-snug">{p.name}</div>
+                <div className="text-xs text-muted-foreground flex flex-wrap gap-x-2 gap-y-1 mt-1">
+                  <Badge variant="outline" className="text-[10px]">{p.category}</Badge>
+                  <span>FOB ${p.prices.fob}</span>
+                  <span>CIF ${p.prices.cif}</span>
                   <span>MOQ {p.moq} {p.moq_unit}</span>
                 </div>
               </div>
               </div>
-              <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 shrink-0">
-                <Link href={`/supplier/products/${p.id}/edit`}>
-                  <Button size="sm" variant="outline" className="gap-1" title="Modifier / uploader photo">
-                    <Pencil className="h-3 w-3" /> Photo
+              <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
+                <Link href={`/supplier/products/${p.id}/edit`} className="col-span-1">
+                  <Button size="sm" variant="outline" className="gap-1 w-full sm:w-auto">
+                    <Pencil className="h-3 w-3" /> {tr("admin.edit_photo")}
                   </Button>
                 </Link>
                 <Button
                   size="sm"
                   variant="outline"
-                  className="gap-1"
+                  className="gap-1 col-span-1"
                   disabled={photoUpdating === p.id}
                   onClick={() => void generatePhoto(p.id)}
                 >
                   {photoUpdating === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                  IA
+                  {tr("admin.ai_photo")}
                 </Button>
-                <Button size="sm" variant="outline" className="gap-1 text-green-700 border-green-300"
+                <Button size="sm" variant="default" className="gap-1 col-span-1"
                   disabled={updating === p.id}
                   onClick={() => updateStatus(p.id, "published")}>
                   {updating === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
                   {tr("admin.approve")}
                 </Button>
-                <Button size="sm" variant="outline" className="gap-1 text-red-600 border-red-200"
+                <Button size="sm" variant="outline" className="gap-1 text-red-600 border-red-200 col-span-1"
                   disabled={updating === p.id}
                   onClick={() => updateStatus(p.id, "suspended")}>
                   <XCircle className="h-3 w-3" /> {tr("admin.reject")}

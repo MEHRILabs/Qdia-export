@@ -28,6 +28,7 @@ export interface SupplierContact {
 
 export interface CheckoutResult {
   id: number;
+  transaction_id?: number;
   supplier_contact?: SupplierContact | null;
 }
 
@@ -309,7 +310,20 @@ export const platformApi = {
       published: number;
     }>("/api/products/enrich/status"),
 
-  enrichProductsBatch: (opts?: { limit?: number; generate_photos?: boolean; skip_pricing?: boolean }) =>
+  createProduct: (data: Record<string, unknown>) =>
+    api<Record<string, unknown>>("/api/products", { method: "POST", body: JSON.stringify(data) }),
+
+  bulkExportAuth: (data: {
+    export_authorized: boolean;
+    ids?: number[];
+    filter?: "pending" | "authorized" | "all";
+    limit?: number;
+  }) => api<{ updated: number; ids: number[] }>("/api/products/bulk-export-auth", {
+    method: "POST",
+    body: JSON.stringify(data),
+  }),
+
+  enrichProductsBatch: (opts?: { limit?: number; generate_photos?: boolean; skip_pricing?: boolean; only_without_photo?: boolean }) =>
     api<{
       enriched: number;
       skipped: number;
@@ -324,6 +338,9 @@ export const platformApi = {
     else if (filter === "authorized") q.set("export_authorized", "true");
     return api<{ data: Array<Record<string, unknown>> }>(`/api/products?${q.toString()}`);
   },
+
+  duplicateProduct: (id: number) =>
+    api<Record<string, unknown>>(`/api/products/${id}/duplicate`, { method: "POST" }),
 
   patchProductExport: (id: number, data: { export_authorized?: boolean; stock_countries?: string[] }) =>
     api(`/api/products/${id}`, { method: "PATCH", body: JSON.stringify(data) }),

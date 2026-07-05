@@ -270,6 +270,9 @@ class ApiService {
         body: jsonEncode(body),
       ).then(_decode);
 
+  Future<Map<String, dynamic>> duplicateProduct(int id) =>
+      post('/api/products/$id/duplicate', {});
+
   Future<List<dynamic>> getCategories() async {
     final data = await get('/api/categories');
     return (data['data'] ?? data['categories'] ?? []) as List<dynamic>;

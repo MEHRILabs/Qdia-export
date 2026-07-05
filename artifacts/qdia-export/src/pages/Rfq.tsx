@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { UploadCloud, CheckCircle2, ArrowRight, X } from "lucide-react";
+import { UploadCloud, CheckCircle2, ArrowRight, X, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { BuyerHeader, BuyerFooter } from "@/components/BuyerHeader";
 import { useI18n } from "@/contexts/I18nContext";
@@ -98,7 +98,7 @@ export default function Rfq() {
     const added: PendingFile[] = [];
     for (const f of Array.from(list)) {
       if (f.size > 10 * 1024 * 1024) {
-        toast({ title: "Fichier trop volumineux", description: f.name, variant: "destructive" });
+        toast({ title: tr("rfq_page.file_too_large"), description: f.name, variant: "destructive" });
         continue;
       }
       added.push(await fileToBase64(f));
@@ -110,7 +110,7 @@ export default function Rfq() {
     if (step === 1) {
       const ok = await form.trigger(["product_name", "quantity", "quantity_unit"]);
       if (ok) setStep(2);
-      else toast({ title: "Champs requis", description: "Complétez le produit et la quantité.", variant: "destructive" });
+      else toast({ title: tr("rfq_page.fields_required"), description: tr("rfq_page.fields_required_desc"), variant: "destructive" });
       return;
     }
     if (step === 2) {
@@ -125,7 +125,7 @@ export default function Rfq() {
           const field = issue.path[0] as keyof RfqFormValues;
           form.setError(field, { message: issue.message });
         }
-        toast({ title: "Logistique incomplète", description: "Renseignez destination, port et Incoterm.", variant: "destructive" });
+        toast({ title: tr("rfq_page.logistics_incomplete"), description: tr("rfq_page.logistics_incomplete_desc"), variant: "destructive" });
         return;
       }
       setStep(3);
@@ -135,7 +135,7 @@ export default function Rfq() {
   const onSubmit = async (data: RfqFormValues) => {
     const parsed = rfqSubmitSchema.safeParse(data);
     if (!parsed.success) {
-      toast({ title: "Formulaire incomplet", variant: "destructive" });
+      toast({ title: tr("rfq_page.form_incomplete"), variant: "destructive" });
       return;
     }
 
@@ -153,14 +153,14 @@ export default function Rfq() {
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? "Erreur envoi");
       toast({
-        title: "Demande envoyée",
-        description: "Votre RFQ a été transmise aux exportateurs vérifiés QDIA.",
+        title: tr("rfq_page.submit_success"),
+        description: tr("rfq_page.submit_success_desc"),
       });
       setLocation("/mes-rfq");
     } catch (e) {
       toast({
-        title: "Échec de l'envoi",
-        description: e instanceof Error ? e.message : "Réessayez.",
+        title: tr("rfq_page.submit_failed"),
+        description: e instanceof Error ? e.message : tr("common.retry"),
         variant: "destructive",
       });
     } finally {
@@ -174,37 +174,40 @@ export default function Rfq() {
     <div className="min-h-screen qdia-buyer-page flex flex-col">
       <BuyerHeader />
 
-      <main className="flex-1 p-6 md:p-8 max-w-3xl mx-auto w-full">
-        <h1 className="text-3xl font-bold mb-2 text-center text-[#073B74]">{tr("rfq.title")}</h1>
-        <p className="text-center text-sm text-[#9CA3AF] mb-8">
+      <main className="flex-1 p-4 md:p-8 max-w-3xl mx-auto w-full pb-28 md:pb-8">
+        <h1 className="text-2xl md:text-3xl font-bold mb-1 text-center text-[#073B74]">{tr("rfq.title")}</h1>
+        <p className="text-center text-xs md:text-sm text-[#9CA3AF] mb-2">
           {tr("rfq.subtitle")} 🇩🇿
         </p>
+        <p className="text-center text-[10px] text-muted-foreground mb-6 md:hidden">
+          {tr("rfq_page.step_of").replace("{step}", String(step))}
+        </p>
 
-        <div className="flex items-center justify-between mb-8 relative">
-          <div className="absolute top-1/2 left-0 w-full h-1 bg-muted -z-10 -translate-y-1/2 rounded-full" />
+        <div className="flex items-center justify-between mb-6 md:mb-8 relative px-1">
+          <div className="absolute top-4 md:top-1/2 left-4 right-4 h-1 bg-muted -z-10 md:-translate-y-1/2 rounded-full" />
           <div
-            className="absolute top-1/2 left-0 h-1 bg-primary -z-10 -translate-y-1/2 rounded-full transition-all duration-300"
-            style={{ width: `${(step - 1) * 50}%` }}
+            className="absolute top-4 md:top-1/2 left-4 h-1 bg-primary -z-10 md:-translate-y-1/2 rounded-full transition-all duration-300"
+            style={{ width: `calc(${(step - 1) * 50}% - 1rem)` }}
           />
           {[
             { n: 1, label: tr("rfq.step_product") },
             { n: 2, label: tr("rfq.step_logistics") },
             { n: 3, label: tr("rfq.step_validation") },
           ].map(({ n, label }) => (
-            <div key={n} className="flex flex-col items-center gap-2 bg-background px-2">
+            <div key={n} className="flex flex-col items-center gap-1 md:gap-2 bg-background px-1 md:px-2">
               <div className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm transition-colors
                 ${step >= n ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground border"}`}>
                 {step > n ? <CheckCircle2 className="h-5 w-5" /> : n}
               </div>
-              <span className={`text-xs font-medium ${step >= n ? "text-primary" : "text-muted-foreground"}`}>
+              <span className={`hidden sm:block text-xs font-medium text-center leading-tight max-w-[72px] ${step >= n ? "text-primary" : "text-muted-foreground"}`}>
                 {label}
               </span>
             </div>
           ))}
         </div>
 
-        <Card>
-          <CardContent className="p-6 md:p-8">
+        <Card className="shadow-sm">
+          <CardContent className="p-4 md:p-8">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 {step === 1 && (
@@ -222,7 +225,7 @@ export default function Rfq() {
                         </FormItem>
                       )}
                     />
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
                         name="quantity"
@@ -266,7 +269,7 @@ export default function Rfq() {
                       name="target_price"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Prix cible (USD) — optionnel</FormLabel>
+                          <FormLabel>{tr("rfq_page.target_price_optional")}</FormLabel>
                           <FormControl>
                             <Input type="number" placeholder="Ex : 5.50" {...field} value={field.value || ""} />
                           </FormControl>
@@ -401,7 +404,7 @@ export default function Rfq() {
                       name="requested_incoterm"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Incoterm souhaité</FormLabel>
+                          <FormLabel>{tr("rfq_page.incoterm_label")}</FormLabel>
                           <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <FormControl>
                               <SelectTrigger>
@@ -424,7 +427,7 @@ export default function Rfq() {
                       name="message"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Exigences supplémentaires / message</FormLabel>
+                          <FormLabel>{tr("rfq_page.message_label")}</FormLabel>
                           <FormControl>
                             <Textarea
                               placeholder={tr("rfq_page.message_placeholder")}
@@ -443,7 +446,7 @@ export default function Rfq() {
                   <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
                     <div className="bg-muted p-4 rounded-lg space-y-4 text-sm">
                       <h3 className="font-semibold border-b pb-2">{tr("rfq_page.summary")}</h3>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <span className="text-muted-foreground block text-xs">{tr("rfq_page.summary_product")}</span>
                           <span className="font-medium">{currentData.product_name}</span>
@@ -481,7 +484,7 @@ export default function Rfq() {
                   </div>
                 )}
 
-                <div className="flex justify-between pt-4">
+                <div className="hidden md:flex justify-between pt-4">
                   {step > 1 ? (
                     <Button type="button" variant="outline" onClick={() => setStep(step - 1)}>
                       {tr("common.back")}
@@ -504,6 +507,29 @@ export default function Rfq() {
           </CardContent>
         </Card>
       </main>
+
+      <div className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t bg-card/95 backdrop-blur p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
+        <div className="flex gap-2 max-w-3xl mx-auto">
+          {step > 1 && (
+            <Button type="button" variant="outline" className="flex-1" onClick={() => setStep(step - 1)}>
+              {tr("common.back")}
+            </Button>
+          )}
+          <Button
+            type="button"
+            className="flex-1 gap-2"
+            disabled={submitting}
+            onClick={() => {
+              if (step < 3) void goNextStep();
+              else form.handleSubmit(onSubmit)();
+            }}
+          >
+            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {step === 1 ? tr("rfq.next_logistics") : step === 2 ? tr("rfq.next_review") : tr("rfq.submit")}
+            {step < 3 && !submitting && <ArrowRight className="h-4 w-4" />}
+          </Button>
+        </div>
+      </div>
       <BuyerFooter />
     </div>
   );

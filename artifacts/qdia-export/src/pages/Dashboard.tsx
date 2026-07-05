@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { LayoutDashboard, MessageSquare, FileText, TrendingUp, Sparkles, AlertCircle, Wand2 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { useI18n } from "@/contexts/I18nContext";
+import { SupplierOrdersPanel } from "@/components/SupplierOrdersPanel";
 
 export default function Dashboard() {
   const { tr } = useI18n();
@@ -200,6 +201,11 @@ export default function Dashboard() {
                 </div>
               </CardContent>
             </Card>
+          </div>
+
+          <div className="mt-8">
+            <h2 className="text-lg font-bold mb-4">{tr("supplier_orders.title")}</h2>
+            <SupplierOrdersPanel />
           </div>
         </div>
       </main>

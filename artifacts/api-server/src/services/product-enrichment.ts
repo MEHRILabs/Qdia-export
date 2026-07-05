@@ -10,6 +10,7 @@ import { logger } from "../lib/logger";
 export interface EnrichProductOptions {
   generatePhotos?: boolean;
   skipPricing?: boolean;
+  onlyWithoutPhoto?: boolean;
   destinationCountry?: string;
   vendorMarginPct?: number;
 }
@@ -269,6 +270,10 @@ export async function enrichProductBatch(
 
     const pricingMissing = !opts.skipPricing && needsPricing(p);
     const photoMissing = opts.generatePhotos !== false && needsPhoto(p);
+    if (opts.onlyWithoutPhoto && !photoMissing) {
+      result.skipped++;
+      continue;
+    }
     if (!pricingMissing && !photoMissing) {
       result.skipped++;
       continue;

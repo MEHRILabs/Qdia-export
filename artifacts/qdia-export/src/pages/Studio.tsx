@@ -1,5 +1,5 @@
-import { useState, useRef, useMemo } from "react";
-import { Link } from "wouter";
+import { useState, useRef, useMemo, useEffect } from "react";
+import { Link, useLocation } from "wouter";
 import { SupplierSidebar } from "@/components/SupplierSidebar";
 import { StudioCanvas } from "@/components/StudioCanvas";
 import { Button } from "@/components/ui/button";
@@ -9,9 +9,10 @@ import { useToast } from "@/hooks/use-toast";
 import { useI18n } from "@/contexts/I18nContext";
 import { apiUrl } from "@/lib/api-base";
 import { authJsonHeaders, getAuthToken } from "@/lib/api-auth";
+import { platformApi } from "@/lib/platform-api";
 import {
   Sparkles, Eraser, ShieldCheck,
-  Upload, Loader2, Wand2, X, ImageIcon, Scissors,
+  Upload, Loader2, Wand2, X, ImageIcon, Scissors, Save,
 } from "lucide-react";
 
 type StudioAction = "remove_background" | "studio_scene" | "white_background" | "enhance";
@@ -28,6 +29,23 @@ export default function Studio() {
   const [loading, setLoading] = useState(false);
   const [showBadge, setShowBadge] = useState(true);
   const [provider, setProvider] = useState<string | null>(null);
+  const [linkedProductId, setLinkedProductId] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const pid = parseInt(params.get("product") ?? "", 10);
+    if (pid > 0) {
+      setLinkedProductId(pid);
+      fetch(apiUrl(`/api/products/${pid}`))
+        .then(r => r.json())
+        .then(p => {
+          if (p.name) setProductName(p.name);
+        })
+        .catch(() => {});
+    }
+  }, []);
 
   const TOOLS = useMemo(() => [
     { id: "remove_background" as const, label: tr("studio_page.tool_cutout"), desc: tr("studio_page.tool_cutout_desc"), icon: Scissors },
@@ -86,6 +104,21 @@ export default function Studio() {
       toast({ title: tr("common.error"), description: String(e instanceof Error ? e.message : e), variant: "destructive" });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const saveToProduct = async () => {
+    if (!linkedProductId || !result) return;
+    setSaving(true);
+    try {
+      const dataUrl = result.startsWith("data:") ? result : `data:image/jpeg;base64,${result}`;
+      await platformApi.uploadProductImage(linkedProductId, dataUrl);
+      toast({ title: tr("studio_page.saved_to_product"), description: `#${linkedProductId}` });
+      setLocation(`/supplier/products/${linkedProductId}/edit`);
+    } catch (e) {
+      toast({ title: tr("common.error"), description: String(e instanceof Error ? e.message : e), variant: "destructive" });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -183,10 +216,18 @@ export default function Studio() {
                   </span>
                 )}
                 <StudioCanvas originalBase64={image} resultBase64={result} showBadge={showBadge} />
-                <button type="button" onClick={() => { setImage(null); setResult(null); setProvider(null); }}
-                  className="text-xs text-[#9CA3AF] hover:text-[#0461A5] flex items-center gap-1">
-                  <X className="h-3.5 w-3.5" /> {tr("studio_page.new_image")}
-                </button>
+                <div className="flex flex-wrap gap-2 justify-center">
+                  {linkedProductId && result && (
+                    <Button onClick={() => void saveToProduct()} disabled={saving} className="gap-2">
+                      {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                      {tr("studio_page.save_to_product").replace("{id}", String(linkedProductId))}
+                    </Button>
+                  )}
+                  <button type="button" onClick={() => { setImage(null); setResult(null); setProvider(null); }}
+                    className="text-xs text-[#9CA3AF] hover:text-[#0461A5] flex items-center gap-1">
+                    <X className="h-3.5 w-3.5" /> {tr("studio_page.new_image")}
+                  </button>
+                </div>
               </>
             ) : (
               <button type="button" onClick={() => inputRef.current?.click()}
