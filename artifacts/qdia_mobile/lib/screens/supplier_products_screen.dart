@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:qdia_mobile/l10n/app_strings.dart';
+import 'package:qdia_mobile/screens/product_edit_screen.dart';
 import 'package:qdia_mobile/models/product.dart';
 import 'package:qdia_mobile/services/api_service.dart';
 import 'package:qdia_mobile/theme/qdia_theme.dart';
@@ -71,7 +72,11 @@ class _SupplierProductsScreenState extends State<SupplierProductsScreen> {
       appBar: AppBar(
         title: Text(context.tr('nav.products'), style: const TextStyle(fontWeight: FontWeight.w800)),
         actions: [
-          IconButton(onPressed: () => Navigator.pushNamed(context, '/agent-ia'), icon: const Icon(Icons.add)),
+          IconButton(
+            onPressed: () => Navigator.pushNamed(context, '/product-edit'),
+            icon: const Icon(Icons.add),
+            tooltip: context.tr('product_edit.new_title'),
+          ),
         ],
       ),
       body: _loading
@@ -113,6 +118,34 @@ class _SupplierProductsScreenState extends State<SupplierProductsScreen> {
                                       ),
                                     ],
                                   ),
+                                ),
+                                IconButton(
+                                  onPressed: () async {
+                                    final ok = await Navigator.push<bool>(
+                                      context,
+                                      MaterialPageRoute(builder: (_) => ProductEditScreen(productId: p.id)),
+                                    );
+                                    if (ok == true) _load();
+                                  },
+                                  icon: const Icon(Icons.edit_outlined, color: QdiaColors.primary),
+                                ),
+                                IconButton(
+                                  onPressed: () async {
+                                    try {
+                                      await ApiService.instance.duplicateProduct(p.id);
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.tr('product_edit.duplicated'))));
+                                        _load();
+                                      }
+                                    } catch (e) {
+                                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+                                    }
+                                  },
+                                  icon: const Icon(Icons.content_copy, color: QdiaColors.primary),
+                                ),
+                                IconButton(
+                                  onPressed: () => Navigator.pushNamed(context, '/studio', arguments: {'productId': p.id}),
+                                  icon: const Icon(Icons.auto_fix_high, color: QdiaColors.primary),
                                 ),
                                 IconButton(
                                   onPressed: () => _deleteProduct(p),

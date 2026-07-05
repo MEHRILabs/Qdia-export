@@ -7,7 +7,9 @@ import 'package:qdia_mobile/theme/qdia_theme.dart';
 import 'package:qdia_mobile/widgets/product_image.dart';
 
 class StudioScreen extends StatefulWidget {
-  const StudioScreen({super.key});
+  const StudioScreen({super.key, this.linkedProductId});
+
+  final int? linkedProductId;
 
   @override
   State<StudioScreen> createState() => _StudioScreenState();
@@ -82,6 +84,21 @@ class _StudioScreenState extends State<StudioScreen> {
       setState(() => _resultMessage = e.toString());
     }
     setState(() => _loading = false);
+  }
+
+  Future<void> _saveToProduct() async {
+    final pid = widget.linkedProductId;
+    if (pid == null || _imageBase64 == null) return;
+    try {
+      await ApiService.instance.uploadProductImage(pid, _imageBase64!);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('studio.saved_to_product').replaceAll('{id}', '$pid')), backgroundColor: QdiaColors.success),
+        );
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
   }
 
   @override
@@ -161,6 +178,18 @@ class _StudioScreenState extends State<StudioScreen> {
               ),
             ],
             if (_loading) const Padding(padding: EdgeInsets.only(top: 12), child: CircularProgressIndicator()),
+            if (widget.linkedProductId != null && _imageBase64 != null) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _saveToProduct,
+                  icon: const Icon(Icons.save),
+                  label: Text(context.tr('studio.save_to_product').replaceAll('{id}', '${widget.linkedProductId}')),
+                  style: ElevatedButton.styleFrom(backgroundColor: QdiaColors.gold, foregroundColor: QdiaColors.navy),
+                ),
+              ),
+            ],
           ],
         ),
       ),

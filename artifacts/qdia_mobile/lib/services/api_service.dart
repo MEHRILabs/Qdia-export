@@ -210,11 +210,13 @@ class ApiService {
     int limit = 50,
     bool generatePhotos = true,
     bool skipPricing = false,
+    bool onlyWithoutPhoto = false,
   }) =>
       post('/api/products/enrich', {
         'limit': limit,
         'generate_photos': generatePhotos,
         'skip_pricing': skipPricing,
+        if (onlyWithoutPhoto) 'only_without_photo': true,
       });
 
   Future<Map<String, dynamic>> publishProduct(Map<String, dynamic> body) =>
@@ -272,6 +274,18 @@ class ApiService {
 
   Future<Map<String, dynamic>> duplicateProduct(int id) =>
       post('/api/products/$id/duplicate', {});
+
+  Future<Map<String, dynamic>> uploadProductImage(int id, String fileBase64) =>
+      post('/api/products/$id/image', {'file_base64': fileBase64});
+
+  Future<Map<String, dynamic>> importProductsExcel(List<int> fileBytes, {bool publish = false}) =>
+      post('/api/products/import-excel', {
+        'file_base64': base64Encode(fileBytes),
+        if (publish) 'publish': true,
+      });
+
+  Future<Map<String, dynamic>> patchOrder(int orderId, Map<String, dynamic> body) =>
+      patch('/api/orders/$orderId', body);
 
   Future<List<dynamic>> getCategories() async {
     final data = await get('/api/categories');

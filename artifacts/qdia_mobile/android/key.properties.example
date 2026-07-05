@@ -1,0 +1,4 @@
+storePassword=VOTRE_MOT_DE_PASSE_KEYSTORE
+keyPassword=VOTRE_MOT_DE_PASSE_CLE
+keyAlias=qdia
+storeFile=../../release/qdia-upload-keystore.jks

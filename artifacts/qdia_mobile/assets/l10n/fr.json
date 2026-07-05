@@ -267,7 +267,9 @@
     "gallery": "Galerie",
     "cutout": "Détourage",
     "export_white_bg": "Fond blanc export",
-    "processed_success": "Image traitée avec succès"
+    "processed_success": "Image traitée avec succès",
+    "save_to_product": "Enregistrer sur produit #{id}",
+    "saved_to_product": "Photo enregistrée sur le produit #{id}"
   },
   "agent": {
     "title": "Agent IA Export",
@@ -425,7 +427,17 @@
   "transactions": {
     "title": "Transactions & Escrow",
     "confirm_payment": "Confirmer paiement",
-    "release_funds": "Libérer fonds"
+    "release_funds": "Libérer fonds",
+    "filter_all": "Toutes",
+    "filter_pending": "En attente",
+    "filter_funded": "Financées",
+    "filter_released": "Libérées",
+    "total_volume": "Volume total",
+    "count": "Transactions",
+    "empty": "Aucune transaction",
+    "payment_confirmed": "Paiement confirmé",
+    "funds_released": "Fonds libérés",
+    "tx": "Tx"
   },
   "messages": {
     "title": "Messagerie B2B",
@@ -703,6 +715,7 @@
   "product_edit": {
     "back": "Retour aux produits",
     "title": "Modifier le produit",
+    "new_title": "Nouveau produit",
     "name": "Nom",
     "description": "Description",
     "category": "Catégorie",
@@ -710,7 +723,23 @@
     "unit": "Unité",
     "departure_port": "Port départ",
     "fob_price": "Prix FOB (USD)",
-    "updated": "Produit mis à jour"
+    "updated": "Produit mis à jour",
+    "created": "Produit créé",
+    "duplicated": "Produit dupliqué",
+    "duplicate": "Dupliquer",
+    "photo_saved": "Photo enregistrée",
+    "photo_upload": "Importer photo",
+    "open_studio": "Ouvrir Studio IA"
+  },
+  "supplier_orders": {
+    "title": "Commandes fournisseur",
+    "empty": "Aucune commande reçue",
+    "updated": "Commande mise à jour",
+    "tracking": "N° de suivi",
+    "ship": "Expédier",
+    "accept": "Accepter",
+    "reject": "Refuser",
+    "buyer": "Acheteur"
   },
   "supplier_public": {
     "default_name": "Exportateur #{id}",
@@ -744,7 +773,11 @@
     "quote_accepted": "Devis accepté",
     "quote_accepted_desc": "Transaction créée — commission QDIA 3 %",
     "swift_ref": "Référence SWIFT",
-    "lc_number": "N° lettre de crédit"
+    "lc_number": "N° lettre de crédit",
+    "choose_payment": "Choisir le mode de paiement",
+    "filter_quoted": "Devis reçus",
+    "filter_accepted": "Acceptés",
+    "filter_shipped": "Expédiés"
   },
   "facturation_page": {
     "step1_title": "1. Choisir le produit",
@@ -928,7 +961,11 @@
     "payment_method": "Mode de paiement",
     "trade_assurance": "Protection Trade Assurance incluse",
     "confirm": "Confirmer la commande",
-    "success": "Commande créée avec succès"
+    "success": "Commande créée avec succès",
+    "transaction_created": "Transaction Escrow #{id} créée",
+    "view_transaction": "Voir la transaction",
+    "view_orders": "Voir mes commandes",
+    "pay_escrow": "Payer via Escrow"
   },
   "orders": {
     "empty": "Aucune commande",
@@ -937,6 +974,7 @@
     "reorder": "Réacheter",
     "reorder_success": "Produits ajoutés au panier",
     "status_pending_payment": "Paiement en attente",
+    "status_confirmed": "Confirmée",
     "status_paid": "Payée",
     "status_shipped": "Expédiée",
     "status_delivered": "Livrée"
@@ -986,6 +1024,7 @@
     "notifications_off": "Notifications désactivées",
     "notifications_permission_denied": "Autorisez les notifications dans les paramètres Android",
     "section_account": "Compte",
+    "section_commerce": "Commerce B2B",
     "section_exporter": "Exportateur",
     "section_preferences": "Préférences",
     "section_app": "Application",
@@ -1068,6 +1107,7 @@
     "stat_without_pricing": "Sans prix",
     "stat_published": "Publiés",
     "enrich_50": "Enrichir 50 produits",
+    "photos_without_image_50": "Photos IA ×50 (sans image)",
     "price_only_200": "Prix seulement (200)",
     "refresh_stats": "Actualiser les stats",
     "status_error": "Erreur statut : {error}",

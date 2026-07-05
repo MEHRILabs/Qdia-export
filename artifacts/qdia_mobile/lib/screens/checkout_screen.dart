@@ -19,12 +19,39 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Future<void> _confirm() async {
     setState(() => _submitting = true);
     try {
-      await ApiService.instance.checkoutCart(paymentMethod: _payment);
+      final result = await ApiService.instance.checkoutCart(paymentMethod: _payment);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.tr('checkout.success')), backgroundColor: QdiaColors.success),
+        final txId = result['transaction_id'];
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(ctx.tr('checkout.success')),
+            content: Text(
+              txId != null
+                  ? ctx.tr('checkout.transaction_created').replaceAll('{id}', '$txId')
+                  : ctx.tr('checkout.success'),
+            ),
+            actions: [
+              if (txId != null)
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    Navigator.pop(context, true);
+                    Navigator.pushNamed(context, '/transactions');
+                  },
+                  child: Text(ctx.tr('checkout.view_transaction')),
+                ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  Navigator.pop(context, true);
+                  Navigator.pushNamed(context, '/orders');
+                },
+                child: Text(ctx.tr('checkout.view_orders')),
+              ),
+            ],
+          ),
         );
-        Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {

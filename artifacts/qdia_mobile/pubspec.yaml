@@ -1,7 +1,7 @@
 name: qdia_mobile
 description: "QDIA Export DZ — marketplace B2B export algérien"
 publish_to: 'none'
-version: 0.1.0
+version: 0.1.0+1
 
 environment:
   sdk: ^3.10.4

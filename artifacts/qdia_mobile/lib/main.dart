@@ -17,8 +17,11 @@ import 'package:qdia_mobile/screens/my_rfqs_screen.dart';
 import 'package:qdia_mobile/screens/inquiries_screen.dart';
 import 'package:qdia_mobile/screens/facturation_screen.dart';
 import 'package:qdia_mobile/screens/profile_screen.dart';
-import 'package:qdia_mobile/screens/notifications_screen.dart';
+import 'package:qdia_mobile/screens/product_edit_screen.dart';
+import 'package:qdia_mobile/screens/supplier_orders_screen.dart';
+import 'package:qdia_mobile/screens/transactions_screen.dart';
 import 'package:qdia_mobile/screens/shell_screen.dart';
+import 'package:qdia_mobile/screens/notifications_screen.dart';
 import 'package:qdia_mobile/services/api_service.dart';
 import 'package:qdia_mobile/services/local_notification_service.dart';
 import 'package:qdia_mobile/theme/qdia_theme.dart';
@@ -90,7 +93,11 @@ class _QdiaAppState extends State<QdiaApp> {
         home: const ShellScreen(),
         routes: {
           '/agent-ia': (_) => const AgentIaScreen(),
-          '/studio': (_) => const StudioScreen(),
+          '/studio': (ctx) {
+            final args = ModalRoute.of(ctx)?.settings.arguments;
+            final productId = args is Map ? (args['productId'] as num?)?.toInt() : null;
+            return StudioScreen(linkedProductId: productId);
+          },
           '/settings': (_) => const SettingsScreen(),
           '/dashboard': (_) => const DashboardScreen(),
           '/supplier-products': (_) => const SupplierProductsScreen(),
@@ -103,6 +110,13 @@ class _QdiaAppState extends State<QdiaApp> {
           '/orders': (_) => const OrdersScreen(),
           '/tracking': (_) => const TrackingScreen(),
           '/trade-assurance': (_) => const TradeAssuranceScreen(),
+          '/transactions': (_) => const TransactionsScreen(),
+          '/supplier-orders': (_) => const SupplierOrdersScreen(),
+          '/product-edit': (ctx) {
+            final args = ModalRoute.of(ctx)?.settings.arguments;
+            final id = args is Map ? (args['productId'] as num?)?.toInt() : null;
+            return ProductEditScreen(productId: id);
+          },
         },
       ),
     );

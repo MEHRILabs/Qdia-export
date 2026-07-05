@@ -13,6 +13,7 @@ class InquiriesScreen extends StatefulWidget {
 class _InquiriesScreenState extends State<InquiriesScreen> {
   List<dynamic> _rfqs = [];
   bool _loading = true;
+  String _filter = 'all';
   final _priceCtrl = TextEditingController();
   final _msgCtrl = TextEditingController();
   final _trackCtrl = TextEditingController();
@@ -37,6 +38,11 @@ class _InquiriesScreenState extends State<InquiriesScreen> {
       _rfqs = await ApiService.instance.getRfqs();
     } catch (_) {}
     if (mounted) setState(() => _loading = false);
+  }
+
+  List<dynamic> get _filtered {
+    if (_filter == 'all') return _rfqs;
+    return _rfqs.where((r) => (r as Map)['status']?.toString() == _filter).toList();
   }
 
   Future<void> _quote(int id) async {
@@ -66,7 +72,7 @@ class _InquiriesScreenState extends State<InquiriesScreen> {
     showModalBottomSheet(
       context: context,
       builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(ctx).viewInsets.bottom + 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -85,7 +91,7 @@ class _InquiriesScreenState extends State<InquiriesScreen> {
     showModalBottomSheet(
       context: context,
       builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(ctx).viewInsets.bottom + 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -98,45 +104,113 @@ class _InquiriesScreenState extends State<InquiriesScreen> {
     );
   }
 
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'pending':
+        return QdiaColors.gold;
+      case 'quoted':
+        return QdiaColors.primary;
+      case 'accepted':
+      case 'shipped':
+        return QdiaColors.success;
+      default:
+        return QdiaColors.textMuted;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final filters = [
+      ('all', context.tr('supplier_page.filter_all')),
+      ('pending', context.tr('supplier_page.filter_pending')),
+      ('quoted', context.tr('my_rfqs_page.filter_quoted')),
+      ('accepted', context.tr('my_rfqs_page.filter_accepted')),
+      ('shipped', context.tr('my_rfqs_page.filter_shipped')),
+    ];
+
     return Scaffold(
-      appBar: AppBar(title: Text(context.tr('inquiries.export_title')), backgroundColor: QdiaColors.primary, foregroundColor: Colors.white),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: _rfqs.isEmpty
-                  ? ListView(children: [const SizedBox(height: 80), Center(child: Text(context.tr('inquiries.no_requests')))])
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(12),
-                      itemCount: _rfqs.length,
-                      itemBuilder: (_, i) {
-                        final r = _rfqs[i] as Map<String, dynamic>;
-                        final status = r['status']?.toString() ?? '';
-                        final id = r['id'] as int;
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 10),
-                          child: Padding(
-                            padding: const EdgeInsets.all(14),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(r['product_name']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
-                                const SizedBox(height: 4),
-                                Text('${r['quantity']} ${r['quantity_unit']} → ${r['destination_country']}', style: const TextStyle(fontSize: 12, color: QdiaColors.textMuted)),
-                                Chip(label: Text(status, style: const TextStyle(fontSize: 10))),
-                                if (status == 'pending')
-                                  TextButton(onPressed: () => _showQuote(id), child: Text(context.tr('inquiries.send_quote'))),
-                                if (status == 'accepted')
-                                  TextButton(onPressed: () => _showShip(id), child: Text(context.tr('inquiries.ship'))),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+      appBar: AppBar(
+        title: Text(context.tr('inquiries.export_title')),
+        backgroundColor: QdiaColors.primary,
+        foregroundColor: Colors.white,
+      ),
+      body: Column(
+        children: [
+          SizedBox(
+            height: 44,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              children: filters.map((f) {
+                final active = _filter == f.$1;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: FilterChip(
+                    label: Text(f.$2, style: TextStyle(fontSize: 11, color: active ? Colors.white : QdiaColors.navy)),
+                    selected: active,
+                    onSelected: (_) => setState(() => _filter = f.$1),
+                    selectedColor: QdiaColors.primary,
+                    backgroundColor: Colors.white,
+                  ),
+                );
+              }).toList(),
             ),
+          ),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : RefreshIndicator(
+                    onRefresh: _load,
+                    child: _filtered.isEmpty
+                        ? ListView(children: [
+                            const SizedBox(height: 80),
+                            Center(child: Text(context.tr('inquiries.no_requests'), style: const TextStyle(color: QdiaColors.textMuted))),
+                          ])
+                        : ListView.builder(
+                            padding: const EdgeInsets.all(12),
+                            itemCount: _filtered.length,
+                            itemBuilder: (_, i) {
+                              final r = _filtered[i] as Map<String, dynamic>;
+                              final status = r['status']?.toString() ?? '';
+                              final id = r['id'] as int;
+                              return Card(
+                                margin: const EdgeInsets.only(bottom: 10),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(14),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Expanded(
+                                            child: Text(r['product_name']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                          ),
+                                          Chip(
+                                            label: Text(status, style: const TextStyle(fontSize: 10, color: Colors.white)),
+                                            backgroundColor: _statusColor(status),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '${r['quantity']} ${r['quantity_unit']} → ${r['destination_country']}',
+                                        style: const TextStyle(fontSize: 12, color: QdiaColors.textMuted),
+                                      ),
+                                      if (status == 'pending')
+                                        TextButton(onPressed: () => _showQuote(id), child: Text(context.tr('inquiries.send_quote'))),
+                                      if (status == 'accepted')
+                                        TextButton(onPressed: () => _showShip(id), child: Text(context.tr('inquiries.ship'))),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+          ),
+        ],
+      ),
     );
   }
 }

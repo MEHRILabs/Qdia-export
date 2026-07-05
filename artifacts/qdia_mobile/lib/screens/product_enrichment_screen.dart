@@ -30,13 +30,18 @@ class _ProductEnrichmentScreenState extends State<ProductEnrichmentScreen> {
     }
   }
 
-  Future<void> _enrich(int limit, {bool photos = true}) async {
+  Future<void> _enrich(int limit, {bool photos = true, bool onlyWithoutPhoto = false}) async {
     setState(() {
       _loading = true;
       _message = context.tr('enrichment.enrich_running').replaceAll('{limit}', '$limit');
     });
     try {
-      final r = await ApiService.instance.enrichProducts(limit: limit, generatePhotos: photos);
+      final r = await ApiService.instance.enrichProducts(
+        limit: limit,
+        generatePhotos: photos,
+        onlyWithoutPhoto: onlyWithoutPhoto,
+        skipPricing: onlyWithoutPhoto,
+      );
       setState(() {
         _message = context.tr('enrichment.enrich_done')
             .replaceAll('{enriched}', '${r['enriched'] ?? 0}')
@@ -108,6 +113,12 @@ class _ProductEnrichmentScreenState extends State<ProductEnrichmentScreen> {
             onPressed: _loading ? null : () => _enrich(50),
             icon: const Icon(Icons.auto_fix_high_rounded),
             label: Text(context.tr('enrichment.enrich_50')),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: _loading ? null : () => _enrich(50, onlyWithoutPhoto: true),
+            icon: const Icon(Icons.image_not_supported_outlined),
+            label: Text(context.tr('enrichment.photos_without_image_50')),
           ),
           const SizedBox(height: 8),
           OutlinedButton.icon(

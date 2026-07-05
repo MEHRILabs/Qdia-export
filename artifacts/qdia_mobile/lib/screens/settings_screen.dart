@@ -8,7 +8,6 @@ import 'package:qdia_mobile/screens/analytics_dashboard_screen.dart';
 import 'package:qdia_mobile/screens/catalog_import_screen.dart';
 import 'package:qdia_mobile/screens/product_enrichment_screen.dart';
 import 'package:qdia_mobile/screens/facturation_screen.dart';
-import 'package:qdia_mobile/screens/my_rfqs_screen.dart';
 import 'package:qdia_mobile/screens/profile_screen.dart';
 import 'package:qdia_mobile/screens/tracking_screen.dart';
 import 'package:qdia_mobile/screens/verification_screen.dart';
@@ -230,6 +229,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ],
                 ),
                 MobileSettingsGroup(
+                  title: context.tr('settings.section_commerce'),
+                  children: [
+                    MobileSettingsTile(
+                      icon: Icons.receipt_long_outlined,
+                      title: context.tr('mobile.orders'),
+                      onTap: loggedIn
+                          ? () => Navigator.pushNamed(context, '/orders')
+                          : _openLogin,
+                    ),
+                    MobileSettingsTile(
+                      icon: Icons.account_balance_wallet_outlined,
+                      title: context.tr('transactions.title'),
+                      onTap: loggedIn
+                          ? () => Navigator.pushNamed(context, '/transactions')
+                          : _openLogin,
+                    ),
+                    MobileSettingsTile(
+                      icon: Icons.request_quote_outlined,
+                      title: context.tr('mobile.my_rfqs'),
+                      onTap: loggedIn
+                          ? () => Navigator.pushNamed(context, '/my-rfqs')
+                          : _openLogin,
+                    ),
+                    MobileSettingsTile(
+                      icon: Icons.local_shipping_outlined,
+                      title: context.tr('supplier_orders.title'),
+                      onTap: loggedIn
+                          ? () => Navigator.pushNamed(context, '/supplier-orders')
+                          : _openLogin,
+                    ),
+                    MobileSettingsTile(
+                      icon: Icons.inbox_outlined,
+                      title: context.tr('inquiries.export_title'),
+                      onTap: loggedIn
+                          ? () => Navigator.pushNamed(context, '/inquiries')
+                          : _openLogin,
+                      showDivider: false,
+                    ),
+                  ],
+                ),
+                MobileSettingsGroup(
                   title: context.tr('settings.section_exporter'),
                   children: [
                     MobileSettingsTile(
@@ -262,13 +302,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       subtitle: context.tr('facturation.subtitle'),
                       onTap: loggedIn
                           ? () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FacturationScreen()))
-                          : _openLogin,
-                    ),
-                    MobileSettingsTile(
-                      icon: Icons.request_quote_outlined,
-                      title: context.tr('mobile.my_rfqs'),
-                      onTap: loggedIn
-                          ? () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MyRfqsScreen()))
                           : _openLogin,
                     ),
                     MobileSettingsTile(

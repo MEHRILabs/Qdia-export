@@ -51,6 +51,20 @@ class _OrdersScreenState extends State<OrdersScreen> {
     }
   }
 
+  Future<void> _fund(int txId) async {
+    try {
+      await ApiService.instance.fundPayment(txId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('transactions.payment_confirmed')), backgroundColor: QdiaColors.success),
+        );
+        _load();
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
   String _statusLabel(String status) {
     final key = 'orders.status_$status';
     final translated = context.tr(key);
@@ -85,6 +99,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                           final currency = o['currency']?.toString() ?? 'USD';
                           final items = (o['items'] as List?) ?? [];
                           final tracking = o['tracking_number']?.toString();
+                          final txId = (o['transaction_id'] as num?)?.toInt();
                           return Container(
                             margin: const EdgeInsets.only(bottom: 10),
                             padding: const EdgeInsets.all(14),
@@ -124,9 +139,20 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                     padding: const EdgeInsets.only(top: 4),
                                     child: Text('${context.tr('tracking.number')} $tracking', style: const TextStyle(fontSize: 11, color: QdiaColors.primary)),
                                   ),
+                                if (txId != null)
+                                  Text('${context.tr('transactions.tx')} #$txId', style: const TextStyle(fontSize: 11, color: QdiaColors.textMuted)),
                                 const SizedBox(height: 10),
                                 Row(
                                   children: [
+                                    if (status == 'pending_payment' && txId != null)
+                                      Expanded(
+                                        child: ElevatedButton(
+                                          onPressed: () => _fund(txId),
+                                          style: ElevatedButton.styleFrom(backgroundColor: QdiaColors.primary, foregroundColor: Colors.white),
+                                          child: Text(context.tr('checkout.pay_escrow'), style: const TextStyle(fontSize: 11)),
+                                        ),
+                                      ),
+                                    if (status == 'pending_payment' && txId != null) const SizedBox(width: 8),
                                     if (tracking != null && tracking.isNotEmpty)
                                       OutlinedButton.icon(
                                         onPressed: () => Navigator.push(

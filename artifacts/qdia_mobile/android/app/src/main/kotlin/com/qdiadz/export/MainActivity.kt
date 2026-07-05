@@ -1,4 +1,4 @@
-package com.example.qdia_mobile
+package com.qdiadz.export
 
 import io.flutter.embedding.android.FlutterActivity
 
