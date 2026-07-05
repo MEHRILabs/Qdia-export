@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 import { CheckCircle2, XCircle, Clock, Loader2, Database, Sparkles, ImageIcon, DollarSign, Pencil, Package, MessageSquare, Factory } from "lucide-react";
 import { ProductImage } from "@/components/ProductImage";
 import { platformApi } from "@/lib/platform-api";
@@ -27,9 +29,50 @@ interface Product {
   image_url?: string | null;
 }
 
+const ADMIN_TABS = [
+  { value: "products", icon: Clock, labelKey: "admin.tab_products" },
+  { value: "orders", icon: Package, labelKey: "admin.tab_orders" },
+  { value: "export", icon: Factory, labelKey: "admin.tab_export" },
+  { value: "messages", icon: MessageSquare, labelKey: "admin.tab_messages" },
+] as const;
+
+function AdminMobileNav({
+  activeTab,
+  onChange,
+  tr,
+}: {
+  activeTab: string;
+  onChange: (v: string) => void;
+  tr: (key: string) => string;
+}) {
+  return (
+    <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 border-t bg-card shadow-[0_-4px_20px_rgba(0,0,0,0.08)] pb-[env(safe-area-inset-bottom)]">
+      <div className="grid grid-cols-4">
+        {ADMIN_TABS.map(({ value, icon: Icon, labelKey }) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => onChange(value)}
+            className={cn(
+              "flex flex-col items-center justify-center gap-0.5 py-2.5 px-1 text-[10px] font-medium transition-colors",
+              activeTab === value
+                ? "text-[#0461A5] bg-[#0461A5]/5"
+                : "text-muted-foreground",
+            )}
+          >
+            <Icon className={cn("h-5 w-5", activeTab === value && "text-[#0461A5]")} />
+            <span className="truncate max-w-full leading-tight">{tr(labelKey)}</span>
+          </button>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
 export default function AdminReview() {
   const { toast } = useToast();
   const { tr } = useI18n();
+  const isMobile = useIsMobile();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<number | null>(null);
@@ -148,16 +191,21 @@ export default function AdminReview() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col md:flex-row">
+    <div className="min-h-dvh bg-background flex flex-col md:flex-row">
       <SupplierSidebar activePath="/admin" />
-      <main className="flex-1 overflow-y-auto p-6 md:p-8 max-w-5xl mx-auto w-full">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold mb-1 flex items-center gap-2">
-            <Clock className="h-6 w-6 text-primary" /> {tr("admin.page_title")}
+      <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8 max-w-5xl mx-auto w-full">
+        <div className="mb-4 md:mb-6">
+          <header className="md:hidden flex items-center justify-between mb-3 pb-3 border-b">
+            <Link href="/" className="font-bold text-sm text-primary">{tr("mobile.brand_short")}</Link>
+            <span className="font-bold text-sm">{tr("nav.admin")}</span>
+            <span className="w-16" aria-hidden />
+          </header>
+          <h1 className="text-xl md:text-2xl font-bold mb-1 flex items-center gap-2">
+            <Clock className="h-5 w-5 md:h-6 md:w-6 text-primary" /> {tr("admin.page_title")}
           </h1>
-          <p className="text-muted-foreground text-sm">{tr("admin.page_subtitle")}</p>
-          {adminStats && (
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-4">
+          <p className="text-muted-foreground text-xs md:text-sm">{tr("admin.page_subtitle")}</p>
+          {adminStats && (activeTab === "products" || !isMobile) && (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 md:gap-3 mt-3 md:mt-4">
               {(
                 [
                   [tr("admin.users"), adminStats.users],
@@ -195,7 +243,7 @@ export default function AdminReview() {
             </div>
           )}
           {activeTab === "products" && (
-          <div className="flex flex-wrap gap-2 mt-4">
+          <div className="flex flex-col sm:flex-row flex-wrap gap-2 mt-3 md:mt-4">
             <Button variant="outline" size="sm" className="gap-2" onClick={migrateMysql}>
               <Database className="h-4 w-4" /> {tr("admin.migrate_mysql")}
             </Button>
@@ -223,20 +271,15 @@ export default function AdminReview() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="mb-6">
-            <TabsTrigger value="products" className="gap-1.5">
-              <Clock className="h-4 w-4" /> {tr("admin.tab_products")}
-            </TabsTrigger>
-            <TabsTrigger value="orders" className="gap-1.5">
-              <Package className="h-4 w-4" /> {tr("admin.tab_orders")}
-            </TabsTrigger>
-            <TabsTrigger value="export" className="gap-1.5">
-              <Factory className="h-4 w-4" /> {tr("admin.tab_export")}
-            </TabsTrigger>
-            <TabsTrigger value="messages" className="gap-1.5">
-              <MessageSquare className="h-4 w-4" /> {tr("admin.tab_messages")}
-            </TabsTrigger>
+          <TabsList className="hidden md:flex mb-6 w-full flex-wrap h-auto gap-1">
+            {ADMIN_TABS.map(({ value, icon: Icon, labelKey }) => (
+              <TabsTrigger key={value} value={value} className="gap-1.5">
+                <Icon className="h-4 w-4" /> {tr(labelKey)}
+              </TabsTrigger>
+            ))}
           </TabsList>
+
+          <AdminMobileNav activeTab={activeTab} onChange={setActiveTab} tr={tr} />
 
           <TabsContent value="products">
         {loading && [...Array(3)].map((_, i) => <Skeleton key={i} className="h-20 w-full mb-3 rounded-xl" />)}
@@ -250,7 +293,8 @@ export default function AdminReview() {
 
         <div className="space-y-3">
           {products.map(p => (
-            <div key={p.id} className="flex items-center gap-4 p-4 border rounded-xl bg-card">
+            <div key={p.id} className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-3 sm:p-4 border rounded-xl bg-card">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
               <div className="h-14 w-14 rounded-lg bg-muted overflow-hidden shrink-0 flex items-center justify-center">
                 <ProductImage src={p.image_url} alt={p.name} compact className="h-full w-full" />
               </div>
@@ -262,7 +306,8 @@ export default function AdminReview() {
                   <span>MOQ {p.moq} {p.moq_unit}</span>
                 </div>
               </div>
-              <div className="flex gap-2 shrink-0 flex-wrap justify-end">
+              </div>
+              <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 shrink-0">
                 <Link href={`/supplier/products/${p.id}/edit`}>
                   <Button size="sm" variant="outline" className="gap-1" title="Modifier / uploader photo">
                     <Pencil className="h-3 w-3" /> Photo
@@ -304,8 +349,11 @@ export default function AdminReview() {
           </TabsContent>
 
           <TabsContent value="messages">
-            <div className="border rounded-xl overflow-hidden bg-card">
-              <MessagesPanel compact />
+            <div className={cn(
+              "border rounded-xl overflow-hidden bg-card",
+              isMobile ? "h-[calc(100dvh-14rem)]" : "",
+            )}>
+              <MessagesPanel compact={!isMobile} />
             </div>
           </TabsContent>
         </Tabs>

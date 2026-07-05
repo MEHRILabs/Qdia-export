@@ -101,21 +101,24 @@ export function AdminExportAuthPanel() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2 items-center">
+      <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+        <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
         {(["pending", "authorized", "all"] as const).map(f => (
           <Button
             key={f}
             size="sm"
             variant={filter === f ? "default" : "outline"}
+            className="shrink-0 h-9"
             onClick={() => setFilter(f)}
           >
             {tr(`admin.export_filter_${f}`)}
           </Button>
         ))}
-        <div className="relative flex-1 min-w-[180px] max-w-xs ms-auto">
+        </div>
+        <div className="relative flex-1 min-w-0 sm:max-w-xs sm:ms-auto">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            className="pl-8 h-9"
+            className="pl-8 h-10 sm:h-9 w-full"
             placeholder={tr("admin.export_search")}
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -135,22 +138,25 @@ export function AdminExportAuthPanel() {
           const stock = p.stock_countries ?? ["DZ"];
           const authorized = p.export_authorized === true;
           return (
-            <div key={p.id} className="flex flex-col sm:flex-row gap-4 p-4 border rounded-xl bg-card">
-              <div className="h-16 w-16 rounded-lg bg-muted overflow-hidden shrink-0">
+            <div key={p.id} className="flex flex-col gap-3 p-3 sm:p-4 border rounded-xl bg-card">
+              <div className="flex gap-3 min-w-0">
+              <div className="h-14 w-14 sm:h-16 sm:w-16 rounded-lg bg-muted overflow-hidden shrink-0">
                 <ProductImage src={p.image_url} alt={p.name} compact className="h-full w-full" />
               </div>
-              <div className="flex-1 min-w-0 space-y-2">
+              <div className="flex-1 min-w-0 space-y-1">
                 <div className="flex flex-wrap items-start gap-2">
-                  <p className="font-semibold truncate flex-1">{p.name}</p>
-                  <Badge variant={authorized ? "default" : "outline"} className={authorized ? "bg-green-600" : "text-amber-700 border-amber-300"}>
+                  <p className="font-semibold text-sm sm:text-base line-clamp-2 flex-1">{p.name}</p>
+                  <Badge variant={authorized ? "default" : "outline"} className={authorized ? "bg-green-600 shrink-0" : "text-amber-700 border-amber-300 shrink-0"}>
                     {authorized ? tr("admin.export_authorized") : tr("admin.export_pending_badge")}
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {p.category} · {p.sku ?? `#${p.id}`} · {tr("admin.export_origin")} {p.origin_country ?? "DZ"}
                 </p>
-                <div>
-                  <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1 flex items-center gap-1">
+              </div>
+              </div>
+              <div className="space-y-2">
+                  <p className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-1">
                     <MapPin className="h-3 w-3" /> {tr("admin.export_stock_countries")}
                   </p>
                   <div className="flex flex-wrap gap-1.5">
@@ -162,7 +168,7 @@ export function AdminExportAuthPanel() {
                           type="button"
                           size="sm"
                           variant={active ? "default" : "outline"}
-                          className={`h-7 text-xs px-2 ${active ? "bg-[#0461A5]" : ""}`}
+                          className={`h-8 sm:h-7 text-xs px-2.5 ${active ? "bg-[#0461A5]" : ""}`}
                           disabled={updating === p.id}
                           onClick={() => void patch(p.id, { stock_countries: toggleStock(p.id, c.code, stock) })}
                         >
@@ -171,7 +177,7 @@ export function AdminExportAuthPanel() {
                       );
                     })}
                     <Input
-                      className="h-7 w-20 text-xs"
+                      className="h-8 sm:h-7 w-16 sm:w-20 text-xs"
                       placeholder="+ ES"
                       value={stockDraft[p.id] ?? ""}
                       onChange={e => setStockDraft(prev => ({ ...prev, [p.id]: e.target.value.toUpperCase() }))}
@@ -183,13 +189,12 @@ export function AdminExportAuthPanel() {
                       }}
                     />
                   </div>
-                </div>
               </div>
-              <div className="flex sm:flex-col gap-2 shrink-0 justify-end">
+              <div className="grid grid-cols-2 sm:flex sm:flex-col gap-2">
                 <Button
                   size="sm"
                   variant="secondary"
-                  className="gap-1"
+                  className="gap-1 h-10 sm:h-9"
                   disabled={contactLoading === p.id}
                   onClick={() => void openExporterChat(p.id)}
                 >
@@ -199,7 +204,7 @@ export function AdminExportAuthPanel() {
                 {!authorized ? (
                   <Button
                     size="sm"
-                    className="gap-1 bg-green-600 hover:bg-green-700"
+                    className="gap-1 bg-green-600 hover:bg-green-700 h-10 sm:h-9"
                     disabled={updating === p.id}
                     onClick={() => void patch(p.id, { export_authorized: true })}
                   >
@@ -210,7 +215,7 @@ export function AdminExportAuthPanel() {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="gap-1 text-amber-700"
+                    className="gap-1 text-amber-700 h-10 sm:h-9"
                     disabled={updating === p.id}
                     onClick={() => void patch(p.id, { export_authorized: false })}
                   >
