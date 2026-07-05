@@ -476,6 +476,9 @@
     "role_admin": "إدارة QDIA",
     "admin_support": "دعم QDIA — اكتب هنا",
     "new_contact": "محادثة جديدة",
+    "search_conversations": "البحث في المحادثات…",
+    "no_search_results": "لم يتم العثور على محادثات",
+    "yesterday": "أمس",
     "contact_exporter": "الاتصال بالمصدّر",
     "no_exporter_account": "هذا المصدّر ليس لديه حساب بعد — يجب أن يسجل على الموقع."
   },
