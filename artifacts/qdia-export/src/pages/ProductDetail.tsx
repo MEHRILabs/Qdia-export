@@ -193,7 +193,7 @@ export default function ProductDetail() {
             <PortsCustomsPanel
               productCategory={product.category}
               portDepart={product.port_depart}
-              fobPrice={(product.prices?.fob ?? 5) * 10000}
+              showPricing={false}
             />
 
             <ProductOrderFlow

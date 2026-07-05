@@ -694,7 +694,8 @@
     "documents": "Documents",
     "total": "Estimated total customs",
     "hs_code": "HS code",
-    "calculating": "Calculating..."
+    "calculating": "Calculating...",
+    "pricing_at_order": "Customs amounts and detailed pricing appear when you order (Order section below)."
   },
   "orders": {
     "title": "My orders",

@@ -192,7 +192,7 @@ export default function Home() {
             </p>
           </div>
           <div className="max-w-2xl mx-auto">
-            <PortsCustomsPanel productCategory="Agriculture & Food" portDepart="Béjaïa" fobPrice={51000} />
+            <PortsCustomsPanel productCategory="Agriculture & Food" portDepart="Béjaïa" showPricing={false} />
           </div>
         </AnimatedSection>
 

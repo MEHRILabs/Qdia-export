@@ -48,8 +48,15 @@ services:
         sync: false
       - key: GOOGLE_CLIENT_ID
         sync: false
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
       - key: VITE_GOOGLE_CLIENT_ID
         fromService:
           type: web
           name: qdia-export
           envVarKey: GOOGLE_CLIENT_ID
+      - key: VITE_GOOGLE_MAPS_API_KEY
+        fromService:
+          type: web
+          name: qdia-export
+          envVarKey: GOOGLE_MAPS_API_KEY

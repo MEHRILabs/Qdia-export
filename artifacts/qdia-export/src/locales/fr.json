@@ -93,7 +93,7 @@
     "featured_title": "Produits en vedette",
     "sectors_title": "Secteurs export",
     "ports_title": "Ports & douane internationale",
-    "ports_subtitle": "Ports algériens (Alger, Oran, Béjaïa…) et destinations France · UAE — calcul douanier intégré",
+    "ports_subtitle": "Ports algériens (Alger, Oran, Béjaïa…) et destinations France · UAE — routes export animées",
     "logistics_badge": "Logistique export",
     "premium_selection": "Sélection premium",
     "featured_subtitle": "Made in Algeria · Cliquez pour voir la fiche & commander",
@@ -706,7 +706,8 @@
     "documents": "Documents",
     "total": "Total douane estimé",
     "hs_code": "Code HS",
-    "calculating": "Calcul en cours..."
+    "calculating": "Calcul en cours...",
+    "pricing_at_order": "Les montants douane et prix détaillés s'affichent lors de la commande (section Commander ci-dessous)."
   },
   "orders": {
     "title": "Mes commandes",

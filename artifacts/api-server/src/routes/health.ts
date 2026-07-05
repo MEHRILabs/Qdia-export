@@ -5,6 +5,15 @@ import { HealthCheckResponse } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
+router.get("/config/public", (_req, res) => {
+  res.json({
+    google_maps_key: process.env.VITE_GOOGLE_MAPS_API_KEY
+      ?? process.env.GOOGLE_MAPS_API_KEY
+      ?? process.env.GOOGLE_MAPS_API_KEY_SERVER
+      ?? "",
+  });
+});
+
 router.get("/healthz", async (_req, res) => {
   let dbStatus = "ok";
   let productCount = 0;

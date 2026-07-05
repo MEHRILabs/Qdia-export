@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { Ship, Globe, FileCheck, Calculator, Anchor } from "lucide-react";
+import { Ship, Globe, FileCheck, Anchor } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { logisticsApi, type PortInfo, type CustomsCalcResult } from "@/lib/api-auth";
@@ -8,13 +8,21 @@ import { FALLBACK_PORTS_GROUPED, toMapMarkers } from "@/lib/ports-data";
 import { useI18n } from "@/contexts/I18nContext";
 
 interface Props {
-  productCategory: string;
+  productCategory?: string;
   portDepart?: string;
   fobPrice?: number;
   compact?: boolean;
+  /** Afficher le détail des montants douane (uniquement au moment de la commande) */
+  showPricing?: boolean;
 }
 
-export function PortsCustomsPanel({ productCategory, portDepart, fobPrice = 50000, compact }: Props) {
+export function PortsCustomsPanel({
+  productCategory = "Agriculture & Food",
+  portDepart,
+  fobPrice = 50000,
+  compact,
+  showPricing = false,
+}: Props) {
   const { tr } = useI18n();
   const [ports, setPorts] = useState<{ algeria: PortInfo[]; international: PortInfo[] }>(FALLBACK_PORTS_GROUPED);
   const [destination, setDestination] = useState<"FR" | "AE" | "DZ">("FR");
@@ -43,6 +51,7 @@ export function PortsCustomsPanel({ productCategory, portDepart, fobPrice = 5000
   const mapMarkers = useMemo(() => toMapMarkers(allPorts), [allPorts]);
 
   const calcCustoms = async (dest: string, portCode?: string) => {
+    if (!showPricing) return;
     setLoading(true);
     try {
       const cifEstimate = fobPrice * 1.15;
@@ -60,12 +69,16 @@ export function PortsCustomsPanel({ productCategory, portDepart, fobPrice = 5000
   };
 
   useEffect(() => {
+    if (!showPricing) {
+      setCustoms(null);
+      return;
+    }
     const dest = destinations.find(d => d.code === destination);
     const port = ports.algeria.find(p =>
       portDepart && (p.name.includes(portDepart) || p.city.includes(portDepart)),
     )?.code ?? dest?.port;
-    calcCustoms(destination, port);
-  }, [destination, productCategory, portDepart, fobPrice, ports, destinations]);
+    void calcCustoms(destination, port);
+  }, [destination, productCategory, portDepart, fobPrice, ports, destinations, showPricing]);
 
   return (
     <div className={`rounded-xl border border-[#0461A5]/20 bg-white ${compact ? "p-4" : "p-5"} space-y-4`}>
@@ -101,7 +114,7 @@ export function PortsCustomsPanel({ productCategory, portDepart, fobPrice = 5000
         </div>
       </div>
 
-      <PortsMap markers={mapMarkers} height={compact ? 180 : 240} />
+      <PortsMap markers={mapMarkers} height={compact ? 180 : 240} highlightCountry={destination} />
 
       <div className="flex flex-wrap gap-2">
         {destinations.map(d => (
@@ -118,7 +131,14 @@ export function PortsCustomsPanel({ productCategory, portDepart, fobPrice = 5000
         ))}
       </div>
 
-      {customs && (
+      {!showPricing && (
+        <p className="text-xs text-[#656566] bg-[#F0F4FF] rounded-lg p-3 flex items-start gap-2">
+          <FileCheck className="h-4 w-4 text-[#0461A5] shrink-0 mt-0.5" />
+          {tr("customs_panel.pricing_at_order")}
+        </p>
+      )}
+
+      {showPricing && customs && (
         <div className="bg-[#F0F4FF] rounded-lg p-4 space-y-2 text-sm">
           <p className="font-semibold text-[#073B74] flex items-center gap-1">
             <FileCheck className="h-4 w-4" /> {tr("customs_panel.customs_for").replace("{country}", customs.destination_country)}
@@ -129,15 +149,14 @@ export function PortsCustomsPanel({ productCategory, portDepart, fobPrice = 5000
             <div><span className="text-[#9CA3AF]">{tr("customs_panel.customs_fee")}</span><p className="font-bold">{customs.customs_fee_dzd.toLocaleString()} DZD</p></div>
             <div><span className="text-[#9CA3AF]">{tr("customs_panel.documents")}</span><p className="font-bold">{customs.documentation_fee_dzd.toLocaleString()} DZD</p></div>
           </div>
-          <p className="text-[#0461A5] font-black flex items-center gap-1">
-            <Calculator className="h-4 w-4" />
+          <p className="text-[#0461A5] font-black">
             {tr("customs_panel.total")} : {customs.total_customs_dzd.toLocaleString()} DZD
           </p>
           {customs.notes && <p className="text-[11px] text-[#656566] italic">{customs.notes}</p>}
           {customs.hs_code && <p className="text-[10px] text-[#9CA3AF]">{tr("customs_panel.hs_code")} : {customs.hs_code}</p>}
         </div>
       )}
-      {loading && <p className="text-xs text-[#9CA3AF]">{tr("customs_panel.calculating")}</p>}
+      {showPricing && loading && <p className="text-xs text-[#9CA3AF]">{tr("customs_panel.calculating")}</p>}
     </div>
   );
 }
