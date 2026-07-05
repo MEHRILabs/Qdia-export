@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect, useMemo } from "react";
+import { useCallback, useState, useEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -9,8 +9,24 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
 import { useToast } from "@/hooks/use-toast";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import { isAdmin } from "@/lib/roles";
 import { MessageSquare, Wifi, WifiOff, Plus, Search, Loader2, Send } from "lucide-react";
+
+type MessageRow = {
+  id: number;
+  sender_id: number;
+  receiver_id?: number;
+  body: string;
+  created_at: string;
+};
+
+type SidebarItem = {
+  partner_id: number;
+  partner_name: string;
+  partner_role?: string;
+  last_message: string;
+  last_at: string | null;
+  unread: number;
+};
 
 interface Props {
   initialPartnerId?: number | null;
@@ -30,6 +46,7 @@ export function MessagesPanel({ initialPartnerId = null, initialRfqId = null, co
   const [showContacts, setShowContacts] = useState(false);
   const [sending, setSending] = useState(false);
   const qc = useQueryClient();
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -50,46 +67,90 @@ export function MessagesPanel({ initialPartnerId = null, initialRfqId = null, co
     if (initialRfqId != null) setRfqId(initialRfqId);
   }, [initialPartnerId, initialRfqId]);
 
-  const refresh = useCallback(() => {
-    qc.invalidateQueries({ queryKey: ["message-threads"] });
-    qc.invalidateQueries({ queryKey: ["message-contacts"] });
-    if (partnerId != null) qc.invalidateQueries({ queryKey: ["message-thread", partnerId] });
+  const refresh = useCallback(async () => {
+    await Promise.all([
+      qc.refetchQueries({ queryKey: ["message-threads"] }),
+      qc.refetchQueries({ queryKey: ["message-contacts"] }),
+      partnerId != null ? qc.refetchQueries({ queryKey: ["message-thread", partnerId] }) : Promise.resolve(),
+    ]);
   }, [qc, partnerId]);
 
   const { connected } = useWebSocket({
     onMessage: (msg) => {
-      if (msg.type === "message:new" || msg.type === "message:sent") refresh();
+      if (msg.type === "message:new" || msg.type === "message:sent") void refresh();
       if (msg.type === "typing") setTypingFrom(msg.sender_id);
     },
-    onPoll: refresh,
+    onPoll: () => void refresh(),
   });
 
   const { data: threads } = useQuery({
     queryKey: ["message-threads"],
     queryFn: () => platformApi.getMessageThreads(),
     enabled: !!user,
-    refetchInterval: connected ? 5000 : 8000,
+    refetchInterval: 4000,
+    staleTime: 0,
   });
 
   const { data: contacts } = useQuery({
     queryKey: ["message-contacts"],
     queryFn: () => platformApi.getMessageContacts(),
     enabled: !!user,
+    staleTime: 30_000,
   });
 
-  const { data: partnerInfo, isError: partnerError, isLoading: partnerLoading } = useQuery({
+  const { data: partnerInfo } = useQuery({
     queryKey: ["message-partner", partnerId],
     queryFn: () => platformApi.getMessagePartner(partnerId!),
     enabled: partnerId != null && !!user,
-    retry: false,
+    retry: 1,
   });
 
   const { data: thread, isLoading: threadLoading } = useQuery({
     queryKey: ["message-thread", partnerId],
     queryFn: () => platformApi.getMessageThread(partnerId!),
     enabled: partnerId != null && !!user,
-    refetchInterval: connected ? 3000 : 6000,
+    refetchInterval: 3000,
+    staleTime: 0,
   });
+
+  const messages = (thread?.data ?? []) as MessageRow[];
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages.length, partnerId]);
+
+  const sidebarItems = useMemo(() => {
+    const map = new Map<number, SidebarItem>();
+    for (const t of threads?.data ?? []) {
+      map.set(t.partner_id, {
+        partner_id: t.partner_id,
+        partner_name: t.partner_name,
+        partner_role: t.partner_role,
+        last_message: t.last_message,
+        last_at: t.last_at,
+        unread: t.unread,
+      });
+    }
+    for (const c of contacts?.data ?? []) {
+      if (!map.has(c.id)) {
+        map.set(c.id, {
+          partner_id: c.id,
+          partner_name: c.name,
+          partner_role: c.role,
+          last_message: c.role === "admin" ? tr("messages.admin_support") : tr("messages.new_contact"),
+          last_at: null,
+          unread: 0,
+        });
+      }
+    }
+    return [...map.values()].sort((a, b) => {
+      if (a.partner_role === "admin" && b.partner_role !== "admin") return -1;
+      if (b.partner_role === "admin" && a.partner_role !== "admin") return 1;
+      return (b.last_at ?? "").localeCompare(a.last_at ?? "");
+    });
+  }, [threads, contacts, tr]);
 
   const filteredContacts = useMemo(() => {
     const list = contacts?.data ?? [];
@@ -104,18 +165,28 @@ export function MessagesPanel({ initialPartnerId = null, initialRfqId = null, co
 
   const activePartnerName = useMemo(() => {
     if (partnerInfo?.name) return partnerInfo.name;
-    const fromThread = threads?.data?.find(t => t.partner_id === partnerId);
-    return fromThread?.partner_name ?? (partnerId ? `#${partnerId}` : "");
-  }, [partnerInfo, threads, partnerId]);
+    const fromSidebar = sidebarItems.find(t => t.partner_id === partnerId);
+    return fromSidebar?.partner_name ?? (partnerId ? `#${partnerId}` : "");
+  }, [partnerInfo, sidebarItems, partnerId]);
+
+  const roleLabel = (role?: string) => {
+    if (role === "admin") return tr("messages.role_admin");
+    if (role === "supplier") return tr("messages.role_supplier");
+    return tr("messages.role_buyer");
+  };
 
   const send = async () => {
     if (!partnerId || !body.trim() || sending) return;
+    const text = body.trim();
     setSending(true);
     try {
-      await platformApi.sendMessage(partnerId, body.trim(), rfqId ?? undefined);
+      const msg = await platformApi.sendMessage(partnerId, text, rfqId ?? undefined);
       setBody("");
+      qc.setQueryData<{ data: MessageRow[] }>(["message-thread", partnerId], old => ({
+        data: [...(old?.data ?? []), msg as MessageRow],
+      }));
+      await refresh();
       toast({ title: tr("messages.sent_ok") });
-      refresh();
     } catch (e) {
       toast({
         title: tr("common.error"),
@@ -179,7 +250,7 @@ export function MessagesPanel({ initialPartnerId = null, initialRfqId = null, co
                   >
                     <p className="font-semibold truncate">{c.name}</p>
                     <p className="text-muted-foreground truncate">
-                      {c.role === "supplier" ? tr("messages.role_supplier") : tr("messages.role_buyer")}
+                      {roleLabel(c.role)}
                       {c.company ? ` · ${c.company}` : ""}
                     </p>
                   </button>
@@ -192,7 +263,7 @@ export function MessagesPanel({ initialPartnerId = null, initialRfqId = null, co
           )}
         </div>
         <div className="flex-1 overflow-y-auto">
-          {threads?.data?.map(t => (
+          {sidebarItems.map(t => (
             <button
               key={t.partner_id}
               type="button"
@@ -203,7 +274,7 @@ export function MessagesPanel({ initialPartnerId = null, initialRfqId = null, co
                 <p className="font-semibold text-sm truncate">{t.partner_name}</p>
                 {t.partner_role && (
                   <Badge variant="secondary" className="text-[9px] shrink-0">
-                    {t.partner_role === "supplier" ? "🇩🇿" : t.partner_role === "admin" ? "Admin" : "Buyer"}
+                    {t.partner_role === "admin" ? "Admin" : t.partner_role === "supplier" ? "🇩🇿" : "Buyer"}
                   </Badge>
                 )}
               </div>
@@ -213,7 +284,7 @@ export function MessagesPanel({ initialPartnerId = null, initialRfqId = null, co
               )}
             </button>
           ))}
-          {!threads?.data?.length && !showContacts && (
+          {!sidebarItems.length && !showContacts && (
             <p className="p-4 text-sm text-muted-foreground">{tr("messages.no_messages")}</p>
           )}
         </div>
@@ -227,15 +298,12 @@ export function MessagesPanel({ initialPartnerId = null, initialRfqId = null, co
               {partnerInfo?.email && (
                 <p className="text-xs text-muted-foreground">{partnerInfo.email}</p>
               )}
-              {partnerLoading && (
-                <p className="text-xs text-muted-foreground">{tr("common.loading")}</p>
-              )}
-              {partnerError && (
-                <p className="text-xs text-red-600">{tr("messages.partner_not_found")}</p>
-              )}
             </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {thread?.data?.map(m => (
+            <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
+              {threadLoading && !messages.length && (
+                <p className="text-sm text-muted-foreground text-center py-8">{tr("common.loading")}</p>
+              )}
+              {messages.map(m => (
                 <div
                   key={m.id}
                   className={`max-w-[85%] p-3 rounded-xl text-sm ${m.sender_id === user?.id ? "bg-[#0461A5] text-white ml-auto" : "bg-gray-100 mr-auto"}`}
@@ -246,7 +314,7 @@ export function MessagesPanel({ initialPartnerId = null, initialRfqId = null, co
                   </p>
                 </div>
               ))}
-              {!thread?.data?.length && !threadLoading && (
+              {!messages.length && !threadLoading && (
                 <p className="text-sm text-muted-foreground text-center py-8">{tr("messages.start_conversation")}</p>
               )}
               {typingFrom === partnerId && (
@@ -268,7 +336,7 @@ export function MessagesPanel({ initialPartnerId = null, initialRfqId = null, co
                 className="flex-1"
                 disabled={sending}
               />
-              <Button onClick={() => void send()} disabled={!body.trim() || sending || partnerError || partnerLoading} className="gap-1">
+              <Button onClick={() => void send()} disabled={!body.trim() || sending} className="gap-1 shrink-0">
                 {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 {tr("common.send")}
               </Button>
@@ -278,11 +346,9 @@ export function MessagesPanel({ initialPartnerId = null, initialRfqId = null, co
           <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground text-sm gap-3 p-6 text-center">
             <MessageSquare className="h-10 w-10 opacity-30" />
             <p>{tr("messages.select_conversation")}</p>
-            {isAdmin(user) && (
-              <Button size="sm" variant="outline" onClick={() => setShowContacts(true)}>
-                <Plus className="h-4 w-4 mr-1" /> {tr("messages.new_conversation")}
-              </Button>
-            )}
+            <Button size="sm" variant="outline" onClick={() => setShowContacts(true)}>
+              <Plus className="h-4 w-4 mr-1" /> {tr("messages.new_conversation")}
+            </Button>
           </div>
         )}
       </section>

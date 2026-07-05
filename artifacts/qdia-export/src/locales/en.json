@@ -473,6 +473,9 @@
     "start_conversation": "Write your first message below.",
     "role_supplier": "Exporter",
     "role_buyer": "Buyer",
+    "role_admin": "QDIA Administration",
+    "admin_support": "QDIA Support — write here",
+    "new_contact": "New conversation",
     "contact_exporter": "Contact exporter",
     "no_exporter_account": "This exporter has no user account yet — they must register on the site."
   },

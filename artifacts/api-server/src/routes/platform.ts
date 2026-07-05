@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { db, messagesTable, favoritesTable, reviewsTable, productViewsTable, usersTable, suppliersTable, productsTable, transactionsTable, ordersTable } from "@workspace/db";
-import { eq, and, desc, asc, sql, inArray } from "drizzle-orm";
+import { eq, and, or, desc, asc, sql, inArray } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthedRequest } from "../middleware/auth";
 import { aiCompleteMini } from "../services/ai/engine";
 import { sendPushToUser } from "../services/fcm";
@@ -12,39 +12,43 @@ const router: IRouter = Router();
 // ─── Messages ────────────────────────────────────────────────────────────────
 router.get("/messages/threads", requireAuth, async (req: AuthedRequest, res) => {
   const uid = req.user!.id;
-  const rows = await db.select().from(messagesTable)
-    .where(sql`${messagesTable.senderId} = ${uid} OR ${messagesTable.receiverId} = ${uid}`)
-    .orderBy(desc(messagesTable.createdAt))
-    .limit(200);
+  try {
+    const rows = await db.select().from(messagesTable)
+      .where(or(eq(messagesTable.senderId, uid), eq(messagesTable.receiverId, uid)))
+      .orderBy(desc(messagesTable.createdAt))
+      .limit(500);
 
-  const partnerIds = new Set<number>();
-  for (const m of rows) {
-    partnerIds.add(m.senderId === uid ? m.receiverId : m.senderId);
+    const partnerIds = new Set<number>();
+    for (const m of rows) {
+      partnerIds.add(m.senderId === uid ? m.receiverId : m.senderId);
+    }
+
+    const partners = partnerIds.size
+      ? await db.select({ id: usersTable.id, name: usersTable.name, email: usersTable.email, role: usersTable.role })
+        .from(usersTable)
+        .where(inArray(usersTable.id, [...partnerIds]))
+      : [];
+
+    const threads = [...partnerIds].map(pid => {
+      const msgs = rows.filter(m => m.senderId === pid || m.receiverId === pid);
+      const last = msgs[0];
+      const partner = partners.find(p => p.id === pid);
+      return {
+        partner_id: pid,
+        partner_name: partner?.name ?? partner?.email ?? `Utilisateur #${pid}`,
+        partner_email: partner?.email,
+        partner_role: partner?.role,
+        last_message: last?.body ?? "",
+        last_at: last?.createdAt.toISOString() ?? null,
+        unread: msgs.filter(m => m.receiverId === uid && !m.read).length,
+        rfq_id: last?.rfqId ?? null,
+      };
+    }).sort((a, b) => (b.last_at ?? "").localeCompare(a.last_at ?? ""));
+
+    res.json({ data: threads });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Erreur chargement messages" });
   }
-
-  const partners = partnerIds.size
-    ? await db.select({ id: usersTable.id, name: usersTable.name, email: usersTable.email, role: usersTable.role })
-      .from(usersTable)
-      .where(inArray(usersTable.id, [...partnerIds]))
-    : [];
-
-  const threads = [...partnerIds].map(pid => {
-    const msgs = rows.filter(m => m.senderId === pid || m.receiverId === pid);
-    const last = msgs[0];
-    const partner = partners.find(p => p.id === pid);
-    return {
-      partner_id: pid,
-      partner_name: partner?.name ?? `Utilisateur #${pid}`,
-      partner_email: partner?.email,
-      partner_role: partner?.role,
-      last_message: last?.body ?? "",
-      last_at: last?.createdAt.toISOString() ?? null,
-      unread: msgs.filter(m => m.receiverId === uid && !m.read).length,
-      rfq_id: last?.rfqId ?? null,
-    };
-  }).sort((a, b) => (b.last_at ?? "").localeCompare(a.last_at ?? ""));
-
-  res.json({ data: threads });
 });
 
 router.get("/messages/contacts", requireAuth, async (req: AuthedRequest, res) => {
@@ -78,7 +82,7 @@ router.get("/messages/contacts", requireAuth, async (req: AuthedRequest, res) =>
     .from(usersTable).where(eq(usersTable.role, "admin")).limit(1);
 
   const msgRows = await db.select().from(messagesTable)
-    .where(sql`${messagesTable.senderId} = ${uid} OR ${messagesTable.receiverId} = ${uid}`)
+    .where(or(eq(messagesTable.senderId, uid), eq(messagesTable.receiverId, uid)))
     .orderBy(desc(messagesTable.createdAt)).limit(300);
 
   const partnerIds = new Set<number>();
@@ -140,30 +144,40 @@ router.get("/messages/partner/:partnerId", requireAuth, async (req: AuthedReques
 router.get("/messages/thread/:partnerId", requireAuth, async (req: AuthedRequest, res) => {
   const uid = req.user!.id;
   const partnerId = parseInt(String(req.params.partnerId), 10);
-  const rows = await db.select().from(messagesTable)
-    .where(sql`(${messagesTable.senderId} = ${uid} AND ${messagesTable.receiverId} = ${partnerId})
-      OR (${messagesTable.senderId} = ${partnerId} AND ${messagesTable.receiverId} = ${uid})`)
-    .orderBy(asc(messagesTable.createdAt))
-    .limit(100);
+  if (Number.isNaN(partnerId)) {
+    res.status(400).json({ error: "ID partenaire invalide" });
+    return;
+  }
+  try {
+    const rows = await db.select().from(messagesTable)
+      .where(or(
+        and(eq(messagesTable.senderId, uid), eq(messagesTable.receiverId, partnerId)),
+        and(eq(messagesTable.senderId, partnerId), eq(messagesTable.receiverId, uid)),
+      ))
+      .orderBy(asc(messagesTable.createdAt))
+      .limit(200);
 
-  await db.update(messagesTable).set({ read: true })
-    .where(and(eq(messagesTable.receiverId, uid), eq(messagesTable.senderId, partnerId)));
+    await db.update(messagesTable).set({ read: true })
+      .where(and(eq(messagesTable.receiverId, uid), eq(messagesTable.senderId, partnerId)));
 
-  res.json({ data: rows.map(m => ({
-    id: m.id,
-    rfq_id: m.rfqId,
-    sender_id: m.senderId,
-    receiver_id: m.receiverId,
-    body: m.body,
-    read: m.read,
-    created_at: m.createdAt.toISOString(),
-  })) });
+    res.json({ data: rows.map(m => ({
+      id: m.id,
+      rfq_id: m.rfqId,
+      sender_id: m.senderId,
+      receiver_id: m.receiverId,
+      body: m.body,
+      read: m.read,
+      created_at: m.createdAt.toISOString(),
+    })) });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Erreur chargement conversation" });
+  }
 });
 
 router.get("/messages", requireAuth, async (req: AuthedRequest, res) => {
   const uid = req.user!.id;
   const rows = await db.select().from(messagesTable)
-    .where(sql`${messagesTable.senderId} = ${uid} OR ${messagesTable.receiverId} = ${uid}`)
+    .where(or(eq(messagesTable.senderId, uid), eq(messagesTable.receiverId, uid)))
     .orderBy(desc(messagesTable.createdAt))
     .limit(100);
   res.json({ data: rows.map(m => ({
@@ -179,9 +193,9 @@ router.get("/messages", requireAuth, async (req: AuthedRequest, res) => {
 
 router.post("/messages", requireAuth, async (req: AuthedRequest, res) => {
   const body = z.object({
-    receiver_id: z.number(),
-    body: z.string().min(1),
-    rfq_id: z.number().optional(),
+    receiver_id: z.coerce.number().int().positive(),
+    body: z.string().min(1).max(5000),
+    rfq_id: z.coerce.number().int().positive().optional(),
   }).safeParse(req.body);
   if (!body.success) {
     res.status(400).json({ error: body.error.message });
@@ -192,31 +206,42 @@ router.post("/messages", requireAuth, async (req: AuthedRequest, res) => {
     return;
   }
 
-  const [receiver] = await db.select({ id: usersTable.id }).from(usersTable)
-    .where(eq(usersTable.id, body.data.receiver_id)).limit(1);
-  if (!receiver) {
-    res.status(404).json({ error: "Destinataire introuvable — l'exportateur doit créer un compte sur QDIA." });
-    return;
-  }
+  try {
+    const [receiver] = await db.select({ id: usersTable.id }).from(usersTable)
+      .where(eq(usersTable.id, body.data.receiver_id)).limit(1);
+    if (!receiver) {
+      res.status(404).json({ error: "Destinataire introuvable — l'exportateur doit créer un compte sur QDIA." });
+      return;
+    }
 
-  const [msg] = await db.insert(messagesTable).values({
-    senderId: req.user!.id,
-    receiverId: body.data.receiver_id,
-    body: body.data.body,
-    rfqId: body.data.rfq_id,
-  }).returning();
-  await sendPushToUser(body.data.receiver_id, "Nouveau message QDIA", body.data.body.slice(0, 80));
-  const shaped = {
-    id: msg.id,
-    rfq_id: msg.rfqId,
-    sender_id: msg.senderId,
-    receiver_id: msg.receiverId,
-    body: msg.body,
-    read: msg.read,
-    created_at: msg.createdAt.toISOString(),
-  };
-  broadcastMessage(shaped);
-  res.status(201).json(shaped);
+    const [msg] = await db.insert(messagesTable).values({
+      senderId: req.user!.id,
+      receiverId: body.data.receiver_id,
+      body: body.data.body.trim(),
+      rfqId: body.data.rfq_id,
+    }).returning();
+
+    const shaped = {
+      id: msg.id,
+      rfq_id: msg.rfqId,
+      sender_id: msg.senderId,
+      receiver_id: msg.receiverId,
+      body: msg.body,
+      read: msg.read,
+      created_at: msg.createdAt.toISOString(),
+    };
+
+    try {
+      await sendPushToUser(body.data.receiver_id, "Nouveau message QDIA", body.data.body.slice(0, 80));
+    } catch { /* notification non bloquante */ }
+    try {
+      broadcastMessage(shaped);
+    } catch { /* websocket non bloquant */ }
+
+    res.status(201).json(shaped);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Erreur envoi message" });
+  }
 });
 
 // ─── Favoris ─────────────────────────────────────────────────────────────────

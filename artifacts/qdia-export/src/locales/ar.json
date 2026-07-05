@@ -473,6 +473,9 @@
     "start_conversation": "اكتب رسالتك الأولى أدناه.",
     "role_supplier": "مصدّر",
     "role_buyer": "مشتري",
+    "role_admin": "إدارة QDIA",
+    "admin_support": "دعم QDIA — اكتب هنا",
+    "new_contact": "محادثة جديدة",
     "contact_exporter": "الاتصال بالمصدّر",
     "no_exporter_account": "هذا المصدّر ليس لديه حساب بعد — يجب أن يسجل على الموقع."
   },

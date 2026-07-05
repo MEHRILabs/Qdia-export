@@ -462,6 +462,9 @@
     "start_conversation": "Écrivez votre premier message ci-dessous.",
     "role_supplier": "Exportateur",
     "role_buyer": "Acheteur",
+    "role_admin": "Administration QDIA",
+    "admin_support": "Support QDIA — écrivez ici",
+    "new_contact": "Nouvelle conversation",
     "contact_exporter": "Contacter l'exportateur",
     "no_exporter_account": "Cet exportateur n'a pas encore de compte utilisateur — il doit s'inscrire sur le site."
   },

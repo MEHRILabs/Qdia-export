@@ -64,7 +64,10 @@ export const platformApi = {
   getMessages: () => api<{ data: Array<{ id: number; body: string; sender_id: number; created_at: string }> }>("/api/messages"),
 
   sendMessage: (receiver_id: number, body: string, rfq_id?: number) =>
-    api("/api/messages", { method: "POST", body: JSON.stringify({ receiver_id, body, rfq_id }) }),
+    api<{ id: number; sender_id: number; receiver_id: number; body: string; created_at: string }>(
+      "/api/messages",
+      { method: "POST", body: JSON.stringify({ receiver_id, body, rfq_id }) },
+    ),
 
   getFavorites: () => api<{ product_ids: number[] }>("/api/favorites"),
 
