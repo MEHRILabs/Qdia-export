@@ -453,7 +453,17 @@
     "contact": "Contact",
     "live": "En direct",
     "polling": "Hors ligne",
-    "typing": "En train d'écrire…"
+    "typing": "En train d'écrire…",
+    "new_conversation": "Nouveau message",
+    "search_contact": "Chercher un exportateur ou acheteur…",
+    "no_contacts": "Aucun contact trouvé.",
+    "sent_ok": "Message envoyé",
+    "partner_not_found": "Ce contact n'a pas de compte actif sur QDIA.",
+    "start_conversation": "Écrivez votre premier message ci-dessous.",
+    "role_supplier": "Exportateur",
+    "role_buyer": "Acheteur",
+    "contact_exporter": "Contacter l'exportateur",
+    "no_exporter_account": "Cet exportateur n'a pas encore de compte utilisateur — il doit s'inscrire sur le site."
   },
   "favorites": {
     "title": "Mes favoris",

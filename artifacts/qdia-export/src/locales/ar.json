@@ -464,7 +464,17 @@
     "contact": "جهة اتصال",
     "live": "مباشر",
     "polling": "غير متصل",
-    "typing": "يكتب…"
+    "typing": "يكتب…",
+    "new_conversation": "رسالة جديدة",
+    "search_contact": "البحث عن مصدّر أو مشتري…",
+    "no_contacts": "لم يتم العثور على جهات اتصال.",
+    "sent_ok": "تم إرسال الرسالة",
+    "partner_not_found": "هذا الاتصال ليس لديه حساب نشط على QDIA.",
+    "start_conversation": "اكتب رسالتك الأولى أدناه.",
+    "role_supplier": "مصدّر",
+    "role_buyer": "مشتري",
+    "contact_exporter": "الاتصال بالمصدّر",
+    "no_exporter_account": "هذا المصدّر ليس لديه حساب بعد — يجب أن يسجل على الموقع."
   },
   "favorites": {
     "title": "مفضلتي",

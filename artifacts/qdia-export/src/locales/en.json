@@ -464,7 +464,17 @@
     "contact": "Contact",
     "live": "Live",
     "polling": "Offline",
-    "typing": "Typing…"
+    "typing": "Typing…",
+    "new_conversation": "New message",
+    "search_contact": "Search exporter or buyer…",
+    "no_contacts": "No contacts found.",
+    "sent_ok": "Message sent",
+    "partner_not_found": "This contact has no active QDIA account.",
+    "start_conversation": "Write your first message below.",
+    "role_supplier": "Exporter",
+    "role_buyer": "Buyer",
+    "contact_exporter": "Contact exporter",
+    "no_exporter_account": "This exporter has no user account yet — they must register on the site."
   },
   "favorites": {
     "title": "My favorites",

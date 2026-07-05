@@ -115,7 +115,12 @@ export const platformApi = {
 
   getRfqs: () => api<{ data: Array<Record<string, unknown>> }>("/api/rfq"),
 
-  getMessageThreads: () => api<{ data: Array<{ partner_id: number; partner_name: string; last_message: string; last_at: string | null; unread: number; rfq_id: number | null }> }>("/api/messages/threads"),
+  getMessageThreads: () => api<{ data: Array<{ partner_id: number; partner_name: string; last_message: string; last_at: string | null; unread: number; rfq_id: number | null; partner_role?: string }> }>("/api/messages/threads"),
+
+  getMessageContacts: () => api<{ data: Array<{ id: number; name: string; email?: string | null; role?: string; company?: string | null }> }>("/api/messages/contacts"),
+
+  getMessagePartner: (partnerId: number) =>
+    api<{ id: number; name: string; email?: string | null; role?: string; company?: string | null }>(`/api/messages/partner/${partnerId}`),
 
   getMessageThread: (partnerId: number) =>
     api<{ data: Array<{ id: number; sender_id: number; body: string; created_at: string }> }>(`/api/messages/thread/${partnerId}`),

@@ -9,7 +9,7 @@ import { platformApi } from "@/lib/platform-api";
 import { useI18n } from "@/contexts/I18nContext";
 import { useToast } from "@/hooks/use-toast";
 import { BUYER_COUNTRIES } from "@/lib/incoterms-routing";
-import { Factory, CheckCircle2, XCircle, Loader2, MapPin, Search } from "lucide-react";
+import { Factory, CheckCircle2, XCircle, Loader2, MapPin, Search, MessageSquare } from "lucide-react";
 
 type ExportProduct = {
   id: number;
@@ -31,6 +31,7 @@ export function AdminExportAuthPanel() {
   const [search, setSearch] = useState("");
   const [updating, setUpdating] = useState<number | null>(null);
   const [stockDraft, setStockDraft] = useState<Record<number, string>>({});
+  const [contactLoading, setContactLoading] = useState<number | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-export-products", filter],
@@ -64,6 +65,30 @@ export function AdminExportAuthPanel() {
     else set.add(code);
     if (!set.size) set.add("DZ");
     return [...set];
+  };
+
+  const openExporterChat = async (productId: number) => {
+    setContactLoading(productId);
+    try {
+      const contact = await platformApi.getProductContact(productId);
+      if (!contact.supplier_user_id) {
+        toast({
+          title: tr("common.error"),
+          description: tr("messages.no_exporter_account"),
+          variant: "destructive",
+        });
+        return;
+      }
+      window.location.href = `/messages?user=${contact.supplier_user_id}`;
+    } catch (e) {
+      toast({
+        title: tr("common.error"),
+        description: String(e instanceof Error ? e.message : e),
+        variant: "destructive",
+      });
+    } finally {
+      setContactLoading(null);
+    }
   };
 
   if (isLoading) {
@@ -161,6 +186,16 @@ export function AdminExportAuthPanel() {
                 </div>
               </div>
               <div className="flex sm:flex-col gap-2 shrink-0 justify-end">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="gap-1"
+                  disabled={contactLoading === p.id}
+                  onClick={() => void openExporterChat(p.id)}
+                >
+                  {contactLoading === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <MessageSquare className="h-3 w-3" />}
+                  {tr("messages.contact_exporter")}
+                </Button>
                 {!authorized ? (
                   <Button
                     size="sm"

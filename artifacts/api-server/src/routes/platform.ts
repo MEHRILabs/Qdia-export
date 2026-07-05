@@ -47,6 +47,96 @@ router.get("/messages/threads", requireAuth, async (req: AuthedRequest, res) => 
   res.json({ data: threads });
 });
 
+router.get("/messages/contacts", requireAuth, async (req: AuthedRequest, res) => {
+  const uid = req.user!.id;
+  const role = req.user!.role;
+
+  if (role === "admin") {
+    const rows = await db.select({
+      id: usersTable.id,
+      name: usersTable.name,
+      email: usersTable.email,
+      role: usersTable.role,
+      company_name: usersTable.companyName,
+      supplier_id: usersTable.supplierId,
+    }).from(usersTable)
+      .where(sql`${usersTable.id} != ${uid} AND ${usersTable.role} IN ('supplier', 'buyer')`)
+      .orderBy(usersTable.name)
+      .limit(300);
+    res.json({ data: rows.map(u => ({
+      id: u.id,
+      name: u.name ?? u.email ?? `Utilisateur #${u.id}`,
+      email: u.email,
+      role: u.role,
+      company: u.company_name,
+      supplier_id: u.supplier_id,
+    })) });
+    return;
+  }
+
+  const [adminUser] = await db.select({ id: usersTable.id, name: usersTable.name, email: usersTable.email, role: usersTable.role, company_name: usersTable.companyName })
+    .from(usersTable).where(eq(usersTable.role, "admin")).limit(1);
+
+  const msgRows = await db.select().from(messagesTable)
+    .where(sql`${messagesTable.senderId} = ${uid} OR ${messagesTable.receiverId} = ${uid}`)
+    .orderBy(desc(messagesTable.createdAt)).limit(300);
+
+  const partnerIds = new Set<number>();
+  for (const m of msgRows) {
+    partnerIds.add(m.senderId === uid ? m.receiverId : m.senderId);
+  }
+  if (adminUser && adminUser.id !== uid) partnerIds.add(adminUser.id);
+
+  const partners = partnerIds.size
+    ? await db.select({
+      id: usersTable.id,
+      name: usersTable.name,
+      email: usersTable.email,
+      role: usersTable.role,
+      company_name: usersTable.companyName,
+      supplier_id: usersTable.supplierId,
+    }).from(usersTable).where(inArray(usersTable.id, [...partnerIds]))
+    : [];
+
+  res.json({ data: partners.map(u => ({
+    id: u.id,
+    name: u.name ?? u.email ?? `Utilisateur #${u.id}`,
+    email: u.email,
+    role: u.role,
+    company: u.company_name,
+    supplier_id: u.supplier_id,
+  })) });
+});
+
+router.get("/messages/partner/:partnerId", requireAuth, async (req: AuthedRequest, res) => {
+  const partnerId = parseInt(String(req.params.partnerId), 10);
+  if (Number.isNaN(partnerId)) {
+    res.status(400).json({ error: "ID partenaire invalide" });
+    return;
+  }
+  const [partner] = await db.select({
+    id: usersTable.id,
+    name: usersTable.name,
+    email: usersTable.email,
+    role: usersTable.role,
+    company_name: usersTable.companyName,
+    supplier_id: usersTable.supplierId,
+  }).from(usersTable).where(eq(usersTable.id, partnerId)).limit(1);
+
+  if (!partner) {
+    res.status(404).json({ error: "Utilisateur introuvable — vérifiez qu'il a un compte actif." });
+    return;
+  }
+  res.json({
+    id: partner.id,
+    name: partner.name ?? partner.email ?? `Utilisateur #${partner.id}`,
+    email: partner.email,
+    role: partner.role,
+    company: partner.company_name,
+    supplier_id: partner.supplier_id,
+  });
+});
+
 router.get("/messages/thread/:partnerId", requireAuth, async (req: AuthedRequest, res) => {
   const uid = req.user!.id;
   const partnerId = parseInt(String(req.params.partnerId), 10);
@@ -97,6 +187,18 @@ router.post("/messages", requireAuth, async (req: AuthedRequest, res) => {
     res.status(400).json({ error: body.error.message });
     return;
   }
+  if (body.data.receiver_id === req.user!.id) {
+    res.status(400).json({ error: "Impossible de s'envoyer un message à soi-même." });
+    return;
+  }
+
+  const [receiver] = await db.select({ id: usersTable.id }).from(usersTable)
+    .where(eq(usersTable.id, body.data.receiver_id)).limit(1);
+  if (!receiver) {
+    res.status(404).json({ error: "Destinataire introuvable — l'exportateur doit créer un compte sur QDIA." });
+    return;
+  }
+
   const [msg] = await db.insert(messagesTable).values({
     senderId: req.user!.id,
     receiverId: body.data.receiver_id,
