@@ -35,6 +35,10 @@ export const productsTable = pgTable("products", {
   ordersFulfilled: integer("orders_fulfilled"),
   targetMarkets: text("target_markets").array().notNull().default([]),
   isFeatured: boolean("is_featured").notNull().default(false),
+  originCountry: text("origin_country").notNull().default("DZ"),
+  exportAuthorized: boolean("export_authorized").notNull().default(true),
+  stockCountries: text("stock_countries").array().notNull().default(["DZ"]),
+  priceDdp: real("price_ddp"),
 });
 
 export const insertProductSchema = createInsertSchema(productsTable).omit({ id: true });

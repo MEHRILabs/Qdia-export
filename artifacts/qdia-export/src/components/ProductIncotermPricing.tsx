@@ -1,14 +1,16 @@
 import { motion } from "framer-motion";
 import { Check } from "lucide-react";
 import { useI18n } from "@/contexts/I18nContext";
+import type { IncotermCode } from "@/lib/incoterms-routing";
 
-export type IncotermKey = "exw" | "fob" | "cfr" | "cif";
+export type IncotermKey = IncotermCode;
 
-const INCOTERMS: { key: IncotermKey; label: string; descKey: string }[] = [
+const ALL_INCOTERMS: { key: IncotermKey; label: string; descKey: string }[] = [
   { key: "exw", label: "EXW", descKey: "product_detail.incoterm_exw" },
   { key: "fob", label: "FOB", descKey: "product_detail.incoterm_fob" },
   { key: "cfr", label: "CFR", descKey: "product_detail.incoterm_cfr" },
   { key: "cif", label: "CIF", descKey: "product_detail.incoterm_cif" },
+  { key: "ddp", label: "DDP", descKey: "product_detail.incoterm_ddp" },
 ];
 
 interface Prices {
@@ -16,6 +18,7 @@ interface Prices {
   fob?: number | null;
   cfr?: number | null;
   cif?: number | null;
+  ddp?: number | null;
 }
 
 interface Props {
@@ -23,10 +26,15 @@ interface Props {
   unitLabel: string;
   selected: IncotermKey;
   onSelect: (key: IncotermKey) => void;
+  allowedIncoterms?: IncotermKey[];
 }
 
-export function ProductIncotermPricing({ prices, unitLabel, selected, onSelect }: Props) {
+export function ProductIncotermPricing({ prices, unitLabel, selected, onSelect, allowedIncoterms }: Props) {
   const { tr } = useI18n();
+  const incoterms = allowedIncoterms?.length
+    ? ALL_INCOTERMS.filter(i => allowedIncoterms.includes(i.key))
+    : ALL_INCOTERMS.filter(i => i.key !== "ddp" || prices.ddp != null);
+  const cols = incoterms.length;
 
   return (
     <div className="rounded-xl border bg-white overflow-hidden shadow-sm">
@@ -37,8 +45,11 @@ export function ProductIncotermPricing({ prices, unitLabel, selected, onSelect }
         </span>
       </div>
 
-      <div className="grid grid-cols-4 bg-[#F0F4FF] border-b text-xs font-semibold text-[#656566] uppercase text-center">
-        {INCOTERMS.map(({ key, label }, i) => (
+      <div
+        className="grid bg-[#F0F4FF] border-b text-xs font-semibold text-[#656566] uppercase text-center"
+        style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+      >
+        {incoterms.map(({ key, label }, i) => (
           <motion.div
             key={key}
             initial={{ opacity: 0, y: -6 }}
@@ -51,8 +62,11 @@ export function ProductIncotermPricing({ prices, unitLabel, selected, onSelect }
         ))}
       </div>
 
-      <div className="grid grid-cols-4 text-center divide-x relative">
-        {INCOTERMS.map(({ key, descKey }, i) => {
+      <div
+        className="grid text-center divide-x relative"
+        style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+      >
+        {incoterms.map(({ key, descKey }, i) => {
           const value = prices[key];
           const isActive = selected === key;
 
@@ -85,7 +99,7 @@ export function ProductIncotermPricing({ prices, unitLabel, selected, onSelect }
                   initial={{ opacity: 0, y: 4 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.2 }}
-                  className="text-lg font-black text-[#0461A5]"
+                  className={`font-black text-[#0461A5] ${key === "ddp" ? "text-base" : "text-lg"}`}
                 >
                   ${value?.toLocaleString() ?? "—"}
                 </motion.div>

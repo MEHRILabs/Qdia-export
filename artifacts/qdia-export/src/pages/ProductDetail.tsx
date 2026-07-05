@@ -1,9 +1,7 @@
 import { Link, useParams } from "wouter";
-import { useState } from "react";
 import { useGetProduct, getGetProductQueryKey } from "@workspace/api-client-react";
 import { BuyerHeader, BuyerFooter } from "@/components/BuyerHeader";
-import { ProductBuyPanel } from "@/components/ProductBuyPanel";
-import { ProductIncotermPricing, type IncotermKey } from "@/components/ProductIncotermPricing";
+import { ProductOrderFlow } from "@/components/ProductOrderFlow";
 import { ProductEngagement } from "@/components/ProductEngagement";
 import { ProductRecommendations } from "@/components/ProductRecommendations";
 import { OemSamplePanel } from "@/components/OemSamplePanel";
@@ -12,7 +10,7 @@ import { PortsCustomsPanel } from "@/components/PortsCustomsPanel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CheckCircle2, Star, ShieldCheck, ChevronRight, MapPin, FileDown } from "lucide-react";
+import { CheckCircle2, Star, ShieldCheck, ChevronRight, MapPin, FileDown, Factory } from "lucide-react";
 import { ProductImage } from "@/components/ProductImage";
 import { platformApi } from "@/lib/platform-api";
 import { useI18n } from "@/contexts/I18nContext";
@@ -29,7 +27,6 @@ export default function ProductDetail() {
     },
   });
   const { tr } = useI18n();
-  const [selectedIncoterm, setSelectedIncoterm] = useState<IncotermKey>("fob");
 
   if (loading) {
     return (
@@ -62,10 +59,15 @@ export default function ProductDetail() {
     );
   }
 
-  const prices = product.prices as typeof product.prices & { retail?: number; wholesale?: number };
+  const prices = product.prices as typeof product.prices & { retail?: number; wholesale?: number; ddp?: number };
   const unitLabel = formatUnitLabel(prices.unit, tr);
   const moqUnitLabel = formatUnitLabel(product.moq_unit, tr);
   const supplierLocation = formatLocation(product.supplier_location, tr);
+  const productExt = product as typeof product & {
+    origin_country?: string;
+    export_authorized?: boolean;
+    stock_countries?: string[];
+  };
 
   return (
     <div className="min-h-screen qdia-buyer-page flex flex-col">
@@ -105,6 +107,11 @@ export default function ProductDetail() {
                   <ShieldCheck className="h-3 w-3 mr-1" /> {tr("product_detail.verified_supplier")}
                 </Badge>
                 <span className="badge-algeria">🇩🇿 {tr("product_detail.made_in_algeria")}</span>
+                {productExt.export_authorized === false && (
+                  <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50">
+                    <Factory className="h-3 w-3 mr-1" /> {tr("order_flow.export_pending")}
+                  </Badge>
+                )}
                 {product.sku && <Badge variant="outline" className="text-xs">{product.sku}</Badge>}
               </div>
               <h1 className="text-2xl md:text-3xl font-black text-[#1A1A2E] mb-2">{product.name}</h1>
@@ -124,13 +131,6 @@ export default function ProductDetail() {
                 {product.description}
               </div>
             )}
-
-            <ProductIncotermPricing
-              prices={prices}
-              unitLabel={unitLabel}
-              selected={selectedIncoterm}
-              onSelect={setSelectedIncoterm}
-            />
 
             <div className="grid grid-cols-2 gap-4 text-sm">
               {[
@@ -190,9 +190,14 @@ export default function ProductDetail() {
               <CheckCircle2 className="h-5 w-5 text-[#0461A5] shrink-0" />
             </div>
 
-            <ProductBuyPanel
-              product={product}
-              selectedIncoterm={selectedIncoterm}
+            <PortsCustomsPanel
+              productCategory={product.category}
+              portDepart={product.port_depart}
+              fobPrice={(product.prices?.fob ?? 5) * 10000}
+            />
+
+            <ProductOrderFlow
+              product={productExt}
               unitLabel={unitLabel}
               moqUnitLabel={moqUnitLabel}
             />
@@ -204,12 +209,6 @@ export default function ProductDetail() {
             <OemSamplePanel productId={product.id} supplierId={product.supplier_id} />
 
             <ProductEngagement productId={product.id} productName={product.name} category={product.category} />
-
-            <PortsCustomsPanel
-              productCategory={product.category}
-              portDepart={product.port_depart}
-              fobPrice={(product.prices?.fob ?? 5) * 10000}
-            />
           </div>
         </div>
 

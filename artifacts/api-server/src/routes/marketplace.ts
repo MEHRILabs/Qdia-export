@@ -6,6 +6,7 @@ import {
   createDispute, getDisputes, mediateDispute,
   createOemRequest, createSampleRequest,
   getSupplierReviews, postSupplierReview, getRecommendations,
+  updateOrderStatus, getProductContact,
 } from "../services/marketplace";
 import { trackParcel, detectCarrier, type Carrier } from "../services/tracking";
 import { broadcastDisputeUpdate, broadcastOrderUpdate } from "../services/websocket";
@@ -52,7 +53,8 @@ router.post("/cart/checkout", requireAuth, async (req: AuthedRequest, res) => {
   try {
     const order = await checkout(req.user!.id, parsed.data.payment_method);
     broadcastOrderUpdate(req.user!.id, order);
-    if (order.supplier_id) broadcastOrderUpdate(order.supplier_id as number, order);
+    const supplierUserId = (order as { supplier_contact?: { supplier_user_id?: number | null } }).supplier_contact?.supplier_user_id;
+    if (supplierUserId) broadcastOrderUpdate(supplierUserId, order);
     res.status(201).json(order);
   } catch (err) {
     res.status(400).json({ error: err instanceof Error ? err.message : "Erreur checkout" });
@@ -61,8 +63,38 @@ router.post("/cart/checkout", requireAuth, async (req: AuthedRequest, res) => {
 
 // ─── Commandes & Réachat ─────────────────────────────────────────────────────
 router.get("/orders", requireAuth, async (req: AuthedRequest, res) => {
-  const orders = await getOrders(req.user!.id, req.user!.role);
+  const orders = await getOrders(req.user!.id, req.user!.role, req.user!.supplier_id);
   res.json({ data: orders });
+});
+
+router.patch("/orders/:id", requireAuth, async (req: AuthedRequest, res) => {
+  const parsed = z.object({
+    status: z.enum(["pending_payment", "confirmed", "shipped", "delivered", "cancelled"]).optional(),
+    tracking_number: z.string().optional(),
+    carrier: z.string().optional(),
+  }).safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  try {
+    const order = await updateOrderStatus(
+      parseInt(String(req.params.id), 10),
+      parsed.data,
+      { id: req.user!.id, role: req.user!.role, supplier_id: req.user!.supplier_id },
+    );
+    broadcastOrderUpdate(req.user!.id, order as Record<string, unknown>);
+    if (order.buyer_id) broadcastOrderUpdate(order.buyer_id as number, order as Record<string, unknown>);
+    if (order.supplier_user_id) broadcastOrderUpdate(order.supplier_user_id as number, order as Record<string, unknown>);
+    res.json(order);
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : "Erreur" });
+  }
+});
+
+router.get("/products/:id/contact", async (req, res) => {
+  const productId = parseInt(String(req.params.id), 10);
+  if (Number.isNaN(productId)) { res.status(400).json({ error: "ID produit invalide" }); return; }
+  const contact = await getProductContact(productId);
+  if (!contact) { res.status(404).json({ error: "Fournisseur introuvable" }); return; }
+  res.json(contact);
 });
 
 router.post("/orders/:id/reorder", requireAuth, async (req: AuthedRequest, res) => {

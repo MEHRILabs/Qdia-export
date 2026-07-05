@@ -6,10 +6,12 @@ import { AuthModal } from "@/components/AuthModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { isSupplier, isAdmin, defaultHomeForUser } from "@/lib/roles";
 import { getStoredUser } from "@/lib/api-auth";
-import { Wand2, LogIn, LogOut, User, Store, Sparkles, Globe, Menu, MapPin, BookOpen, ShoppingCart, Package, Truck, Shield } from "lucide-react";
+import { Wand2, LogIn, LogOut, User, Store, Sparkles, Globe, Menu, MapPin, BookOpen, ShoppingCart, Package, Truck, Shield, MessageSquare } from "lucide-react";
 import { useI18n } from "@/contexts/I18nContext";
 import type { Locale } from "@/lib/i18n";
 import { useCartCount } from "@/hooks/useCart";
+import { useQuery } from "@tanstack/react-query";
+import { platformApi } from "@/lib/platform-api";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
@@ -78,6 +80,14 @@ export function BuyerHeader() {
   const [, setLocation] = useLocation();
   const [authOpen, setAuthOpen] = useState(false);
   const cartCount = useCartCount();
+
+  const { data: threadsData } = useQuery({
+    queryKey: ["message-threads"],
+    queryFn: () => platformApi.getMessageThreads(),
+    enabled: !!user,
+    refetchInterval: 30000,
+  });
+  const unreadCount = (threadsData?.data ?? []).reduce((s, t) => s + (t.unread ?? 0), 0);
 
   const goToCart = useCallback(() => {
     if (!user) {
@@ -172,6 +182,14 @@ export function BuyerHeader() {
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
+                  <Link href="/messages" className="cursor-pointer text-sm py-2">
+                    <MessageSquare className="h-4 w-4 mr-2 inline text-[#0461A5]" /> {tr("nav.messages")}
+                    {unreadCount > 0 && (
+                      <span className="ml-auto bg-[#0461A5] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{unreadCount}</span>
+                    )}
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
                   <Link href="/suivi" className="cursor-pointer text-sm py-2">
                     <Truck className="h-4 w-4 mr-2 inline text-[#0461A5]" /> {tr("tracking.page_title")}
                   </Link>
@@ -249,6 +267,17 @@ export function BuyerHeader() {
               )}
             </motion.button>
 
+            {user && (
+              <Link href="/messages" className="relative hidden sm:inline-flex items-center justify-center h-9 w-9 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-lg transition-colors" aria-label={tr("nav.messages")}>
+                <MessageSquare className="h-4 w-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 h-4 min-w-4 px-0.5 rounded-full bg-[#F5C518] text-[#1A1A2E] text-[10px] font-black flex items-center justify-center">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </Link>
+            )}
+
             {isSupplier(user) && (
               <div className="hidden md:block">
                 <StudioIAButton label={tr("header.studio_ia")} />
@@ -276,6 +305,12 @@ export function BuyerHeader() {
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link href="/commandes" className="cursor-pointer">{tr("orders.title")}</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/messages" className="cursor-pointer">
+                      {tr("nav.messages")}
+                      {unreadCount > 0 && ` (${unreadCount})`}
+                    </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link href="/favoris" className="cursor-pointer">{tr("nav.favorites")}</Link>

@@ -5,6 +5,11 @@
  */
 import { createDbPool } from "./db-pool.mjs";
 import { marketplaceCategorySql } from "./lib/category-normalize.mjs";
+import {
+  inferStockCountries,
+  DEFAULT_TARGET_MARKETS,
+  computePriceDdp,
+} from "./lib/export-fields.mjs";
 
 const PLACEHOLDER = "/qdia-photo-placeholder.svg";
 
@@ -22,6 +27,8 @@ const SEED_PRODUCTS = [
     price_exw: 4.2, price_fob: 5.1, price_cfr: 6.8, price_cif: 7.0, price_unit: "per liter",
     is_featured: true, rating: 4.8, review_count: 23, orders_fulfilled: 12,
     supplier_name: "Coopérative Oléicole Béjaïa",
+    export_authorized: true,
+    stock_countries: ["DZ", "FR"],
   },
   {
     name: "Dattes Deglet Nour Premium",
@@ -113,15 +120,19 @@ async function seedBaseProducts(client, supplierId) {
     return rows[0].n;
   }
   for (const p of SEED_PRODUCTS) {
+    const stock = p.stock_countries ?? inferStockCountries(p.target_markets);
+    const priceDdp = computePriceDdp(p.price_cif);
     await client.query(
       `INSERT INTO products (
         name, description, category, sku, image_url, images, supplier_id, supplier_name, supplier_location,
         moq, moq_unit, port_depart, origin_wilaya, certifications, packaging, export_status,
         price_exw, price_fob, price_cfr, price_cif, price_currency, price_unit,
-        target_markets, is_featured, rating, review_count, orders_fulfilled
+        target_markets, is_featured, rating, review_count, orders_fulfilled,
+        origin_country, export_authorized, stock_countries, price_ddp
       )
       SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'published',
-        $16,$17,$18,$19,'USD',$20,$21,$22,$23,$24,$25
+        $16,$17,$18,$19,'USD',$20,$21,$22,$23,$24,$25,
+        'DZ',$26,$27,$28
       WHERE NOT EXISTS (SELECT 1 FROM products WHERE sku = $4)`,
       [
         p.name, p.description, p.category, p.sku, p.image_url, [p.image_url],
@@ -129,6 +140,7 @@ async function seedBaseProducts(client, supplierId) {
         p.moq, p.moq_unit, p.port_depart, p.origin_wilaya, p.certifications, p.packaging,
         p.price_exw, p.price_fob, p.price_cfr, p.price_cif, p.price_unit,
         p.target_markets, p.is_featured, p.rating, p.review_count, p.orders_fulfilled,
+        p.export_authorized !== false, stock, priceDdp,
       ],
     );
   }
@@ -185,6 +197,8 @@ async function syncCatalogVariants(client, supplierId) {
       WHEN cv.price_retail_dzd > 0 THEN (cv.price_retail_dzd / 135.0) * 1.12 ELSE 1.12 END`;
   const WHOLESALE = `CASE WHEN cv.price_fob_usd > 0 THEN cv.price_fob_usd
       WHEN cv.price_retail_dzd > 0 THEN cv.price_retail_dzd / 135.0 ELSE NULL END`;
+  const DDP = `CASE WHEN cv.price_fob_usd > 0 THEN cv.price_fob_usd * 1.12 * 1.18
+      WHEN cv.price_retail_dzd > 0 THEN (cv.price_retail_dzd / 135.0) * 1.12 * 1.18 ELSE 1.32 END`;
   const CATEGORY = marketplaceCategorySql("cv");
   const IMAGE = `COALESCE(NULLIF(trim(cv.image_url), ''), $2)`;
   const DESC = `COALESCE(cv.description, COALESCE(cv.brand_name, '') || ' — ' || cv.name)`;
@@ -209,10 +223,21 @@ async function syncCatalogVariants(client, supplierId) {
         price_cif = ${CIF},
         price_retail = cv.price_retail_dzd,
         price_wholesale = ${WHOLESALE},
-        export_status = 'published'
+        export_status = 'published',
+        origin_country = COALESCE(p.origin_country, 'DZ'),
+        export_authorized = COALESCE(p.export_authorized, false),
+        stock_countries = CASE
+          WHEN p.stock_countries IS NOT NULL AND cardinality(p.stock_countries) > 1 THEN p.stock_countries
+          ELSE ARRAY['DZ']
+        END,
+        target_markets = CASE
+          WHEN p.target_markets IS NOT NULL AND p.target_markets <> '{}' THEN p.target_markets
+          ELSE $3::text[]
+        END,
+        price_ddp = COALESCE(p.price_ddp, ${DDP})
       FROM catalog_variants cv
       WHERE p.sku = cv.master_id AND ${NOT_EMPTY}`,
-    [supplierId, PLACEHOLDER],
+    [supplierId, PLACEHOLDER, DEFAULT_TARGET_MARKETS],
   );
 
   // 2) Insérer les nouvelles variantes (SKU absent de products)
@@ -222,7 +247,8 @@ async function syncCatalogVariants(client, supplierId) {
       supplier_id, supplier_name, supplier_location, moq, moq_unit,
       port_depart, origin_wilaya, certifications, packaging, export_status,
       price_exw, price_fob, price_cfr, price_cif, price_currency, price_unit,
-      price_retail, price_wholesale, is_featured
+      price_retail, price_wholesale, is_featured,
+      origin_country, export_authorized, stock_countries, target_markets, price_ddp
     )
     SELECT
       cv.name, ${DESC}, ${CATEGORY}, cv.master_id, ${IMAGE}, ARRAY[${IMAGE}],
@@ -230,11 +256,12 @@ async function syncCatalogVariants(client, supplierId) {
       GREATEST(COALESCE(cv.moq, 100), 1), COALESCE(cv.moq_unit, 'unité'),
       'Béjaïa', 'Alger', '{}', cv.packaging_notes, 'published',
       ${EXW}, ${FOB}, ${CFR}, ${CIF}, 'USD', 'unit',
-      cv.price_retail_dzd, ${WHOLESALE}, false
+      cv.price_retail_dzd, ${WHOLESALE}, false,
+      'DZ', false, ARRAY['DZ'], $3, ${DDP}
     FROM catalog_variants cv
     WHERE ${NOT_EMPTY}
       AND NOT EXISTS (SELECT 1 FROM products p WHERE p.sku = cv.master_id)`,
-    [supplierId, PLACEHOLDER],
+    [supplierId, PLACEHOLDER, DEFAULT_TARGET_MARKETS],
   );
 
   // 3) Lier chaque variante à son produit publié
@@ -253,6 +280,26 @@ async function syncCatalogVariants(client, supplierId) {
   return inserted;
 }
 
+async function repairExportFields(client) {
+  const { rowCount } = await client.query(`
+    UPDATE products SET
+      origin_country = COALESCE(NULLIF(trim(origin_country), ''), 'DZ'),
+      stock_countries = CASE
+        WHEN stock_countries IS NULL OR stock_countries = '{}' THEN ARRAY['DZ']
+        ELSE stock_countries
+      END,
+      target_markets = CASE
+        WHEN target_markets IS NULL OR target_markets = '{}' THEN $1::text[]
+        ELSE target_markets
+      END,
+      price_ddp = COALESCE(price_ddp, price_cif * 1.18),
+      export_authorized = COALESCE(export_authorized, false)
+    WHERE export_status = 'published'
+  `, [DEFAULT_TARGET_MARKETS]);
+  console.log(`→ ${rowCount ?? 0} produits — champs export/stock/DDP réparés`);
+  return rowCount ?? 0;
+}
+
 async function main() {
   const pool = createDbPool();
   const client = await pool.connect();
@@ -261,6 +308,7 @@ async function main() {
     await seedBaseProducts(client, supplierId);
     await repairCatalogVariantCategories(client);
     await syncCatalogVariants(client, supplierId);
+    await repairExportFields(client);
     await client.query(`
       UPDATE products SET is_featured = false WHERE export_status = 'published';
       UPDATE products SET is_featured = true

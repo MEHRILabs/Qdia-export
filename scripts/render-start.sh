@@ -12,6 +12,7 @@ fi
 
 echo "→ Création/vérification des tables…"
 node ./scripts/ensure-app-tables.mjs
+node ./scripts/ensure-product-export-fields.mjs || echo "WARN: ensure-product-export-fields"
 
 if [ "${SKIP_DRIZZLE_PUSH:-}" != "1" ] && [ "${NODE_ENV:-}" != "production" ]; then
   echo "→ Synchronisation schéma Drizzle…"

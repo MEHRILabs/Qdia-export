@@ -28,6 +28,15 @@ import {
   resolveCategoryFilterValues,
   toMarketplaceCategory,
 } from "../lib/category-normalize";
+import {
+  availableIncoterms,
+  calculateDdpUsdFromCif,
+  defaultIncoterm,
+  inferStockCountries,
+  normalizeCountryCode,
+  resolveIncotermMode,
+} from "../lib/incoterms-routing";
+import { calculateCustoms } from "../services/ports-customs";
 import { saveCatalogImage } from "../services/catalog-image-store";
 import { normalizeImageBase64, type ImageMime } from "../lib/image-base64";
 
@@ -90,6 +99,9 @@ async function resolveSupplierForUser(user?: AuthedRequest["user"]): Promise<num
 }
 
 function toProductShape(p: typeof productsTable.$inferSelect) {
+  const stockCountries = p.stockCountries?.length
+    ? p.stockCountries
+    : inferStockCountries(p.targetMarkets ?? []);
   return {
     id: p.id,
     name: p.name,
@@ -105,6 +117,9 @@ function toProductShape(p: typeof productsTable.$inferSelect) {
     moq_unit: p.moqUnit,
     port_depart: p.portDepart,
     origin_wilaya: p.originWilaya,
+    origin_country: p.originCountry ?? "DZ",
+    export_authorized: p.exportAuthorized ?? true,
+    stock_countries: stockCountries,
     certifications: p.certifications ?? [],
     packaging: p.packaging,
     processing: p.processing,
@@ -114,6 +129,7 @@ function toProductShape(p: typeof productsTable.$inferSelect) {
       fob: p.priceFob,
       cfr: p.priceCfr,
       cif: p.priceCif,
+      ddp: p.priceDdp ?? undefined,
       currency: p.priceCurrency,
       unit: p.priceUnit,
       retail: p.priceRetail ?? undefined,
@@ -124,6 +140,52 @@ function toProductShape(p: typeof productsTable.$inferSelect) {
     orders_fulfilled: p.ordersFulfilled,
     target_markets: p.targetMarkets ?? [],
     is_featured: p.isFeatured,
+  };
+}
+
+function resolveProductPricing(
+  p: typeof productsTable.$inferSelect,
+  buyerCountry: string,
+  quantity = 1,
+) {
+  const stockCountries = p.stockCountries?.length
+    ? p.stockCountries
+    : inferStockCountries(p.targetMarkets ?? []);
+  const origin = p.originCountry ?? "DZ";
+  const buyer = normalizeCountryCode(buyerCountry);
+  const mode = resolveIncotermMode(origin, buyer, stockCountries);
+  const incoterms = availableIncoterms(mode);
+  const cifUsd = (p.priceCif ?? p.priceFob) * quantity;
+  const cifDzd = cifUsd * Number(process.env.DZD_USD_RATE ?? 135);
+  const customs = calculateCustoms({
+    product_category: p.category,
+    destination_code: buyer,
+    cif_value_dzd: cifDzd,
+  });
+  const ddpUsd = p.priceDdp ?? calculateDdpUsdFromCif(cifUsd, customs.total_customs_dzd);
+
+  return {
+    mode,
+    incoterms,
+    default_incoterm: defaultIncoterm(mode),
+    origin_country: origin,
+    buyer_country: buyer,
+    export_authorized: p.exportAuthorized ?? true,
+    requires_factory_authorization: !(p.exportAuthorized ?? true),
+    prices: {
+      exw: p.priceExw,
+      fob: p.priceFob,
+      cfr: p.priceCfr,
+      cif: p.priceCif,
+      ddp: ddpUsd,
+    },
+    customs,
+    quantity,
+    line_total_usd: {
+      fob: p.priceFob * quantity,
+      cif: p.priceCif * quantity,
+      ddp: ddpUsd * quantity,
+    },
   };
 }
 
@@ -145,6 +207,7 @@ router.get("/products", optionalAuth, async (req: AuthedRequest, res): Promise<v
   const originWilaya = req.query.origin_wilaya as string | undefined;
   const supplierIdFilter = req.query.supplier_id ? parseInt(String(req.query.supplier_id), 10) : undefined;
   const incotermFilter = req.query.incoterm as string | undefined;
+  const exportAuthFilter = req.query.export_authorized as string | undefined;
   const conditions: SQL[] = [];
 
   if (exportStatusFilter) {
@@ -203,6 +266,13 @@ router.get("/products", optionalAuth, async (req: AuthedRequest, res): Promise<v
   }
   if (supplierIdFilter != null && !Number.isNaN(supplierIdFilter)) {
     conditions.push(eq(productsTable.supplierId, supplierIdFilter));
+  }
+  if (scope === "admin" && req.user?.role === "admin") {
+    if (exportAuthFilter === "true") {
+      conditions.push(eq(productsTable.exportAuthorized, true));
+    } else if (exportAuthFilter === "false") {
+      conditions.push(eq(productsTable.exportAuthorized, false));
+    }
   }
 
   const query = db.select().from(productsTable).$dynamic();
@@ -578,6 +648,16 @@ router.patch("/products/:id", requireAuth, requireRole("supplier", "admin"), asy
     res.status(400).json({ error: "Invalid product id" });
     return;
   }
+  const parsed = z.object({
+    export_status: z.enum(["draft", "pending", "published", "suspended"]).optional(),
+    export_authorized: z.boolean().optional(),
+    stock_countries: z.array(z.string().min(2).max(3)).optional(),
+    origin_country: z.string().min(2).max(3).optional(),
+  }).safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
   const [existing] = await db.select().from(productsTable).where(eq(productsTable.id, id)).limit(1);
   if (!existing) {
     res.status(404).json({ error: "Product not found" });
@@ -587,9 +667,28 @@ router.patch("/products/:id", requireAuth, requireRole("supplier", "admin"), asy
     res.status(403).json({ error: "Accès non autorisé à ce produit." });
     return;
   }
-  const export_status = parseExportStatus(req.body?.export_status);
+  if (parsed.data.export_authorized != null && req.user!.role !== "admin") {
+    res.status(403).json({ error: "Seul l'admin peut valider l'export usine." });
+    return;
+  }
+  if (parsed.data.stock_countries != null && req.user!.role !== "admin") {
+    res.status(403).json({ error: "Seul l'admin peut modifier le stock par pays." });
+    return;
+  }
+
+  const update: Partial<typeof productsTable.$inferInsert> = {};
+  if (parsed.data.export_status) update.exportStatus = parsed.data.export_status;
+  if (parsed.data.export_authorized != null) update.exportAuthorized = parsed.data.export_authorized;
+  if (parsed.data.stock_countries) update.stockCountries = parsed.data.stock_countries.map(c => c.toUpperCase());
+  if (parsed.data.origin_country) update.originCountry = parsed.data.origin_country.toUpperCase();
+
+  if (!Object.keys(update).length) {
+    res.status(400).json({ error: "Aucune modification" });
+    return;
+  }
+
   const [product] = await db.update(productsTable)
-    .set({ exportStatus: export_status })
+    .set(update)
     .where(eq(productsTable.id, id))
     .returning();
   if (!product) {
@@ -597,6 +696,23 @@ router.patch("/products/:id", requireAuth, requireRole("supplier", "admin"), asy
     return;
   }
   res.json(GetProductResponse.parse(toProductShape(product)));
+});
+
+router.get("/products/:id/pricing", async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  if (Number.isNaN(id)) {
+    res.status(400).json({ error: "ID produit invalide" });
+    return;
+  }
+  const destination = normalizeCountryCode(String(req.query.destination ?? "FR"));
+  const quantity = Math.max(1, parseFloat(String(req.query.quantity ?? "1")) || 1);
+
+  const [product] = await db.select().from(productsTable).where(eq(productsTable.id, id)).limit(1);
+  if (!product) {
+    res.status(404).json({ error: "Product not found" });
+    return;
+  }
+  res.json(resolveProductPricing(product, destination, quantity));
 });
 
 router.get("/products/:id", async (req, res): Promise<void> => {

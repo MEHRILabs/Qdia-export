@@ -203,6 +203,25 @@ export const platformApi = {
   getOrders: () =>
     api<{ data: Array<Record<string, unknown>> }>("/api/orders"),
 
+  patchOrder: (orderId: number, data: { status?: string; tracking_number?: string; carrier?: string }) =>
+    api(`/api/orders/${orderId}`, { method: "PATCH", body: JSON.stringify(data) }),
+
+  getProductContact: (productId: number) =>
+    api<SupplierContact & { product_id: number; product_name: string; supplier_id: number }>(`/api/products/${productId}/contact`),
+
+  getProductPricing: (productId: number, destination: string, quantity = 1) =>
+    api<{
+      mode: string;
+      incoterms: string[];
+      default_incoterm: string;
+      origin_country: string;
+      buyer_country: string;
+      export_authorized: boolean;
+      prices: { exw: number; fob: number; cfr: number; cif: number; ddp: number };
+      customs: Record<string, unknown>;
+      line_total_usd: { fob: number; cif: number; ddp: number };
+    }>(`/api/products/${productId}/pricing?destination=${encodeURIComponent(destination)}&quantity=${quantity}`),
+
   reorder: (orderId: number) =>
     api<{ data: Array<{ id: number; product_id: number; quantity: number; incoterm: string }>; message: string }>(
       `/api/orders/${orderId}/reorder`,
@@ -290,4 +309,14 @@ export const platformApi = {
       pricing_updated: number;
       errors: string[];
     }>("/api/products/enrich", { method: "POST", body: JSON.stringify(opts ?? { limit: 50 }) }),
+
+  listAdminExportProducts: (filter: "pending" | "authorized" | "all" = "pending") => {
+    const q = new URLSearchParams({ scope: "admin", limit: "100", export_status: "published" });
+    if (filter === "pending") q.set("export_authorized", "false");
+    else if (filter === "authorized") q.set("export_authorized", "true");
+    return api<{ data: Array<Record<string, unknown>> }>(`/api/products?${q.toString()}`);
+  },
+
+  patchProductExport: (id: number, data: { export_authorized?: boolean; stock_countries?: string[] }) =>
+    api(`/api/products/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
 };

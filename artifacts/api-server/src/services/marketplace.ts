@@ -2,8 +2,9 @@ import {
   db, productsTable, productViewsTable, favoritesTable,
   cartItemsTable, ordersTable, disputesTable, oemRequestsTable,
   sampleRequestsTable, supplierReviewsTable, usersTable, messagesTable,
+  suppliersTable,
 } from "@workspace/db";
-import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
+import { eq, and, or, desc, sql, inArray } from "drizzle-orm";
 import { sendPushToUser } from "./fcm";
 
 let nextId = 1000;
@@ -30,6 +31,7 @@ function priceForIncoterm(p: typeof productsTable.$inferSelect, incoterm: string
     case "EXW": return p.priceExw;
     case "CFR": return p.priceCfr;
     case "CIF": return p.priceCif;
+    case "DDP": return p.priceDdp ?? p.priceCif * 1.18;
     default: return p.priceFob;
   }
 }
@@ -121,6 +123,88 @@ async function notifySupplierOfOrder(
   return { supplier_user_id: null, name: null, email: null, phone: null, company: null };
 }
 
+async function notifyAdminOfOrder(
+  orderId: number,
+  buyerId: number,
+  total: number,
+  currency: string,
+  items: Array<{ product_name: string; quantity: number; incoterm: string }>,
+) {
+  if (!(await dbOk())) return;
+
+  const [admin] = await db.select().from(usersTable)
+    .where(eq(usersTable.role, "admin"))
+    .limit(1);
+  if (!admin) return;
+
+  const [buyer] = await db.select().from(usersTable)
+    .where(eq(usersTable.id, buyerId))
+    .limit(1);
+
+  const lines = items.map(i => `• ${i.product_name} × ${i.quantity} (${i.incoterm})`).join("\n");
+  const buyerLabel = buyer?.name ?? buyer?.email ?? `Utilisateur #${buyerId}`;
+  const body = `🛒 Nouvelle commande #${orderId}\nAcheteur : ${buyerLabel}\nTotal : ${total.toFixed(2)} ${currency}\n${lines}`;
+
+  try {
+    await db.insert(messagesTable).values({
+      senderId: buyerId,
+      receiverId: admin.id,
+      body,
+    });
+    void sendPushToUser(admin.id, "Nouvelle commande QDIA", `Commande #${orderId} — ${total.toFixed(2)} ${currency}`);
+  } catch { /* ignore */ }
+}
+
+async function enrichOrderRows(rows: typeof ordersTable.$inferSelect[]) {
+  if (!rows.length) return [];
+
+  const buyerIds = [...new Set(rows.map(r => r.buyerId))];
+  const supplierEntityIds = [...new Set(rows.map(r => r.supplierId).filter((id): id is number => id != null))];
+
+  let buyers: typeof usersTable.$inferSelect[] = [];
+  let supplierUsers: typeof usersTable.$inferSelect[] = [];
+  let suppliers: typeof suppliersTable.$inferSelect[] = [];
+
+  if (await dbOk()) {
+    try {
+      if (buyerIds.length) {
+        buyers = await db.select().from(usersTable).where(inArray(usersTable.id, buyerIds));
+      }
+      if (supplierEntityIds.length) {
+        [supplierUsers, suppliers] = await Promise.all([
+          db.select().from(usersTable).where(inArray(usersTable.supplierId, supplierEntityIds)),
+          db.select().from(suppliersTable).where(inArray(suppliersTable.id, supplierEntityIds)),
+        ]);
+      }
+    } catch { /* ignore */ }
+  }
+
+  return rows.map(r => {
+    const buyer = buyers.find(b => b.id === r.buyerId);
+    const supplierUser = supplierUsers.find(u => u.supplierId === r.supplierId);
+    const supplier = suppliers.find(s => s.id === r.supplierId);
+    return {
+      id: r.id,
+      buyer_id: r.buyerId,
+      supplier_id: r.supplierId,
+      buyer_name: buyer?.name ?? buyer?.email ?? null,
+      buyer_email: buyer?.email ?? null,
+      supplier_name: supplier?.companyName ?? supplierUser?.companyName ?? supplierUser?.name ?? null,
+      supplier_user_id: supplierUser?.id ?? null,
+      items: r.items,
+      total_amount: r.totalAmount,
+      currency: r.currency,
+      status: r.status,
+      payment_method: r.paymentMethod,
+      transaction_id: r.transactionId,
+      tracking_number: r.trackingNumber,
+      carrier: r.carrier,
+      trade_assurance: true,
+      created_at: r.createdAt.toISOString(),
+    };
+  });
+}
+
 export async function addToCart(userId: number, productId: number, quantity: number, incoterm = "FOB", notes?: string) {
   if (await dbOk()) {
     try {
@@ -190,14 +274,15 @@ export async function checkout(userId: number, paymentMethod: string) {
 
   const orderItems = items.map(item => {
     const p = products.find(pr => pr.id === item.product_id);
-    const unitPrice = p?.priceFob ?? 1000;
+    const inc = item.incoterm ?? "FOB";
+    const unitPrice = p ? priceForIncoterm(p, inc) : (item.unit_price ?? 1000);
     return {
       product_id: item.product_id,
-      product_name: p?.name ?? `Produit #${item.product_id}`,
+      product_name: p?.name ?? item.product_name ?? `Produit #${item.product_id}`,
       quantity: item.quantity,
       unit_price: unitPrice,
       total: unitPrice * item.quantity,
-      incoterm: item.incoterm,
+      incoterm: inc,
       supplier_id: p?.supplierId,
     };
   });
@@ -253,29 +338,101 @@ export async function checkout(userId: number, paymentMethod: string) {
     })),
   );
 
+  await notifyAdminOfOrder(
+    order.id as number,
+    userId,
+    total,
+    "USD",
+    orderItems.map(i => ({
+      product_name: i.product_name,
+      quantity: i.quantity,
+      incoterm: i.incoterm,
+    })),
+  );
+
   return { ...order, supplier_contact: supplierContact };
 }
 
-export async function getOrders(userId: number, role: string) {
+export async function getOrders(userId: number, role: string, supplierEntityId?: number | null) {
   if (await dbOk()) {
     try {
-      const rows = role === "admin"
-        ? await db.select().from(ordersTable).orderBy(desc(ordersTable.createdAt)).limit(100)
-        : await db.select().from(ordersTable)
-          .where(sql`${ordersTable.buyerId} = ${userId} OR ${ordersTable.supplierId} = ${userId}`)
+      let rows: typeof ordersTable.$inferSelect[];
+      if (role === "admin") {
+        rows = await db.select().from(ordersTable).orderBy(desc(ordersTable.createdAt)).limit(100);
+      } else if (role === "supplier" && supplierEntityId) {
+        rows = await db.select().from(ordersTable)
+          .where(or(eq(ordersTable.buyerId, userId), eq(ordersTable.supplierId, supplierEntityId)))
           .orderBy(desc(ordersTable.createdAt)).limit(50);
-      return rows.map(r => ({
-        id: r.id, buyer_id: r.buyerId, supplier_id: r.supplierId,
-        items: r.items, total_amount: r.totalAmount, currency: r.currency,
-        status: r.status, payment_method: r.paymentMethod, transaction_id: r.transactionId,
-        tracking_number: r.trackingNumber, carrier: r.carrier,
-        trade_assurance: true, created_at: r.createdAt.toISOString(),
-      }));
+      } else {
+        rows = await db.select().from(ordersTable)
+          .where(eq(ordersTable.buyerId, userId))
+          .orderBy(desc(ordersTable.createdAt)).limit(50);
+      }
+      return enrichOrderRows(rows);
     } catch { /* mem */ }
   }
-  return mem.orders.filter(o =>
-    role === "admin" || o.buyer_id === userId || o.supplier_id === userId,
+  const filtered = mem.orders.filter(o =>
+    role === "admin"
+    || o.buyer_id === userId
+    || (role === "supplier" && supplierEntityId && o.supplier_id === supplierEntityId),
   );
+  return filtered;
+}
+
+export async function updateOrderStatus(
+  orderId: number,
+  data: { status?: string; tracking_number?: string; carrier?: string },
+  actor: { id: number; role: string; supplier_id?: number | null },
+) {
+  if (!(await dbOk())) throw new Error("Base de données indisponible");
+
+  const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, orderId)).limit(1);
+  if (!order) throw new Error("Commande introuvable");
+
+  const isAdmin = actor.role === "admin";
+  const isSupplier = actor.role === "supplier" && actor.supplier_id != null && order.supplierId === actor.supplier_id;
+
+  if (!isAdmin && !isSupplier) {
+    throw new Error("Accès non autorisé");
+  }
+
+  if (!isAdmin && data.status && !["confirmed", "shipped"].includes(data.status)) {
+    throw new Error("Statut non autorisé");
+  }
+
+  const [updated] = await db.update(ordersTable).set({
+    status: data.status ?? order.status,
+    trackingNumber: data.tracking_number ?? order.trackingNumber,
+    carrier: data.carrier ?? order.carrier,
+  }).where(eq(ordersTable.id, orderId)).returning();
+
+  const enriched = await enrichOrderRows([updated]);
+  return enriched[0];
+}
+
+export async function getProductContact(productId: number) {
+  if (!(await dbOk())) return null;
+
+  const [product] = await db.select().from(productsTable).where(eq(productsTable.id, productId)).limit(1);
+  if (!product?.supplierId) return null;
+
+  const [supplierUser] = await db.select().from(usersTable)
+    .where(eq(usersTable.supplierId, product.supplierId))
+    .limit(1);
+  const [supplier] = await db.select().from(suppliersTable)
+    .where(eq(suppliersTable.id, product.supplierId))
+    .limit(1);
+
+  return {
+    product_id: productId,
+    product_name: product.name,
+    supplier_id: product.supplierId,
+    supplier_user_id: supplierUser?.id ?? null,
+    name: supplierUser?.name ?? supplier?.companyName ?? product.supplierName ?? null,
+    email: supplierUser?.email ?? null,
+    phone: supplierUser?.phone ?? null,
+    company: supplierUser?.companyName ?? supplier?.companyName ?? null,
+  };
 }
 
 export async function reorder(userId: number, orderId: number) {

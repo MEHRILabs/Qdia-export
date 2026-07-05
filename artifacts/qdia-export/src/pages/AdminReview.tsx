@@ -5,10 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle2, XCircle, Clock, Loader2, Database, Sparkles, ImageIcon, DollarSign, Pencil } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, Loader2, Database, Sparkles, ImageIcon, DollarSign, Pencil, Package, MessageSquare, Factory } from "lucide-react";
 import { ProductImage } from "@/components/ProductImage";
 import { platformApi } from "@/lib/platform-api";
 import { useI18n } from "@/contexts/I18nContext";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AdminOrdersPanel } from "@/components/AdminOrdersPanel";
+import { AdminExportAuthPanel } from "@/components/AdminExportAuthPanel";
+import { MessagesPanel } from "@/components/MessagesPanel";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -40,6 +44,8 @@ export default function AdminReview() {
   } | null>(null);
   const [enriching, setEnriching] = useState(false);
   const [photoUpdating, setPhotoUpdating] = useState<number | null>(null);
+
+  const [activeTab, setActiveTab] = useState("products");
 
   const loadPending = useCallback(async () => {
     setLoading(true);
@@ -144,18 +150,19 @@ export default function AdminReview() {
   return (
     <div className="min-h-screen bg-background flex flex-col md:flex-row">
       <SupplierSidebar activePath="/admin" />
-      <main className="flex-1 overflow-y-auto p-6 md:p-8 max-w-4xl mx-auto w-full">
-        <div className="mb-8">
+      <main className="flex-1 overflow-y-auto p-6 md:p-8 max-w-5xl mx-auto w-full">
+        <div className="mb-6">
           <h1 className="text-2xl font-bold mb-1 flex items-center gap-2">
             <Clock className="h-6 w-6 text-primary" /> {tr("admin.page_title")}
           </h1>
           <p className="text-muted-foreground text-sm">{tr("admin.page_subtitle")}</p>
           {adminStats && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-4">
               {(
                 [
                   [tr("admin.users"), adminStats.users],
                   [tr("admin.products"), adminStats.products],
+                  [tr("admin.orders_count"), adminStats.orders_count ?? 0],
                   [tr("admin.volume_usd"), adminStats.transaction_volume_usd ?? 0],
                   [tr("admin.commission"), `$${adminStats.total_commission_usd ?? 0}`],
                 ] as [string, string | number][]
@@ -167,7 +174,7 @@ export default function AdminReview() {
               ))}
             </div>
           )}
-          {enrichStatus && (
+          {enrichStatus && activeTab === "products" && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
               {(
                 [
@@ -187,6 +194,7 @@ export default function AdminReview() {
               ))}
             </div>
           )}
+          {activeTab === "products" && (
           <div className="flex flex-wrap gap-2 mt-4">
             <Button variant="outline" size="sm" className="gap-2" onClick={migrateMysql}>
               <Database className="h-4 w-4" /> {tr("admin.migrate_mysql")}
@@ -211,8 +219,26 @@ export default function AdminReview() {
               Enrichir lot 200
             </Button>
           </div>
+          )}
         </div>
 
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="mb-6">
+            <TabsTrigger value="products" className="gap-1.5">
+              <Clock className="h-4 w-4" /> {tr("admin.tab_products")}
+            </TabsTrigger>
+            <TabsTrigger value="orders" className="gap-1.5">
+              <Package className="h-4 w-4" /> {tr("admin.tab_orders")}
+            </TabsTrigger>
+            <TabsTrigger value="export" className="gap-1.5">
+              <Factory className="h-4 w-4" /> {tr("admin.tab_export")}
+            </TabsTrigger>
+            <TabsTrigger value="messages" className="gap-1.5">
+              <MessageSquare className="h-4 w-4" /> {tr("admin.tab_messages")}
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="products">
         {loading && [...Array(3)].map((_, i) => <Skeleton key={i} className="h-20 w-full mb-3 rounded-xl" />)}
 
         {!loading && products.length === 0 && (
@@ -267,6 +293,22 @@ export default function AdminReview() {
             </div>
           ))}
         </div>
+          </TabsContent>
+
+          <TabsContent value="orders">
+            <AdminOrdersPanel />
+          </TabsContent>
+
+          <TabsContent value="export">
+            <AdminExportAuthPanel />
+          </TabsContent>
+
+          <TabsContent value="messages">
+            <div className="border rounded-xl overflow-hidden bg-card">
+              <MessagesPanel compact />
+            </div>
+          </TabsContent>
+        </Tabs>
 
         <p className="text-xs text-center text-muted-foreground mt-6">
           <Link href="/products" className="text-primary underline">{tr("admin.view_catalog")}</Link>

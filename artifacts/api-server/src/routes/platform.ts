@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
-import { db, messagesTable, favoritesTable, reviewsTable, productViewsTable, usersTable, suppliersTable, productsTable, transactionsTable } from "@workspace/db";
+import { db, messagesTable, favoritesTable, reviewsTable, productViewsTable, usersTable, suppliersTable, productsTable, transactionsTable, ordersTable } from "@workspace/db";
 import { eq, and, desc, asc, sql, inArray } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthedRequest } from "../middleware/auth";
 import { aiCompleteMini } from "../services/ai/engine";
@@ -320,6 +320,7 @@ router.get("/admin/stats", requireAuth, requireRole("admin"), async (_req, res) 
   const products = await db.select().from(productsTable);
   const suppliers = await db.select().from(suppliersTable);
   const txs = await db.select().from(transactionsTable);
+  const orders = await db.select({ count: sql<number>`count(*)::int` }).from(ordersTable);
   const totalCommission = txs.reduce((s, t) => s + (t.commissionAmount ?? 0), 0);
   const totalVolume = txs.reduce((s, t) => s + (t.amount ?? 0), 0);
   res.json({
@@ -328,6 +329,7 @@ router.get("/admin/stats", requireAuth, requireRole("admin"), async (_req, res) 
     suppliers: suppliers.length,
     published: products.filter(p => p.exportStatus === "published").length,
     pending: products.filter(p => p.exportStatus === "pending").length,
+    orders_count: orders[0]?.count ?? 0,
     commission_rate_pct: 3,
     total_commission_usd: Math.round(totalCommission * 100) / 100,
     transaction_volume_usd: Math.round(totalVolume * 100) / 100,

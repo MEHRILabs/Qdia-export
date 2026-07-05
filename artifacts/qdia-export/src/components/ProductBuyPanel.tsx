@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CreditCard, ShieldCheck, Truck, FileText, ArrowRight, ShoppingCart } from "lucide-react";
+import { CreditCard, ShieldCheck, Truck, FileText, ArrowRight, ShoppingCart, MessageSquare } from "lucide-react";
 import type { Product } from "@workspace/api-client-react";
 import { useI18n } from "@/contexts/I18nContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -29,6 +29,7 @@ export function ProductBuyPanel({ product, selectedIncoterm, unitLabel, moqUnitL
   const qc = useQueryClient();
   const [qty, setQty] = useState(product.moq);
   const [adding, setAdding] = useState(false);
+  const [contacting, setContacting] = useState(false);
   const prices = product.prices as ProductPrices;
   const selectedPrice = prices[selectedIncoterm];
   const incotermLabel = selectedIncoterm.toUpperCase();
@@ -73,6 +74,30 @@ export function ProductBuyPanel({ product, selectedIncoterm, unitLabel, moqUnitL
       return;
     }
     setLocation("/panier");
+  };
+
+  const contactSupplier = async () => {
+    if (!user) {
+      sessionStorage.setItem("qdia_return_to", window.location.pathname);
+      toast({ title: tr("messages.login_required"), variant: "destructive" });
+      window.dispatchEvent(new Event("qdia-open-auth"));
+      return;
+    }
+    setContacting(true);
+    try {
+      const contact = await platformApi.getProductContact(product.id);
+      if (!contact.supplier_user_id) {
+        toast({ title: tr("common.error"), description: tr("buy_panel.no_supplier_contact"), variant: "destructive" });
+        return;
+      }
+      const intro = tr("buy_panel.contact_intro").replace("{{product}}", product.name);
+      setLocation(`/messages?user=${contact.supplier_user_id}`);
+      await platformApi.sendMessage(contact.supplier_user_id, intro).catch(() => {});
+    } catch (e) {
+      toast({ title: tr("common.error"), description: String(e instanceof Error ? e.message : e), variant: "destructive" });
+    } finally {
+      setContacting(false);
+    }
   };
 
   return (
@@ -156,6 +181,15 @@ export function ProductBuyPanel({ product, selectedIncoterm, unitLabel, moqUnitL
           <Link href={`/rfq?product=${encodeURIComponent(product.name)}&incoterm=${incotermLabel}`}>
             <Truck className="h-4 w-4 mr-2" /> {tr("product.request_quote")}
           </Link>
+        </Button>
+        <Button
+          size="lg"
+          variant="outline"
+          className="flex-1 border-[#04BB7B] text-[#04BB7B]"
+          disabled={contacting}
+          onClick={() => void contactSupplier()}
+        >
+          <MessageSquare className="h-4 w-4 mr-2" /> {tr("buy_panel.contact_supplier")}
         </Button>
       </div>
 
