@@ -25,7 +25,7 @@ export function hasRealProductImage(imageUrl?: string | null): boolean {
   if (u.startsWith("/uploads/catalog/") && u.endsWith(".svg") && u.includes("QDIA Photo")) return false;
   if (u.startsWith("data:") || u.startsWith("http")) return true;
   if (u.startsWith("/uploads/catalog/")) return true;
-  if (u.startsWith("/") && !u.endsWith(".svg")) return true;
+  if (u.endsWith(".svg")) return !u.includes("qdia-photo-placeholder");
   return false;
 }
 

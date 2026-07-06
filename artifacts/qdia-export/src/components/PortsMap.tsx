@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Ship } from "lucide-react";
 import { appConfig } from "@/lib/app-config";
@@ -9,7 +9,7 @@ interface Props {
   height?: number;
   className?: string;
   highlightCountry?: string;
-  /** Force le mode carte animée (accueil) */
+  /** Carte animée stylisée (accueil) */
   animated?: boolean;
 }
 
@@ -27,6 +27,29 @@ const MARKER_EMOJI: Record<string, string> = {
   DE: "🇩🇪",
   ES: "🇪🇸",
 };
+
+/** Positions % dans la carte Méditerranée stylisée */
+const HUB: Record<string, { x: number; y: number }> = {
+  DZ: { x: 36, y: 62 },
+  TN: { x: 46, y: 52 },
+  FR: { x: 44, y: 28 },
+  AE: { x: 78, y: 58 },
+  DE: { x: 52, y: 22 },
+  ES: { x: 38, y: 34 },
+};
+
+const ROUTE_COLORS: Record<string, string> = {
+  TN: "#E70013",
+  FR: "#0461A5",
+  AE: "#F5C518",
+  DZ: "#0461A5",
+};
+
+function routePath(from: { x: number; y: number }, to: { x: number; y: number }) {
+  const mx = (from.x + to.x) / 2;
+  const my = Math.min(from.y, to.y) - 8;
+  return `M ${from.x} ${from.y} Q ${mx} ${my} ${to.x} ${to.y}`;
+}
 
 function getMaps(): GMaps | undefined {
   return (window as Window & { google?: { maps: GMaps } }).google?.maps;
@@ -65,108 +88,135 @@ async function resolveMapsKey(): Promise<string> {
   }
 }
 
-function AnimatedPortsFallback({
+function AnimatedPortsMap({
   markers,
   height,
   className,
-  highlightCountry,
+  highlightCountry = "FR",
 }: Props) {
-  const positions: Record<string, { x: string; y: string }> = {
-    DZ: { x: "42%", y: "52%" },
-    TN: { x: "50%", y: "44%" },
-    FR: { x: "48%", y: "28%" },
-    AE: { x: "62%", y: "48%" },
-    DE: { x: "52%", y: "24%" },
-    ES: { x: "44%", y: "32%" },
-  };
+  const origin = HUB.DZ;
+  const dest = HUB[highlightCountry] ?? HUB.FR;
+  const routeColor = ROUTE_COLORS[highlightCountry] ?? "#0461A5";
+  const pathD = routePath(origin, dest);
+
+  const visibleCountries = useMemo(() => {
+    const codes = new Set(markers.map(m => m.country_code));
+    codes.add("DZ");
+    codes.add(highlightCountry);
+    return [...codes];
+  }, [markers, highlightCountry]);
 
   return (
     <div
-      className={`relative rounded-xl overflow-hidden border border-[#0461A5]/15 bg-gradient-to-br from-[#e8f0fe] via-[#f4f8ff] to-[#fef9e7] ${className ?? ""}`}
+      className={`relative w-full overflow-hidden bg-gradient-to-b from-[#dceaf8] via-[#eef4fc] to-[#f8fafc] ${className ?? ""}`}
       style={{ height }}
+      aria-label="Carte des routes export"
     >
-      <div className="absolute inset-0 opacity-30">
-        {[...Array(6)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute h-px bg-[#0461A5]/40"
-            style={{ top: `${15 + i * 14}%`, left: "5%", right: "5%" }}
-            animate={{ opacity: [0.2, 0.6, 0.2] }}
-            transition={{ duration: 2 + i * 0.3, repeat: Infinity }}
-          />
-        ))}
-      </div>
-
-      <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 400 200" preserveAspectRatio="none" aria-hidden>
-        <motion.path
-          d="M 168 104 Q 200 88 204 88"
-          fill="none"
-          stroke="#E70013"
-          strokeWidth="2"
-          vectorEffect="non-scaling-stroke"
-          strokeDasharray="6 4"
-          initial={{ pathLength: 0, opacity: 0.3 }}
-          animate={{ pathLength: 1, opacity: [0.3, 0.8, 0.3] }}
-          transition={{ duration: 2.8, repeat: Infinity, delay: 0.2 }}
+      {/* Mer stylisée */}
+      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
+        <defs>
+          <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#c5daf0" stopOpacity="0.5" />
+            <stop offset="100%" stopColor="#e8f0fa" stopOpacity="0.2" />
+          </linearGradient>
+        </defs>
+        <rect width="100" height="100" fill="url(#sea)" />
+        {/* Côte sud (Maghreb) */}
+        <path
+          d="M 8 72 Q 25 58 36 62 Q 46 52 55 48 Q 70 42 92 55 L 92 100 L 8 100 Z"
+          fill="#e8dcc8"
+          opacity="0.55"
         />
-        <motion.path
-          d="M 168 104 Q 180 76 192 56"
-          fill="none"
-          stroke="#0461A5"
-          strokeWidth="2"
-          vectorEffect="non-scaling-stroke"
-          strokeDasharray="6 4"
-          initial={{ pathLength: 0, opacity: 0.3 }}
-          animate={{ pathLength: 1, opacity: [0.3, 0.8, 0.3] }}
-          transition={{ duration: 3, repeat: Infinity }}
-        />
-        <motion.path
-          d="M 168 104 Q 216 96 248 96"
-          fill="none"
-          stroke="#F5C518"
-          strokeWidth="2"
-          vectorEffect="non-scaling-stroke"
-          strokeDasharray="6 4"
-          initial={{ pathLength: 0, opacity: 0.3 }}
-          animate={{ pathLength: 1, opacity: [0.3, 0.8, 0.3] }}
-          transition={{ duration: 3.5, repeat: Infinity, delay: 0.5 }}
+        {/* Europe nord */}
+        <path
+          d="M 20 8 Q 45 2 70 12 Q 85 18 92 35 L 92 48 Q 70 38 44 28 Q 28 22 12 30 Z"
+          fill="#d4e4d4"
+          opacity="0.45"
         />
       </svg>
 
+      {/* Routes secondaires (faibles) */}
+      <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden>
+        {(["TN", "FR", "AE"] as const)
+          .filter(c => c !== highlightCountry)
+          .map(c => {
+            const to = HUB[c];
+            if (!to) return null;
+            return (
+              <path
+                key={c}
+                d={routePath(origin, to)}
+                fill="none"
+                stroke="#0461A5"
+                strokeWidth="0.35"
+                strokeDasharray="1.5 1.5"
+                opacity="0.2"
+              />
+            );
+          })}
+
+        {/* Route active */}
+        <motion.path
+          key={highlightCountry}
+          d={pathD}
+          fill="none"
+          stroke={routeColor}
+          strokeWidth="0.7"
+          strokeLinecap="round"
+          strokeDasharray="2 1.2"
+          initial={{ pathLength: 0, opacity: 0.4 }}
+          animate={{ pathLength: 1, opacity: [0.5, 1, 0.5] }}
+          transition={{ pathLength: { duration: 1.2 }, opacity: { duration: 2.5, repeat: Infinity } }}
+        />
+      </svg>
+
+      {/* Navire animé le long de la route active */}
       <motion.div
-        className="absolute text-[#0461A5]"
-        style={{ left: "38%", top: "44%" }}
-        animate={{ x: [0, 30, 60], y: [0, -20, -24], opacity: [0, 1, 0] }}
-        transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+        key={`ship-${highlightCountry}`}
+        className="absolute z-20 text-[#0461A5] drop-shadow-md"
+        style={{ left: `${origin.x}%`, top: `${origin.y}%`, marginLeft: -10, marginTop: -10 }}
+        animate={{
+          left: [`${origin.x}%`, `${dest.x}%`],
+          top: [`${origin.y}%`, `${dest.y}%`],
+          opacity: [0, 1, 1, 0],
+        }}
+        transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
       >
-        <Ship className="h-5 w-5 rotate-[-25deg]" />
+        <Ship className="h-5 w-5 -rotate-12" />
       </motion.div>
 
-      {markers.map((m, i) => {
-        const pos = positions[m.country_code] ?? { x: `${20 + (i * 17) % 60}%`, y: `${30 + (i * 13) % 40}%` };
-        const active = !highlightCountry || highlightCountry === m.country_code;
+      {/* Hubs pays */}
+      {visibleCountries.map(code => {
+        const pos = HUB[code];
+        if (!pos) return null;
+        const active = code === highlightCountry || code === "DZ";
         return (
-          <motion.div
-            key={m.code}
-            className="absolute flex flex-col items-center -translate-x-1/2 -translate-y-1/2"
-            style={{ left: pos.x, top: pos.y }}
-            initial={{ scale: 0 }}
-            animate={{ scale: active ? 1 : 0.85, opacity: active ? 1 : 0.5 }}
-            transition={{ delay: i * 0.1, type: "spring" }}
+          <div
+            key={code}
+            className="absolute z-10 flex flex-col items-center -translate-x-1/2 -translate-y-1/2"
+            style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
           >
+            {active && (
+              <motion.span
+                className="absolute inline-flex h-10 w-10 rounded-full"
+                style={{ backgroundColor: `${routeColor}22` }}
+                animate={{ scale: [1, 1.6, 1], opacity: [0.6, 0, 0.6] }}
+                transition={{ duration: 2, repeat: Infinity }}
+              />
+            )}
             <motion.span
-              className="text-xl drop-shadow"
-              animate={active ? { scale: [1, 1.15, 1] } : {}}
+              className="relative text-2xl drop-shadow-md select-none"
+              animate={active ? { scale: [1, 1.12, 1] } : { scale: 0.9, opacity: 0.55 }}
               transition={{ duration: 2, repeat: Infinity }}
             >
-              {MARKER_EMOJI[m.country_code] ?? "⚓"}
+              {MARKER_EMOJI[code] ?? "⚓"}
             </motion.span>
-          </motion.div>
+          </div>
         );
       })}
 
-      <p className="absolute bottom-2 left-0 right-0 text-center text-[10px] text-[#656566]/80 font-medium tracking-wide">
-        DZ → TN · FR · UAE
+      <p className="absolute bottom-3 left-0 right-0 text-center text-[11px] font-semibold text-[#073B74]/70 tracking-wide pointer-events-none">
+        🇩🇿 Alger → {MARKER_EMOJI[highlightCountry] ?? ""} {highlightCountry}
       </p>
     </div>
   );
@@ -179,14 +229,14 @@ export function PortsMap({ markers, height = 220, className, highlightCountry, a
   const [mapFailed, setMapFailed] = useState(false);
 
   useEffect(() => {
-    if (mapsKey) return;
+    if (mapsKey || animated) return;
     void resolveMapsKey().then(key => {
       if (key) setMapsKey(key);
     });
-  }, [mapsKey]);
+  }, [mapsKey, animated]);
 
   useEffect(() => {
-    if (!mapsKey || !ref.current || !markers.length) return;
+    if (animated || !mapsKey || !ref.current || !markers.length) return;
 
     let cancelled = false;
     setMapFailed(false);
@@ -224,7 +274,7 @@ export function PortsMap({ markers, height = 220, className, highlightCountry, a
     });
 
     return () => { cancelled = true; };
-  }, [mapsKey, markers]);
+  }, [mapsKey, markers, animated]);
 
   if (!markers.length) {
     return (
@@ -237,9 +287,9 @@ export function PortsMap({ markers, height = 220, className, highlightCountry, a
     );
   }
 
-  if (!mapsKey || mapFailed || animated) {
+  if (animated || !mapsKey || mapFailed) {
     return (
-      <AnimatedPortsFallback
+      <AnimatedPortsMap
         markers={markers}
         height={height}
         className={className}
@@ -250,13 +300,8 @@ export function PortsMap({ markers, height = 220, className, highlightCountry, a
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap gap-3 text-[10px] text-[#656566]">
-        <span><span className="inline-block w-2 h-2 rounded-full bg-[#0461A5] mr-1" />Algérie</span>
-        <span><span className="inline-block w-2 h-2 rounded-full bg-[#2563eb] mr-1" />France</span>
-        <span><span className="inline-block w-2 h-2 rounded-full bg-[#F5C518] mr-1" />UAE</span>
-      </div>
       {!mapReady && (
-        <AnimatedPortsFallback
+        <AnimatedPortsMap
           markers={markers}
           height={height}
           className={className}

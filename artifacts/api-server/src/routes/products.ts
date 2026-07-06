@@ -681,39 +681,22 @@ router.get("/products/recommendations", async (req, res): Promise<void> => {
 });
 
 router.get("/products/featured", async (_req, res): Promise<void> => {
-  let rows = await db.select().from(productsTable)
-    .where(and(
-      eq(productsTable.isFeatured, true),
-      eq(productsTable.exportStatus, "published"),
-    ))
+  const published = await db.select().from(productsTable)
+    .where(eq(productsTable.exportStatus, "published"))
     .orderBy(desc(productsTable.rating), desc(productsTable.id))
-    .limit(12);
+    .limit(36);
 
-  rows = rows.filter(p => hasRealProductImage(p.imageUrl));
+  const sorted = [...published].sort((a, b) => {
+    const ap = hasRealProductImage(a.imageUrl) ? 1 : 0;
+    const bp = hasRealProductImage(b.imageUrl) ? 1 : 0;
+    if (bp !== ap) return bp - ap;
+    const af = a.isFeatured ? 1 : 0;
+    const bf = b.isFeatured ? 1 : 0;
+    if (bf !== af) return bf - af;
+    return (b.rating ?? 0) - (a.rating ?? 0);
+  });
 
-  if (rows.length < 6) {
-    const more = await db.select().from(productsTable)
-      .where(eq(productsTable.exportStatus, "published"))
-      .orderBy(desc(productsTable.rating), desc(productsTable.id))
-      .limit(24);
-    const seen = new Set(rows.map(r => r.id));
-    for (const p of more) {
-      if (rows.length >= 6) break;
-      if (!seen.has(p.id) && hasRealProductImage(p.imageUrl)) {
-        rows.push(p);
-        seen.add(p.id);
-      }
-    }
-  }
-
-  if (rows.length === 0) {
-    rows = await db.select().from(productsTable)
-      .where(eq(productsTable.exportStatus, "published"))
-      .orderBy(desc(productsTable.rating), desc(productsTable.id))
-      .limit(6);
-  }
-
-  res.json(ListFeaturedProductsResponse.parse(rows.slice(0, 6).map(toProductShape)));
+  res.json(ListFeaturedProductsResponse.parse(sorted.slice(0, 6).map(toProductShape)));
 });
 
 router.post("/products/bulk-export-auth", requireAuth, requireRole("admin"), async (req: AuthedRequest, res): Promise<void> => {

@@ -1,6 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { motion } from "framer-motion";
-import { Ship, Globe, FileCheck } from "lucide-react";
+import { Ship, FileCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { logisticsApi, type CustomsCalcResult } from "@/lib/api-auth";
 import { PortsMap } from "@/components/PortsMap";
@@ -13,7 +12,6 @@ interface Props {
   fobPrice?: number;
   compact?: boolean;
   showPricing?: boolean;
-  /** Carte animée pleine largeur (accueil) — moins de texte, plus visuel */
   variant?: "default" | "hero";
 }
 
@@ -47,12 +45,15 @@ export function PortsCustomsPanel({
       .catch(() => setPorts(FALLBACK_PORTS_GROUPED));
   }, []);
 
-  const allPorts = useMemo(
-    () => [...ports.algeria, ...ports.international],
-    [ports],
-  );
-
-  const mapMarkers = useMemo(() => toMapMarkers(allPorts), [allPorts]);
+  const mapMarkers = useMemo(() => {
+    const all = toMapMarkers([...ports.algeria, ...ports.international]);
+    const seen = new Set<string>();
+    return all.filter(m => {
+      if (seen.has(m.country_code)) return false;
+      seen.add(m.country_code);
+      return true;
+    });
+  }, [ports]);
 
   const calcCustoms = async (dest: string, portCode?: string) => {
     if (!showPricing) return;
@@ -86,66 +87,40 @@ export function PortsCustomsPanel({
 
   if (isHero) {
     return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.6 }}
-        className="relative rounded-2xl overflow-hidden border border-[#0461A5]/15 bg-gradient-to-br from-[#f0f7ff] via-white to-[#fffbeb] shadow-lg"
-      >
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <motion.div
-            className="absolute -top-24 -right-24 h-48 w-48 rounded-full bg-[#0461A5]/10"
-            animate={{ scale: [1, 1.15, 1], opacity: [0.4, 0.7, 0.4] }}
-            transition={{ duration: 5, repeat: Infinity }}
-          />
-          <motion.div
-            className="absolute -bottom-16 -left-16 h-40 w-40 rounded-full bg-[#F5C518]/15"
-            animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.6, 0.3] }}
-            transition={{ duration: 4, repeat: Infinity, delay: 1 }}
-          />
-        </div>
+      <div className="max-w-3xl mx-auto rounded-2xl border border-[#E5E7EB] bg-white shadow-sm overflow-hidden">
+        <PortsMap
+          markers={mapMarkers}
+          height={compact ? 220 : 320}
+          highlightCountry={destination}
+          animated
+        />
 
-        <div className="relative p-4 md:p-6 space-y-4">
-          <PortsMap
-            markers={mapMarkers}
-            height={compact ? 200 : 280}
-            highlightCountry={destination}
-            animated
-          />
-
+        <div className="px-4 pb-4 pt-3 space-y-3 border-t border-[#E5E7EB]/80 bg-[#FAFBFC]">
           <div className="flex flex-wrap justify-center gap-2">
             {destinations.map(d => (
-              <motion.div key={d.code} whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.98 }}>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={destination === d.code ? "default" : "outline"}
-                  className={`rounded-full px-4 ${destination === d.code ? "bg-[#0461A5] shadow-md" : "bg-white/80"}`}
-                  onClick={() => setDestination(d.code)}
-                >
-                  {d.label}
-                </Button>
-              </motion.div>
+              <Button
+                key={d.code}
+                type="button"
+                size="sm"
+                variant={destination === d.code ? "default" : "outline"}
+                className={`rounded-full px-4 ${destination === d.code ? "bg-[#0461A5]" : "bg-white"}`}
+                onClick={() => setDestination(d.code)}
+              >
+                {d.label}
+              </Button>
             ))}
           </div>
-
           <p className="text-center text-xs text-[#656566] flex items-center justify-center gap-2">
             <Ship className="h-3.5 w-3.5 text-[#0461A5]" />
             {tr("customs_panel.pricing_at_order")}
           </p>
         </div>
-      </motion.div>
+      </div>
     );
   }
 
   return (
     <div className={`rounded-xl border border-[#0461A5]/20 bg-white ${compact ? "p-4" : "p-5"} space-y-4`}>
-      <div className="flex items-center gap-2">
-        <Globe className="h-5 w-5 text-[#0461A5]" />
-        <h3 className="font-bold text-[#073B74]">{tr("customs_panel.title")}</h3>
-      </div>
-
       <PortsMap markers={mapMarkers} height={compact ? 180 : 240} highlightCountry={destination} />
 
       <div className="flex flex-wrap gap-2">
