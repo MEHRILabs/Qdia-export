@@ -8,7 +8,7 @@ const router: IRouter = Router();
 
 const calcSchema = z.object({
   product_category: z.string(),
-  destination_code: z.enum(["FR", "AE", "US", "DZ", "ES", "IT", "UK", "SA"]),
+  destination_code: z.enum(["FR", "AE", "US", "DZ", "TN", "ES", "IT", "UK", "SA"]),
   cif_value_dzd: z.number().positive(),
   port_code: z.string().optional(),
 });

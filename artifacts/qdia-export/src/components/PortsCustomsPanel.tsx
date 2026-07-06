@@ -28,14 +28,15 @@ export function PortsCustomsPanel({
   const { tr } = useI18n();
   const isHero = variant === "hero";
   const [ports, setPorts] = useState(FALLBACK_PORTS_GROUPED);
-  const [destination, setDestination] = useState<"FR" | "AE" | "DZ">("FR");
+  const [destination, setDestination] = useState<"FR" | "AE" | "DZ" | "TN">("FR");
   const [customs, setCustoms] = useState<CustomsCalcResult | null>(null);
   const [loading, setLoading] = useState(false);
 
   const destinations = useMemo(() => [
+    { code: "DZ" as const, label: "🇩🇿 Algérie", port: "DZALG" },
+    { code: "TN" as const, label: "🇹🇳 Tunisie", port: "TNRDS" },
     { code: "FR" as const, label: "🇫🇷 France", port: "FRMRS" },
     { code: "AE" as const, label: "🇦🇪 UAE", port: "AEDXB" },
-    { code: "DZ" as const, label: "🇩🇿 Algérie", port: "DZALG" },
   ], []);
 
   useEffect(() => {

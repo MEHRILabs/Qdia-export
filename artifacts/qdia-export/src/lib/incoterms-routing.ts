@@ -5,6 +5,7 @@ export type IncotermMode = "domestic" | "export" | "local_stock";
 
 const COUNTRY_ALIASES: Record<string, string> = {
   algerie: "DZ", algérie: "DZ", algeria: "DZ", dz: "DZ",
+  tunisie: "TN", tunisia: "TN", tn: "TN",
   france: "FR", fr: "FR",
   "émirats": "AE", emirats: "AE", uae: "AE", ae: "AE",
   allemagne: "DE", de: "DE", germany: "DE",
@@ -62,6 +63,7 @@ export function defaultIncoterm(mode: IncotermMode): IncotermCode {
 
 export const BUYER_COUNTRIES = [
   { code: "DZ", labelKey: "order_flow.country_dz", flag: "🇩🇿" },
+  { code: "TN", labelKey: "order_flow.country_tn", flag: "🇹🇳" },
   { code: "FR", labelKey: "order_flow.country_fr", flag: "🇫🇷" },
   { code: "AE", labelKey: "order_flow.country_ae", flag: "🇦🇪" },
   { code: "DE", labelKey: "order_flow.country_de", flag: "🇩🇪" },

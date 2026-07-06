@@ -12,6 +12,7 @@ export const PORT_COORDINATES: Record<string, { lat: number; lng: number }> = {
   FRLEH: { lat: 49.4944, lng: 0.1079 },
   AEDXB: { lat: 25.0267, lng: 55.0956 },
   AEKHL: { lat: 24.4539, lng: 54.3773 },
+  TNRDS: { lat: 36.8189, lng: 10.2928 },
 };
 
 export const FALLBACK_PORTS_GROUPED: { algeria: PortInfo[]; international: PortInfo[] } = {
@@ -22,6 +23,7 @@ export const FALLBACK_PORTS_GROUPED: { algeria: PortInfo[]; international: PortI
     { code: "DZAAE", name: "Port d'Annaba", city: "Annaba", country: "Algérie", country_code: "DZ" },
   ],
   international: [
+    { code: "TNRDS", name: "Port de Radès", city: "Tunis", country: "Tunisie", country_code: "TN" },
     { code: "FRMRS", name: "Marseille-Fos", city: "Marseille", country: "France", country_code: "FR" },
     { code: "FRLEH", name: "Le Havre", city: "Le Havre", country: "France", country_code: "FR" },
     { code: "AEDXB", name: "Jebel Ali", city: "Dubai", country: "Émirats arabes unis", country_code: "AE" },

@@ -5,6 +5,7 @@ export type IncotermMode = "domestic" | "export" | "local_stock";
 
 const COUNTRY_ALIASES: Record<string, string> = {
   algerie: "DZ", algérie: "DZ", algeria: "DZ", dz: "DZ",
+  tunisie: "TN", tunisia: "TN", tn: "TN",
   france: "FR", fr: "FR",
   "émirats": "AE", emirats: "AE", uae: "AE", ae: "AE",
   allemagne: "DE", de: "DE", germany: "DE",

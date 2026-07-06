@@ -21,6 +21,7 @@ type GMaps = {
 
 const MARKER_EMOJI: Record<string, string> = {
   DZ: "🇩🇿",
+  TN: "🇹🇳",
   FR: "🇫🇷",
   AE: "🇦🇪",
   DE: "🇩🇪",
@@ -72,6 +73,7 @@ function AnimatedPortsFallback({
 }: Props) {
   const positions: Record<string, { x: string; y: string }> = {
     DZ: { x: "42%", y: "52%" },
+    TN: { x: "50%", y: "44%" },
     FR: { x: "48%", y: "28%" },
     AE: { x: "62%", y: "48%" },
     DE: { x: "52%", y: "24%" },
@@ -96,6 +98,17 @@ function AnimatedPortsFallback({
       </div>
 
       <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 400 200" preserveAspectRatio="none" aria-hidden>
+        <motion.path
+          d="M 168 104 Q 200 88 204 88"
+          fill="none"
+          stroke="#E70013"
+          strokeWidth="2"
+          vectorEffect="non-scaling-stroke"
+          strokeDasharray="6 4"
+          initial={{ pathLength: 0, opacity: 0.3 }}
+          animate={{ pathLength: 1, opacity: [0.3, 0.8, 0.3] }}
+          transition={{ duration: 2.8, repeat: Infinity, delay: 0.2 }}
+        />
         <motion.path
           d="M 168 104 Q 180 76 192 56"
           fill="none"
@@ -153,7 +166,7 @@ function AnimatedPortsFallback({
       })}
 
       <p className="absolute bottom-2 left-0 right-0 text-center text-[10px] text-[#656566]/80 font-medium tracking-wide">
-        DZ → FR · UAE
+        DZ → TN · FR · UAE
       </p>
     </div>
   );
