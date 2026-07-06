@@ -1,17 +1,13 @@
 import { Link } from "wouter";
 import { motion, useInView } from "framer-motion";
 import { useRef, type ReactNode } from "react";
-import { useListFeaturedProducts } from "@workspace/api-client-react";
 import { BuyerHeader, BuyerFooter } from "@/components/BuyerHeader";
 import { PortsCustomsPanel } from "@/components/PortsCustomsPanel";
+import { PremiumProductsSection } from "@/components/PremiumProductsSection";
 import { HomeHero } from "@/components/HomeHero";
 import { ExportWorkflow } from "@/components/ExportWorkflow";
 import { AppDownloadSection } from "@/components/AppDownloadSection";
-import { ProductImage } from "@/components/ProductImage";
 import { HOME_CATEGORIES } from "@/lib/nav";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { ShieldCheck, Award, Ship, Camera, ArrowRight } from "lucide-react";
 import { useI18n } from "@/contexts/I18nContext";
 
@@ -41,8 +37,6 @@ function AnimatedSection({ children, className = "", id }: { children: ReactNode
 
 export default function Home() {
   const { tr, rtl } = useI18n();
-  const { data: featuredProducts, isLoading } = useListFeaturedProducts();
-  const products = featuredProducts ?? [];
 
   return (
     <div className="min-h-screen qdia-buyer-page flex flex-col">
@@ -113,75 +107,7 @@ export default function Home() {
 
         <ExportWorkflow />
 
-        {/* Products */}
-        <AnimatedSection className="max-w-7xl mx-auto px-6 pb-20 pt-4">
-          <div className="flex items-end justify-between mb-8 gap-4">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-[#0461A5] mb-1">{tr("home.premium_selection")}</p>
-              <h2 className="text-2xl md:text-3xl font-black text-[#1A1A2E]">{tr("home.featured_title")}</h2>
-              <p className="text-sm text-[#9CA3AF] mt-1">{tr("home.featured_subtitle")}</p>
-            </div>
-            <Button variant="outline" className="border-[#0461A5] text-[#0461A5] shrink-0 hidden sm:flex" asChild>
-              <Link href="/products">{tr("home.see_all")} <ArrowRight className={`h-4 w-4 ms-1 ${rtl ? "rotate-180" : ""}`} /></Link>
-            </Button>
-          </div>
-
-          {isLoading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-[340px] rounded-xl" />)}
-            </div>
-          ) : products.length === 0 ? (
-            <p className="text-center text-[#9CA3AF] py-12">{tr("home.empty_featured")}</p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {products.slice(0, 6).map((product, i) => (
-                <motion.div
-                  key={product.id}
-                  initial={{ opacity: 0, y: 24 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: i * 0.08, duration: 0.45 }}
-                >
-                  <Link href={`/products/${product.id}`} className="qdia-product-card group overflow-hidden block">
-                    <div className="aspect-[4/3] overflow-hidden relative bg-[#F8FAFC]">
-                      <ProductImage
-                        src={product.image_url}
-                        alt={product.name}
-                        className="w-full h-full group-hover:scale-110 transition-transform duration-700"
-                      />
-                      <span className="absolute top-3 start-3 badge-algeria text-[10px]">🇩🇿 {tr("common.algeria")}</span>
-                      <div className="absolute inset-0 bg-gradient-to-t from-[#073B74]/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
-                        <span className="text-white text-sm font-bold flex items-center gap-1">
-                          {tr("common.view_details")} <ArrowRight className={`h-4 w-4 ${rtl ? "rotate-180" : ""}`} />
-                        </span>
-                      </div>
-                    </div>
-                    <div className="p-4">
-                      <h3 className="font-bold text-[#1A1A2E] text-sm line-clamp-2 leading-snug mb-2 min-h-[2.5rem] group-hover:text-[#0461A5] transition-colors">
-                        {product.name}
-                      </h3>
-                      <p className="text-xl font-black text-[#0461A5]">
-                        ${product.prices?.fob?.toLocaleString() ?? "—"}
-                        <span className="text-xs font-normal text-[#9CA3AF] ms-1">{tr("product.fob")}</span>
-                      </p>
-                      <p className="text-xs text-[#9CA3AF] mt-1">MOQ {product.moq} {product.moq_unit}</p>
-                      <div className="mt-3 flex items-center gap-2">
-                        <Badge variant="incoterm" className="text-[10px]">FOB</Badge>
-                        <span className="text-[11px] text-[#9CA3AF]">{product.port_depart}</span>
-                      </div>
-                    </div>
-                  </Link>
-                </motion.div>
-              ))}
-            </div>
-          )}
-
-          <div className="mt-10 text-center sm:hidden">
-            <Button variant="gold" className="font-bold" asChild>
-              <Link href="/products">{tr("home.see_full_catalog")}</Link>
-            </Button>
-          </div>
-        </AnimatedSection>
+        <PremiumProductsSection />
 
         <AnimatedSection id="emplacement" className="py-10 md:py-16 px-6 md:px-8 max-w-7xl mx-auto scroll-mt-20">
           <div className="text-center mb-8">
@@ -191,9 +117,7 @@ export default function Home() {
               {tr("home.ports_subtitle")}
             </p>
           </div>
-          <div className="max-w-2xl mx-auto">
-            <PortsCustomsPanel productCategory="Agriculture & Food" portDepart="Béjaïa" showPricing={false} />
-          </div>
+          <PortsCustomsPanel productCategory="Agriculture & Food" portDepart="Béjaïa" showPricing={false} variant="hero" />
         </AnimatedSection>
 
         <AppDownloadSection />

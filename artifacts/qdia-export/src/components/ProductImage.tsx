@@ -53,14 +53,14 @@ export function ProductImage({
       </div>
       <span
         className={cn(
-          "font-extrabold tracking-tight text-[#0461A5]",
-          compact ? "text-[10px]" : "text-sm",
+          "font-bold tracking-tight text-[#0461A5]/70",
+          compact ? "text-[9px]" : "text-xs",
         )}
       >
-        QDIA Photo
+        {compact ? "QDIA" : "Photo"}
       </span>
       {!compact && (
-        <span className="text-[11px] font-medium text-[#9CA3AF]">Photo IA à générer</span>
+        <span className="text-[10px] font-medium text-[#9CA3AF]/80">IA</span>
       )}
     </div>
   );

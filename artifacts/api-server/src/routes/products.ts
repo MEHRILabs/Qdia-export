@@ -20,7 +20,9 @@ import {
   enrichProductBatch,
   getEnrichmentStatus,
   scheduleProductEnrichment,
+  hasRealProductImage,
 } from "../services/product-enrichment";
+import { syncPremiumFeaturedProducts, promoteProductToFeatured } from "../services/featured-products";
 import { verifyToken, getUserById } from "../services/auth";
 import { logger } from "../lib/logger";
 import {
@@ -499,6 +501,7 @@ router.post("/products/:id/image", requireAuth, requireRole("supplier", "admin")
       .set({ imageUrl, images: [imageUrl] })
       .where(eq(productsTable.id, id))
       .returning();
+    void promoteProductToFeatured(id);
     res.json(GetProductResponse.parse(toProductShape(product!)));
   } catch (err) {
     logger.warn({ err, productId: id }, "upload image produit échoué");
@@ -683,7 +686,25 @@ router.get("/products/featured", async (_req, res): Promise<void> => {
       eq(productsTable.isFeatured, true),
       eq(productsTable.exportStatus, "published"),
     ))
-    .limit(6);
+    .orderBy(desc(productsTable.rating), desc(productsTable.id))
+    .limit(12);
+
+  rows = rows.filter(p => hasRealProductImage(p.imageUrl));
+
+  if (rows.length < 6) {
+    const more = await db.select().from(productsTable)
+      .where(eq(productsTable.exportStatus, "published"))
+      .orderBy(desc(productsTable.rating), desc(productsTable.id))
+      .limit(24);
+    const seen = new Set(rows.map(r => r.id));
+    for (const p of more) {
+      if (rows.length >= 6) break;
+      if (!seen.has(p.id) && hasRealProductImage(p.imageUrl)) {
+        rows.push(p);
+        seen.add(p.id);
+      }
+    }
+  }
 
   if (rows.length === 0) {
     rows = await db.select().from(productsTable)
@@ -692,7 +713,7 @@ router.get("/products/featured", async (_req, res): Promise<void> => {
       .limit(6);
   }
 
-  res.json(ListFeaturedProductsResponse.parse(rows.map(toProductShape)));
+  res.json(ListFeaturedProductsResponse.parse(rows.slice(0, 6).map(toProductShape)));
 });
 
 router.post("/products/bulk-export-auth", requireAuth, requireRole("admin"), async (req: AuthedRequest, res): Promise<void> => {
@@ -787,6 +808,9 @@ router.patch("/products/:id", requireAuth, requireRole("supplier", "admin"), asy
   if (!product) {
     res.status(404).json({ error: "Product not found" });
     return;
+  }
+  if (parsed.data.export_status === "published" && hasRealProductImage(product.imageUrl)) {
+    void promoteProductToFeatured(id);
   }
   res.json(GetProductResponse.parse(toProductShape(product)));
 });
@@ -893,6 +917,9 @@ router.put("/products/:id", requireAuth, requireRole("supplier", "admin"), async
   if (!product) {
     res.status(404).json({ error: "Product not found" });
     return;
+  }
+  if (imageUrl || (product.exportStatus === "published" && hasRealProductImage(product.imageUrl))) {
+    void promoteProductToFeatured(id);
   }
   res.json(GetProductResponse.parse(toProductShape(product)));
 });

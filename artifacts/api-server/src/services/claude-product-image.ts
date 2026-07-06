@@ -13,23 +13,15 @@ function extractSvg(raw: string): string | null {
   return cleaned.slice(start, end + 6);
 }
 
-function fallbackSvg(name: string, category?: string | null): string {
-  const label = name.slice(0, 36).replace(/[<>&"]/g, "");
-  const cat = (category ?? "Export DZ").slice(0, 24).replace(/[<>&"]/g, "");
+/** Visuel minimal sans texte — packshot illustré fond blanc */
+function fallbackSvg(): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#EAF3FC"/>
-      <stop offset="100%" stop-color="#FFF8E8"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" fill="url(#bg)"/>
-  <circle cx="256" cy="200" r="88" fill="#0461A5" opacity="0.12"/>
-  <rect x="136" y="300" width="240" height="120" rx="20" fill="#fff" stroke="#0461A5" stroke-width="3"/>
-  <text x="256" y="355" text-anchor="middle" font-family="Arial,sans-serif" font-size="18" fill="#0461A5" font-weight="bold">${label}</text>
-  <text x="256" y="385" text-anchor="middle" font-family="Arial,sans-serif" font-size="12" fill="#555">${cat}</text>
-  <text x="256" y="470" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" fill="#888">QDIA Export · Made in Algeria</text>
+  <rect width="512" height="512" fill="#FAFBFC"/>
+  <ellipse cx="256" cy="420" rx="120" ry="18" fill="#E8EEF4"/>
+  <rect x="176" y="160" width="160" height="200" rx="16" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="2"/>
+  <rect x="196" y="180" width="120" height="80" rx="8" fill="#0461A5" opacity="0.08"/>
+  <circle cx="256" cy="300" r="36" fill="#F5C518" opacity="0.25"/>
 </svg>`;
 }
 
@@ -37,7 +29,7 @@ export function canGenerateClaudeProductVisual(): boolean {
   return hasProviderKey("claude");
 }
 
-/** Visuel produit SVG généré par Claude (pas une photo réaliste, mais affichable catalogue). */
+/** Visuel produit SVG minimal — sans texte ni labels sur l'image */
 export async function generateClaudeProductSvg(input: {
   name: string;
   category?: string | null;
@@ -47,15 +39,17 @@ export async function generateClaudeProductSvg(input: {
     throw new Error("Clé Anthropic (Claude) manquante");
   }
 
-  const prompt = `Tu es designer pour QDIA Export (marketplace export algérien).
-Génère UNIQUEMENT du XML SVG valide (512x512, viewBox="0 0 512 512"), sans markdown ni texte autour.
+  const prompt = `Tu es photographe packshot e-commerce pour QDIA Export.
+Génère UNIQUEMENT du XML SVG valide (512x512, viewBox="0 0 512 512"), sans markdown.
 Produit: ${input.name}
 Catégorie: ${input.category ?? "Alimentaire"}
-${input.description ? `Description: ${input.description.slice(0, 200)}` : ""}
 
-Style: illustration professionnelle catalogue export, couleurs #0461A5 et #F5C518, fond clair,
-icône ou silhouette du produit au centre, nom du produit lisible en français, mention discrète "Made in Algeria".
-Pas de photo réaliste, pas de watermark externe.`;
+RÈGLES STRICTES:
+- Fond blanc ou gris très clair uni (#FAFBFC)
+- Illustration minimaliste du produit au centre (silhouette / emballage stylisé)
+- AUCUN texte, AUCUNE étiquette, AUCUN logo, AUCUNE écriture dans le SVG
+- Maximum 3 couleurs discrètes (#0461A5, #F5C518, gris clair)
+- Style catalogue premium épuré, pas de dégradés criards`;
 
   try {
     const raw = await claudeComplete(
@@ -63,13 +57,13 @@ Pas de photo réaliste, pas de watermark externe.`;
       3500,
     );
     const svg = extractSvg(raw);
-    if (svg && svg.includes("<svg") && svg.length > 200) {
+    if (svg && svg.includes("<svg") && svg.length > 200 && !/<text[\s>]/i.test(svg)) {
       return svg;
     }
-    logger.warn({ product: input.name }, "SVG Claude invalide — modèle local");
+    logger.warn({ product: input.name }, "SVG Claude invalide ou avec texte — fallback minimal");
   } catch (err) {
     logger.warn({ err, product: input.name }, "Génération SVG Claude échouée");
   }
 
-  return fallbackSvg(input.name, input.category);
+  return fallbackSvg();
 }

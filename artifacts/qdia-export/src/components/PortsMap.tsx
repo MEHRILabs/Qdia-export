@@ -9,6 +9,8 @@ interface Props {
   height?: number;
   className?: string;
   highlightCountry?: string;
+  /** Force le mode carte animée (accueil) */
+  animated?: boolean;
 }
 
 type GMaps = {
@@ -78,7 +80,7 @@ function AnimatedPortsFallback({
 
   return (
     <div
-      className={`relative rounded-lg overflow-hidden border border-[#0461A5]/20 bg-gradient-to-br from-[#e8f0fe] via-[#f0f4ff] to-[#dbeafe] ${className ?? ""}`}
+      className={`relative rounded-xl overflow-hidden border border-[#0461A5]/15 bg-gradient-to-br from-[#e8f0fe] via-[#f4f8ff] to-[#fef9e7] ${className ?? ""}`}
       style={{ height }}
     >
       <div className="absolute inset-0 opacity-30">
@@ -146,21 +148,18 @@ function AnimatedPortsFallback({
             >
               {MARKER_EMOJI[m.country_code] ?? "⚓"}
             </motion.span>
-            <span className="text-[9px] font-bold text-[#073B74] bg-white/90 px-1.5 py-0.5 rounded mt-0.5 whitespace-nowrap shadow-sm">
-              {m.label.split("·")[0]?.trim() ?? m.code}
-            </span>
           </motion.div>
         );
       })}
 
-      <p className="absolute bottom-2 left-0 right-0 text-center text-[10px] text-[#656566]">
-        Routes export DZ → FR · UAE
+      <p className="absolute bottom-2 left-0 right-0 text-center text-[10px] text-[#656566]/80 font-medium tracking-wide">
+        DZ → FR · UAE
       </p>
     </div>
   );
 }
 
-export function PortsMap({ markers, height = 220, className, highlightCountry }: Props) {
+export function PortsMap({ markers, height = 220, className, highlightCountry, animated = false }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [mapsKey, setMapsKey] = useState(appConfig.googleMapsKey);
   const [mapReady, setMapReady] = useState(false);
@@ -225,7 +224,7 @@ export function PortsMap({ markers, height = 220, className, highlightCountry }:
     );
   }
 
-  if (!mapsKey || mapFailed) {
+  if (!mapsKey || mapFailed || animated) {
     return (
       <AnimatedPortsFallback
         markers={markers}

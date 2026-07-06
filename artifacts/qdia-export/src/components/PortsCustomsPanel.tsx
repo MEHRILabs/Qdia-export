@@ -1,8 +1,8 @@
 import { useEffect, useState, useMemo } from "react";
-import { Ship, Globe, FileCheck, Anchor } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { motion } from "framer-motion";
+import { Ship, Globe, FileCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { logisticsApi, type PortInfo, type CustomsCalcResult } from "@/lib/api-auth";
+import { logisticsApi, type CustomsCalcResult } from "@/lib/api-auth";
 import { PortsMap } from "@/components/PortsMap";
 import { FALLBACK_PORTS_GROUPED, toMapMarkers } from "@/lib/ports-data";
 import { useI18n } from "@/contexts/I18nContext";
@@ -12,8 +12,9 @@ interface Props {
   portDepart?: string;
   fobPrice?: number;
   compact?: boolean;
-  /** Afficher le détail des montants douane (uniquement au moment de la commande) */
   showPricing?: boolean;
+  /** Carte animée pleine largeur (accueil) — moins de texte, plus visuel */
+  variant?: "default" | "hero";
 }
 
 export function PortsCustomsPanel({
@@ -22,18 +23,20 @@ export function PortsCustomsPanel({
   fobPrice = 50000,
   compact,
   showPricing = false,
+  variant = "default",
 }: Props) {
   const { tr } = useI18n();
-  const [ports, setPorts] = useState<{ algeria: PortInfo[]; international: PortInfo[] }>(FALLBACK_PORTS_GROUPED);
+  const isHero = variant === "hero";
+  const [ports, setPorts] = useState(FALLBACK_PORTS_GROUPED);
   const [destination, setDestination] = useState<"FR" | "AE" | "DZ">("FR");
   const [customs, setCustoms] = useState<CustomsCalcResult | null>(null);
   const [loading, setLoading] = useState(false);
 
   const destinations = useMemo(() => [
-    { code: "FR" as const, label: `${tr("customs_panel.dest_fr")} 🇫🇷`, port: "FRMRS" },
-    { code: "AE" as const, label: `${tr("customs_panel.dest_ae")} 🇦🇪`, port: "AEDXB" },
-    { code: "DZ" as const, label: `${tr("customs_panel.dest_dz")} 🇩🇿`, port: "DZALG" },
-  ], [tr]);
+    { code: "FR" as const, label: "🇫🇷 France", port: "FRMRS" },
+    { code: "AE" as const, label: "🇦🇪 UAE", port: "AEDXB" },
+    { code: "DZ" as const, label: "🇩🇿 Algérie", port: "DZALG" },
+  ], []);
 
   useEffect(() => {
     logisticsApi.getPorts()
@@ -80,38 +83,66 @@ export function PortsCustomsPanel({
     void calcCustoms(destination, port);
   }, [destination, productCategory, portDepart, fobPrice, ports, destinations, showPricing]);
 
+  if (isHero) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.6 }}
+        className="relative rounded-2xl overflow-hidden border border-[#0461A5]/15 bg-gradient-to-br from-[#f0f7ff] via-white to-[#fffbeb] shadow-lg"
+      >
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <motion.div
+            className="absolute -top-24 -right-24 h-48 w-48 rounded-full bg-[#0461A5]/10"
+            animate={{ scale: [1, 1.15, 1], opacity: [0.4, 0.7, 0.4] }}
+            transition={{ duration: 5, repeat: Infinity }}
+          />
+          <motion.div
+            className="absolute -bottom-16 -left-16 h-40 w-40 rounded-full bg-[#F5C518]/15"
+            animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.6, 0.3] }}
+            transition={{ duration: 4, repeat: Infinity, delay: 1 }}
+          />
+        </div>
+
+        <div className="relative p-4 md:p-6 space-y-4">
+          <PortsMap
+            markers={mapMarkers}
+            height={compact ? 200 : 280}
+            highlightCountry={destination}
+            animated
+          />
+
+          <div className="flex flex-wrap justify-center gap-2">
+            {destinations.map(d => (
+              <motion.div key={d.code} whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.98 }}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={destination === d.code ? "default" : "outline"}
+                  className={`rounded-full px-4 ${destination === d.code ? "bg-[#0461A5] shadow-md" : "bg-white/80"}`}
+                  onClick={() => setDestination(d.code)}
+                >
+                  {d.label}
+                </Button>
+              </motion.div>
+            ))}
+          </div>
+
+          <p className="text-center text-xs text-[#656566] flex items-center justify-center gap-2">
+            <Ship className="h-3.5 w-3.5 text-[#0461A5]" />
+            {tr("customs_panel.pricing_at_order")}
+          </p>
+        </div>
+      </motion.div>
+    );
+  }
+
   return (
     <div className={`rounded-xl border border-[#0461A5]/20 bg-white ${compact ? "p-4" : "p-5"} space-y-4`}>
       <div className="flex items-center gap-2">
-        <Anchor className="h-5 w-5 text-[#0461A5]" />
+        <Globe className="h-5 w-5 text-[#0461A5]" />
         <h3 className="font-bold text-[#073B74]">{tr("customs_panel.title")}</h3>
-      </div>
-
-      <div className="space-y-3">
-        <div>
-          <p className="text-xs font-bold text-[#0461A5] uppercase tracking-wide mb-2 flex items-center gap-1">
-            <Ship className="h-3.5 w-3.5" /> {tr("customs_panel.algeria_ports")} 🇩🇿
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {ports.algeria.map(p => (
-              <Badge key={p.code} variant="outline" className="text-[11px] border-[#0461A5]/30 text-[#0461A5]">
-                {p.city} · {p.code}
-              </Badge>
-            ))}
-          </div>
-        </div>
-        <div>
-          <p className="text-xs font-bold text-[#334257] uppercase tracking-wide mb-2 flex items-center gap-1">
-            <Globe className="h-3.5 w-3.5" /> {tr("customs_panel.intl_ports")}
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {ports.international.map(p => (
-              <Badge key={p.code} variant="secondary" className="text-[11px]">
-                {p.country} — {p.city}
-              </Badge>
-            ))}
-          </div>
-        </div>
       </div>
 
       <PortsMap markers={mapMarkers} height={compact ? 180 : 240} highlightCountry={destination} />

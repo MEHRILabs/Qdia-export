@@ -313,10 +313,13 @@ async function main() {
       UPDATE products SET is_featured = false WHERE export_status = 'published';
       UPDATE products SET is_featured = true
       WHERE id IN (
-        SELECT DISTINCT ON (split_part(category, ' > ', 1)) id
-        FROM products
-        WHERE export_status = 'published' AND name IS NOT NULL
-        ORDER BY split_part(category, ' > ', 1), price_fob DESC NULLS LAST, id
+        SELECT id FROM products
+        WHERE export_status = 'published'
+          AND image_url IS NOT NULL
+          AND trim(image_url) <> ''
+          AND image_url NOT LIKE '%.svg'
+          AND image_url NOT LIKE '%qdia-photo-placeholder%'
+        ORDER BY rating DESC NULLS LAST, id DESC
         LIMIT 6
       );
     `);

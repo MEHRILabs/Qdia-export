@@ -157,13 +157,13 @@ Réponds UNIQUEMENT en JSON:
 
 function buildPhotoPrompt(p: Product): string {
   return [
-    "Professional e-commerce product photography for B2B export catalog.",
+    "Ultra-clean professional e-commerce product photography for B2B export catalog.",
     `Product: "${p.name}"`,
     `Category: ${p.category}`,
-    p.description ? `Details: ${p.description.slice(0, 200)}` : null,
-    "Algerian consumer product, studio lighting, clean white neutral background,",
-    "commercial packshot, sharp focus, realistic packaging, high quality,",
-    "no text overlay, no watermark, no people, single product centered.",
+    p.description ? `Details: ${p.description.slice(0, 150)}` : null,
+    "Pure white seamless background (#FFFFFF), soft studio lighting, single product centered.",
+    "Photorealistic packaging only — NO text, NO labels, NO logos, NO watermarks, NO writing on package.",
+    "NO people, NO props, NO colorful backgrounds, NO marketing graphics.",
   ].filter(Boolean).join(" ");
 }
 
@@ -242,6 +242,11 @@ export async function enrichProductById(
   }
 
   await db.update(productsTable).set(patch).where(eq(productsTable.id, productId));
+
+  if (photoUpdated) {
+    const { promoteProductToFeatured } = await import("./featured-products");
+    void promoteProductToFeatured(productId);
+  }
 
   return {
     ok: true,
