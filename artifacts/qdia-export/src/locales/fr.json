@@ -590,7 +590,20 @@
     "enrich_done_desc": "{enriched} enrichi(s) · {photos} photo(s) · {pricing} prix",
     "tools_title": "Outils admin",
     "export_authorized_count": "Export autorisé",
-    "export_pending_count": "Export en attente"
+    "export_pending_count": "Export en attente",
+    "page_subtitle_table": "Tableau complet par catégorie — modifiez, générez la photo IA, approuvez et publiez au catalogue.",
+    "products_search": "Rechercher un produit…",
+    "products_table_count": "{count} produit(s)",
+    "products_empty": "Aucun produit dans cette sélection.",
+    "col_cif": "CIF (USD)",
+    "uncategorized": "Sans catégorie",
+    "delete_confirm": "Supprimer ce produit définitivement ?",
+    "deleted": "Produit supprimé",
+    "save_and_approve": "Enregistrer et approuver",
+    "save_approved": "Produit approuvé et enregistré",
+    "catalog_visible": "Visible dans le catalogue public",
+    "back_to_table": "Retour au tableau admin",
+    "price_cif_hint": "CIF estimé : ${cif} USD"
   },
   "footer": {
     "contact": "Contact",
@@ -973,7 +986,9 @@
     "created": "Produit créé — en attente validation admin",
     "open_studio": "Ouvrir dans Studio IA",
     "duplicate": "Dupliquer le produit",
-    "duplicated": "Produit dupliqué — modifiez la variante"
+    "duplicated": "Produit dupliqué — modifiez la variante",
+    "name_required": "Le nom du produit est obligatoire",
+    "price_required": "Indiquez un prix FOB supérieur à 0"
   },
   "supplier_orders": {
     "title": "Commandes reçues",

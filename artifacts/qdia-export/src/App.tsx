@@ -23,7 +23,7 @@ import Facturation from "@/pages/Facturation";
 import Favorites from "@/pages/Favorites";
 import Transactions from "@/pages/Transactions";
 import SupplierPublic from "@/pages/SupplierPublic";
-import ProductEdit from "@/pages/ProductEdit";
+import ProductEdit, { AdminProductEdit } from "@/pages/ProductEdit";
 import Cart from "@/pages/Cart";
 import Checkout from "@/pages/Checkout";
 import Orders from "@/pages/Orders";
@@ -93,6 +93,9 @@ function Router() {
       </Route>
       <Route path="/verification">
         <ProtectedRoute roles={["supplier", "admin"]}><Verification /></ProtectedRoute>
+      </Route>
+      <Route path="/admin/products/:id/edit">
+        <AdminProductEdit />
       </Route>
       <Route path="/admin">
         <ProtectedRoute roles={["admin"]}><AdminReview /></ProtectedRoute>

@@ -2,32 +2,17 @@ import { useState, useEffect, useCallback } from "react";
 import { Link } from "wouter";
 import { SupplierSidebar } from "@/components/SupplierSidebar";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
-import { CheckCircle2, XCircle, Clock, Loader2, Database, Sparkles, ImageIcon, DollarSign, Pencil, Package, MessageSquare, Factory, ChevronDown } from "lucide-react";
-import { ProductImage } from "@/components/ProductImage";
+import { Clock, Loader2, Database, Sparkles, ImageIcon, DollarSign, Package, MessageSquare, Factory, ChevronDown } from "lucide-react";
 import { platformApi } from "@/lib/platform-api";
 import { useI18n } from "@/contexts/I18nContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AdminOrdersPanel } from "@/components/AdminOrdersPanel";
 import { AdminExportAuthPanel } from "@/components/AdminExportAuthPanel";
+import { AdminProductsPanel } from "@/components/AdminProductsPanel";
 import { MessagesPanel } from "@/components/MessagesPanel";
-
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-
-interface Product {
-  id: number;
-  name: string;
-  category: string;
-  export_status: string;
-  prices: { fob: number; cif: number; currency?: string };
-  moq: number;
-  moq_unit: string;
-  image_url?: string | null;
-}
 
 const ADMIN_TABS = [
   { value: "products", icon: Clock, labelKey: "admin.tab_products" },
@@ -73,9 +58,6 @@ export default function AdminReview() {
   const { toast } = useToast();
   const { tr } = useI18n();
   const isMobile = useIsMobile();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [updating, setUpdating] = useState<number | null>(null);
 
   const [adminStats, setAdminStats] = useState<Record<string, unknown> | null>(null);
   const [enrichStatus, setEnrichStatus] = useState<{
@@ -86,58 +68,24 @@ export default function AdminReview() {
     published: number;
   } | null>(null);
   const [enriching, setEnriching] = useState(false);
-  const [photoUpdating, setPhotoUpdating] = useState<number | null>(null);
 
   const [activeTab, setActiveTab] = useState("products");
   const [toolsOpen, setToolsOpen] = useState(false);
 
-  const getAuthHeaders = (): HeadersInit => {
-    const token = localStorage.getItem("qdia_auth_token");
-    return token
-      ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
-      : { "Content-Type": "application/json" };
-  };
-
-  const loadPending = useCallback(async () => {
-    setLoading(true);
+  const loadStats = useCallback(async () => {
     try {
       const token = localStorage.getItem("qdia_auth_token");
       const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
-      const [resp, statsResp, enrichResp] = await Promise.all([
-        fetch(`${BASE}/api/products?scope=admin&export_status=pending&limit=50`),
+      const [statsResp, enrichResp] = await Promise.all([
         fetch(`${import.meta.env.VITE_API_URL ?? ""}/api/admin/stats`, { headers }),
         platformApi.getEnrichmentStatus().catch(() => null),
       ]);
-      const data = await resp.json();
-      setProducts(data.data ?? []);
       if (statsResp.ok) setAdminStats(await statsResp.json());
       if (enrichResp) setEnrichStatus(enrichResp);
     } catch {
       toast({ title: tr("common.error"), description: tr("admin.load_failed"), variant: "destructive" });
-    } finally {
-      setLoading(false);
     }
   }, [toast, tr]);
-
-  const generatePhoto = async (productId: number) => {
-    setPhotoUpdating(productId);
-    try {
-      const result = await platformApi.enrichProduct(productId, { generate_photos: true, skip_pricing: true });
-      if (!result.ok || !result.photo_updated) {
-        throw new Error("Photo IA non générée — vérifiez OPENAI_API_KEY");
-      }
-      toast({ title: tr("admin.photo_generated"), description: `#${productId}` });
-      loadPending();
-    } catch (e) {
-      toast({
-        title: tr("common.error"),
-        description: String(e instanceof Error ? e.message : e),
-        variant: "destructive",
-      });
-    } finally {
-      setPhotoUpdating(null);
-    }
-  };
 
   const runEnrichment = async (limit = 50) => {
     setEnriching(true);
@@ -152,7 +100,7 @@ export default function AdminReview() {
       });
       const status = await platformApi.getEnrichmentStatus();
       setEnrichStatus(status);
-      loadPending();
+      loadStats();
     } catch (e) {
       toast({
         title: tr("common.error"),
@@ -164,28 +112,7 @@ export default function AdminReview() {
     }
   };
 
-  useEffect(() => { loadPending(); }, [loadPending]);
-
-  const updateStatus = async (id: number, export_status: "published" | "suspended") => {
-    setUpdating(id);
-    try {
-      const resp = await fetch(`${BASE}/api/products/${id}`, {
-        method: "PATCH",
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ export_status }),
-      });
-      if (!resp.ok) throw new Error("Échec");
-      toast({
-        title: export_status === "published" ? tr("admin.approved") : tr("admin.rejected"),
-        description: tr("admin.updated").replace("{id}", String(id)),
-      });
-      setProducts(prev => prev.filter(p => p.id !== id));
-    } catch {
-      toast({ title: tr("common.error"), description: tr("admin.update_failed"), variant: "destructive" });
-    } finally {
-      setUpdating(null);
-    }
-  };
+  useEffect(() => { void loadStats(); }, [loadStats]);
 
   const migrateMysql = async () => {
     try {
@@ -195,7 +122,7 @@ export default function AdminReview() {
         description: r.errors[0] ?? undefined,
         variant: r.connected ? "default" : "destructive",
       });
-      if (r.imported) loadPending();
+      if (r.imported) loadStats();
     } catch (e) {
       toast({ title: tr("admin.migration_error"), description: String(e instanceof Error ? e.message : e), variant: "destructive" });
     }
@@ -204,7 +131,7 @@ export default function AdminReview() {
   return (
     <div className="min-h-dvh bg-background flex flex-col md:flex-row">
       <SupplierSidebar activePath="/admin" />
-      <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8 max-w-5xl mx-auto w-full">
+      <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8 max-w-7xl mx-auto w-full">
         <div className="mb-4 md:mb-6">
           <header className="md:hidden flex items-center justify-between mb-3 pb-3 border-b">
             <Link href="/" className="font-bold text-sm text-primary">{tr("mobile.brand_short")}</Link>
@@ -216,13 +143,8 @@ export default function AdminReview() {
               <h1 className="text-xl md:text-2xl font-bold mb-1 flex items-center gap-2">
                 <Clock className="h-5 w-5 md:h-6 md:w-6 text-primary" /> {tr("admin.page_title")}
               </h1>
-              <p className="text-muted-foreground text-xs md:text-sm">{tr("admin.page_subtitle")}</p>
+              <p className="text-muted-foreground text-xs md:text-sm">{tr("admin.page_subtitle_table")}</p>
             </div>
-            {activeTab === "products" && !loading && products.length > 0 && (
-              <Badge variant="secondary" className="shrink-0 mt-1">
-                {tr("admin.pending_count").replace("{count}", String(products.length))}
-              </Badge>
-            )}
           </div>
           {adminStats && (activeTab === "products" || !isMobile) && (
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 md:gap-3 mt-3 md:mt-4">
@@ -322,7 +244,7 @@ export default function AdminReview() {
                     title: tr("admin.photos_batch_btn"),
                     description: `${result.photos_generated} photo(s) · ${result.enriched} enrichi(s)`,
                   });
-                  loadPending();
+                  loadStats();
                 } catch (e) {
                   toast({ title: tr("common.error"), description: String(e instanceof Error ? e.message : e), variant: "destructive" });
                 } finally {
@@ -350,63 +272,7 @@ export default function AdminReview() {
           <AdminMobileNav activeTab={activeTab} onChange={setActiveTab} tr={tr} />
 
           <TabsContent value="products">
-        {loading && [...Array(3)].map((_, i) => <Skeleton key={i} className="h-20 w-full mb-3 rounded-xl" />)}
-
-        {!loading && products.length === 0 && (
-          <div className="text-center py-16 text-muted-foreground border rounded-xl bg-card">
-            <CheckCircle2 className="h-10 w-10 mx-auto mb-3 opacity-30" />
-            <p className="font-medium">{tr("admin.no_pending")}</p>
-          </div>
-        )}
-
-        <div className="space-y-3">
-          {products.map(p => (
-            <div key={p.id} className="flex flex-col gap-3 p-3 sm:p-4 border rounded-xl bg-card shadow-sm">
-              <div className="flex items-start gap-3 min-w-0">
-              <div className="h-16 w-16 sm:h-14 sm:w-14 rounded-lg bg-muted overflow-hidden shrink-0 flex items-center justify-center">
-                <ProductImage src={p.image_url} alt={p.name} compact className="h-full w-full" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-semibold text-sm sm:text-base leading-snug">{p.name}</div>
-                <div className="text-xs text-muted-foreground flex flex-wrap gap-x-2 gap-y-1 mt-1">
-                  <Badge variant="outline" className="text-[10px]">{p.category}</Badge>
-                  <span>FOB ${p.prices.fob}</span>
-                  <span>CIF ${p.prices.cif}</span>
-                  <span>MOQ {p.moq} {p.moq_unit}</span>
-                </div>
-              </div>
-              </div>
-              <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
-                <Link href={`/supplier/products/${p.id}/edit`} className="col-span-1">
-                  <Button size="sm" variant="outline" className="gap-1 w-full sm:w-auto">
-                    <Pencil className="h-3 w-3" /> {tr("admin.edit_photo")}
-                  </Button>
-                </Link>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1 col-span-1"
-                  disabled={photoUpdating === p.id}
-                  onClick={() => void generatePhoto(p.id)}
-                >
-                  {photoUpdating === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                  {tr("admin.ai_photo")}
-                </Button>
-                <Button size="sm" variant="default" className="gap-1 col-span-1"
-                  disabled={updating === p.id}
-                  onClick={() => updateStatus(p.id, "published")}>
-                  {updating === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
-                  {tr("admin.approve")}
-                </Button>
-                <Button size="sm" variant="outline" className="gap-1 text-red-600 border-red-200 col-span-1"
-                  disabled={updating === p.id}
-                  onClick={() => updateStatus(p.id, "suspended")}>
-                  <XCircle className="h-3 w-3" /> {tr("admin.reject")}
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
+            <AdminProductsPanel />
           </TabsContent>
 
           <TabsContent value="orders">

@@ -344,4 +344,7 @@ export const platformApi = {
 
   patchProductExport: (id: number, data: { export_authorized?: boolean; stock_countries?: string[] }) =>
     api(`/api/products/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+
+  patchProductStatus: (id: number, export_status: "published" | "pending" | "suspended" | "draft") =>
+    api(`/api/products/${id}`, { method: "PATCH", body: JSON.stringify({ export_status }) }),
 };
