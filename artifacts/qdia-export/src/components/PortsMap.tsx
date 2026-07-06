@@ -9,8 +9,6 @@ interface Props {
   height?: number;
   className?: string;
   highlightCountry?: string;
-  /** Carte animée stylisée (accueil) */
-  animated?: boolean;
 }
 
 type GMaps = {
@@ -222,24 +220,25 @@ function AnimatedPortsMap({
   );
 }
 
-export function PortsMap({ markers, height = 220, className, highlightCountry, animated = false }: Props) {
+export function PortsMap({ markers, height = 220, className, highlightCountry }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [mapsKey, setMapsKey] = useState(appConfig.googleMapsKey);
   const [mapReady, setMapReady] = useState(false);
   const [mapFailed, setMapFailed] = useState(false);
 
   useEffect(() => {
-    if (mapsKey || animated) return;
+    if (mapsKey) return;
     void resolveMapsKey().then(key => {
       if (key) setMapsKey(key);
     });
-  }, [mapsKey, animated]);
+  }, [mapsKey]);
 
   useEffect(() => {
-    if (animated || !mapsKey || !ref.current || !markers.length) return;
+    if (!mapsKey || !ref.current || !markers.length) return;
 
     let cancelled = false;
     setMapFailed(false);
+    setMapReady(false);
     loadMapsScript(mapsKey).then(() => {
       const maps = getMaps();
       if (cancelled || !ref.current || !maps) return;
@@ -274,7 +273,7 @@ export function PortsMap({ markers, height = 220, className, highlightCountry, a
     });
 
     return () => { cancelled = true; };
-  }, [mapsKey, markers, animated]);
+  }, [mapsKey, markers]);
 
   if (!markers.length) {
     return (
@@ -287,7 +286,7 @@ export function PortsMap({ markers, height = 220, className, highlightCountry, a
     );
   }
 
-  if (animated || !mapsKey || mapFailed) {
+  if (!mapsKey || mapFailed) {
     return (
       <AnimatedPortsMap
         markers={markers}
@@ -300,6 +299,12 @@ export function PortsMap({ markers, height = 220, className, highlightCountry, a
 
   return (
     <div className="space-y-2">
+      <div className="flex flex-wrap gap-3 text-[10px] text-[#656566] px-1">
+        <span><span className="inline-block w-2 h-2 rounded-full bg-[#0461A5] mr-1" />Algérie</span>
+        <span><span className="inline-block w-2 h-2 rounded-full bg-[#E70013] mr-1" />Tunisie</span>
+        <span><span className="inline-block w-2 h-2 rounded-full bg-[#2563eb] mr-1" />France</span>
+        <span><span className="inline-block w-2 h-2 rounded-full bg-[#F5C518] mr-1" />UAE</span>
+      </div>
       {!mapReady && (
         <AnimatedPortsMap
           markers={markers}

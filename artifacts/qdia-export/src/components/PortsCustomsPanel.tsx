@@ -45,15 +45,10 @@ export function PortsCustomsPanel({
       .catch(() => setPorts(FALLBACK_PORTS_GROUPED));
   }, []);
 
-  const mapMarkers = useMemo(() => {
-    const all = toMapMarkers([...ports.algeria, ...ports.international]);
-    const seen = new Set<string>();
-    return all.filter(m => {
-      if (seen.has(m.country_code)) return false;
-      seen.add(m.country_code);
-      return true;
-    });
-  }, [ports]);
+  const allMapMarkers = useMemo(
+    () => toMapMarkers([...ports.algeria, ...ports.international]),
+    [ports],
+  );
 
   const calcCustoms = async (dest: string, portCode?: string) => {
     if (!showPricing) return;
@@ -89,10 +84,9 @@ export function PortsCustomsPanel({
     return (
       <div className="max-w-3xl mx-auto rounded-2xl border border-[#E5E7EB] bg-white shadow-sm overflow-hidden">
         <PortsMap
-          markers={mapMarkers}
+          markers={allMapMarkers}
           height={compact ? 220 : 320}
           highlightCountry={destination}
-          animated
         />
 
         <div className="px-4 pb-4 pt-3 space-y-3 border-t border-[#E5E7EB]/80 bg-[#FAFBFC]">
@@ -121,7 +115,7 @@ export function PortsCustomsPanel({
 
   return (
     <div className={`rounded-xl border border-[#0461A5]/20 bg-white ${compact ? "p-4" : "p-5"} space-y-4`}>
-      <PortsMap markers={mapMarkers} height={compact ? 180 : 240} highlightCountry={destination} />
+      <PortsMap markers={allMapMarkers} height={compact ? 180 : 240} highlightCountry={destination} />
 
       <div className="flex flex-wrap gap-2">
         {destinations.map(d => (
