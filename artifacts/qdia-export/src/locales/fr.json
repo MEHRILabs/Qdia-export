@@ -58,6 +58,8 @@
     "rfq_portal": "Portail RFQ",
     "verification": "Vérification",
     "admin": "Revue QDIA",
+    "edit_products": "Modifier produits",
+    "my_rfqs": "Mes RFQ",
     "favorites": "Favoris",
     "catalog": "Catalogue",
     "home": "Accueil"
@@ -603,7 +605,8 @@
     "save_approved": "Produit approuvé et enregistré",
     "catalog_visible": "Visible dans le catalogue public",
     "back_to_table": "Retour au tableau admin",
-    "price_cif_hint": "CIF estimé : ${cif} USD"
+    "price_cif_hint": "CIF estimé : ${cif} USD",
+    "sidebar_title": "Administration QDIA"
   },
   "footer": {
     "contact": "Contact",
@@ -988,7 +991,14 @@
     "duplicate": "Dupliquer le produit",
     "duplicated": "Produit dupliqué — modifiez la variante",
     "name_required": "Le nom du produit est obligatoire",
-    "price_required": "Indiquez un prix FOB supérieur à 0"
+    "price_required": "Indiquez un prix FOB supérieur à 0",
+    "text_ai": "Générer texte IA",
+    "text_generating": "IA en cours…",
+    "text_ai_done": "Nom et description générés par l'IA",
+    "text_ai_hint": "Saisissez un nom ou une description, puis cliquez sur « Générer texte IA » pour compléter la fiche.",
+    "text_ai_fallback": "Mode secours — texte basique généré",
+    "name_placeholder": "Ex : Huile d'olive extra vierge BIO",
+    "desc_placeholder": "Description commerciale export (origine, qualité, certifications…)"
   },
   "supplier_orders": {
     "title": "Commandes reçues",

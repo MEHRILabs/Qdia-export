@@ -94,6 +94,9 @@ function Router() {
       <Route path="/verification">
         <ProtectedRoute roles={["supplier", "admin"]}><Verification /></ProtectedRoute>
       </Route>
+      <Route path="/admin/products/new">
+        <AdminProductEdit />
+      </Route>
       <Route path="/admin/products/:id/edit">
         <AdminProductEdit />
       </Route>

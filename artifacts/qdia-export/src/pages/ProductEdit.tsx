@@ -43,6 +43,7 @@ function ProductEditContent({ adminMode = false }: { adminMode?: boolean }) {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [generatingText, setGeneratingText] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [exportStatus, setExportStatus] = useState("pending");
@@ -174,6 +175,39 @@ function ProductEditContent({ adminMode = false }: { adminMode?: boolean }) {
     }
   };
 
+  const generateTextWithAi = async () => {
+    const seed = [name, description, category !== "Agriculture & Food" ? category : ""]
+      .filter(Boolean)
+      .join(" — ")
+      .trim();
+    if (!seed) {
+      toast({ title: tr("common.error"), description: tr("product_edit.text_ai_hint"), variant: "destructive" });
+      return;
+    }
+    setGeneratingText(true);
+    try {
+      const data = await platformApi.generateProductSheet({ description: seed });
+      if (data.name_fr) setName(data.name_fr);
+      const desc = data.description_fr ?? data.description_en;
+      if (desc) setDescription(desc);
+      if (data.category) setCategory(data.category);
+      if (data.moq) setMoq(data.moq);
+      if (data.moq_unit) setMoqUnit(data.moq_unit);
+      if (data.port_depart) setPortDepart(data.port_depart);
+      const fob = data.pricing?.fob_usd;
+      if (fob && fob > 0) setPriceFob(fob);
+      toast({
+        title: tr("product_edit.text_ai_done"),
+        description: data._fallback ? (data._fallback_reason ?? tr("product_edit.text_ai_fallback")) : undefined,
+        variant: data._fallback ? "destructive" : "default",
+      });
+    } catch (e) {
+      toast({ title: tr("common.error"), description: String(e instanceof Error ? e.message : e), variant: "destructive" });
+    } finally {
+      setGeneratingText(false);
+    }
+  };
+
   const duplicate = async () => {
     if (!id) return;
     setDuplicating(true);
@@ -200,7 +234,7 @@ function ProductEditContent({ adminMode = false }: { adminMode?: boolean }) {
 
   return (
     <div className="min-h-screen flex">
-      <SupplierSidebar activePath={adminMode ? "/admin" : "/supplier"} />
+      <SupplierSidebar activePath={adminMode ? "/admin" : "/supplier"} variant={adminMode ? "admin" : "supplier"} />
       <main className="flex-1 p-6 md:p-8 max-w-3xl">
         <Link href={backHref} className="text-sm text-[#0461A5] font-semibold flex items-center gap-1 mb-4">
           <ArrowLeft className="h-4 w-4" /> {adminMode ? tr("admin.back_to_table") : tr("product_edit.back")}
@@ -270,12 +304,26 @@ function ProductEditContent({ adminMode = false }: { adminMode?: boolean }) {
           )}
 
           <div className="space-y-1.5">
-            <Label>{tr("product_edit.name")}</Label>
-            <Input value={name} onChange={e => setName(e.target.value)} />
+            <div className="flex items-center justify-between gap-2">
+              <Label>{tr("product_edit.name")}</Label>
+              <Button
+                type="button"
+                variant="gold"
+                size="sm"
+                className="gap-1.5 h-8"
+                disabled={generatingText}
+                onClick={() => void generateTextWithAi()}
+              >
+                {generatingText ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                {generatingText ? tr("product_edit.text_generating") : tr("product_edit.text_ai")}
+              </Button>
+            </div>
+            <Input value={name} onChange={e => setName(e.target.value)} placeholder={tr("product_edit.name_placeholder")} />
           </div>
           <div className="space-y-1.5">
             <Label>{tr("product_edit.description")}</Label>
-            <Textarea value={description} onChange={e => setDescription(e.target.value)} rows={4} />
+            <Textarea value={description} onChange={e => setDescription(e.target.value)} rows={5} placeholder={tr("product_edit.desc_placeholder")} />
+            <p className="text-xs text-muted-foreground">{tr("product_edit.text_ai_hint")}</p>
           </div>
           <div className="space-y-1.5">
             <Label>{tr("product_edit.category")}</Label>

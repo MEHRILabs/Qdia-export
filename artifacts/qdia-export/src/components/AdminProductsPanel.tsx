@@ -209,7 +209,7 @@ export function AdminProductsPanel() {
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <span>{tr("admin.products_table_count").replace("{count}", String(total))}</span>
         <Button variant="outline" size="sm" asChild>
-          <Link href="/supplier/products/new">{tr("product_edit.new_title")}</Link>
+          <Link href="/admin/products/new">{tr("product_edit.new_title")}</Link>
         </Button>
       </div>
 

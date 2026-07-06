@@ -144,6 +144,25 @@ export const platformApi = {
       { method: "POST", body: JSON.stringify(opts ?? { generate_photos: true, skip_pricing: true }) },
     ),
 
+  generateProductSheet: (body: {
+    description: string;
+    target_market?: string;
+    cost_dzd?: number;
+    image_base64?: string;
+  }) =>
+    api<{
+      name_fr?: string;
+      description_fr?: string;
+      description_en?: string;
+      category?: string;
+      moq?: number;
+      moq_unit?: string;
+      port_depart?: string;
+      pricing?: { fob_usd?: number; cif_usd?: number };
+      _fallback?: boolean;
+      _fallback_reason?: string;
+    }>("/api/ai/generate-product", { method: "POST", body: JSON.stringify(body) }),
+
   getSupplier: (id: number) => api<Record<string, unknown>>(`/api/suppliers/${id}`),
 
   invoiceAiLines: (body: Record<string, unknown>) =>

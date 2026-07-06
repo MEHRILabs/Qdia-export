@@ -2,31 +2,41 @@ import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { BrandLogo } from "@/components/BrandLogo";
-import { SUPPLIER_NAV } from "@/lib/nav";
+import { SUPPLIER_NAV, ADMIN_NAV } from "@/lib/nav";
 import { useI18n } from "@/contexts/I18nContext";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Plus } from "lucide-react";
 
 interface Props {
   activePath: string;
+  variant?: "supplier" | "admin";
 }
 
-export function SupplierSidebar({ activePath }: Props) {
+function isNavActive(activePath: string, href: string): boolean {
+  if (activePath === href) return true;
+  if (href === "/admin" && activePath.startsWith("/admin")) return true;
+  if (href === "/supplier" && activePath.startsWith("/supplier/products")) return true;
+  return false;
+}
+
+export function SupplierSidebar({ activePath, variant = "supplier" }: Props) {
   const { tr } = useI18n();
   const onStudio = activePath === "/studio";
   const onAgent = activePath === "/agent-ia";
+  const isAdmin = variant === "admin";
+  const navItems = isAdmin ? ADMIN_NAV : SUPPLIER_NAV;
 
   return (
     <aside className="w-[260px] qdia-sidebar hidden md:flex flex-col shrink-0">
       <div className="p-5 border-b border-white/10">
         <BrandLogo variant="sidebar" />
         <p className="text-[11px] text-white/55 mt-3 leading-relaxed">
-          {tr("brand.tagline")} 🇩🇿
+          {isAdmin ? tr("admin.sidebar_title") : tr("brand.tagline")} 🇩🇿
         </p>
       </div>
 
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-        {SUPPLIER_NAV.map(({ href, icon: Icon, labelKey }) => {
-          const active = activePath === href;
+        {navItems.map(({ href, icon: Icon, labelKey }) => {
+          const active = isNavActive(activePath, href);
           return (
             <Link key={href} href={href} className="block relative">
               {active && (
@@ -57,10 +67,21 @@ export function SupplierSidebar({ activePath }: Props) {
       </nav>
 
       {!onStudio && !onAgent && (
-        <div className="p-4 border-t border-white/10">
-          <Button variant="gold" className="w-full text-sm font-bold" asChild>
-            <Link href="/agent-ia?new=1"><Sparkles className="h-4 w-4" /> {tr("supplier.add_product")}</Link>
-          </Button>
+        <div className="p-4 border-t border-white/10 space-y-2">
+          {isAdmin ? (
+            <>
+              <Button variant="gold" className="w-full text-sm font-bold gap-2" asChild>
+                <Link href="/admin/products/new"><Plus className="h-4 w-4" /> {tr("product_edit.new_title")}</Link>
+              </Button>
+              <Button variant="outline" className="w-full text-sm font-semibold border-white/20 text-white hover:bg-white/10" asChild>
+                <Link href="/agent-ia?new=1"><Sparkles className="h-4 w-4" /> {tr("nav.agent_ia")}</Link>
+              </Button>
+            </>
+          ) : (
+            <Button variant="gold" className="w-full text-sm font-bold" asChild>
+              <Link href="/agent-ia?new=1"><Sparkles className="h-4 w-4" /> {tr("supplier.add_product")}</Link>
+            </Button>
+          )}
         </div>
       )}
     </aside>

@@ -130,7 +130,7 @@ export default function AdminReview() {
 
   return (
     <div className="min-h-dvh bg-background flex flex-col md:flex-row">
-      <SupplierSidebar activePath="/admin" />
+      <SupplierSidebar activePath="/admin" variant="admin" />
       <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8 max-w-7xl mx-auto w-full">
         <div className="mb-4 md:mb-6">
           <header className="md:hidden flex items-center justify-between mb-3 pb-3 border-b">

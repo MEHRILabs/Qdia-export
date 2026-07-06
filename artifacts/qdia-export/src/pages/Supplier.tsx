@@ -244,7 +244,9 @@ export default function Supplier() {
                           <Link href="/agent-ia"><Sparkles className="h-3 w-3" /></Link>
                         </Button>
                         <Button variant="ghost" size="sm" asChild>
-                          <Link href={`/supplier/products/${product.id}/edit`}><Pencil className="h-3 w-3" /></Link>
+                          <Link href={user?.role === "admin" ? `/admin/products/${product.id}/edit` : `/supplier/products/${product.id}/edit`}>
+                            <Pencil className="h-3 w-3" />
+                          </Link>
                         </Button>
                         <Button variant="ghost" size="sm" className="text-red-600" onClick={() => removeProduct(product.id)}>
                           <Trash2 className="h-3 w-3" />
