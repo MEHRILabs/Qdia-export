@@ -6,7 +6,7 @@ import { AuthModal } from "@/components/AuthModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { isSupplier, isAdmin, defaultHomeForUser } from "@/lib/roles";
 import { getStoredUser } from "@/lib/api-auth";
-import { Wand2, LogIn, LogOut, User, Store, Sparkles, Globe, Menu, MapPin, BookOpen, ShoppingCart, Package, Truck, Shield, MessageSquare } from "lucide-react";
+import { Wand2, LogIn, LogOut, User, Store, Sparkles, Globe, Menu, MapPin, BookOpen, ShoppingCart, Package, Truck, Shield, MessageSquare, ClipboardCheck, Pencil, DollarSign, FileText } from "lucide-react";
 import { useI18n } from "@/contexts/I18nContext";
 import type { Locale } from "@/lib/i18n";
 import { useCartCount } from "@/hooks/useCart";
@@ -45,6 +45,26 @@ function StudioIAButton({ label }: { label: string }) {
         {label}
       </Link>
     </motion.div>
+  );
+}
+
+function EspaceAdminButton({ label }: { label: string }) {
+  const [location, setLocation] = useLocation();
+  const active = location.startsWith("/admin");
+
+  return (
+    <Link
+      href="/admin"
+      onClick={e => { e.preventDefault(); setLocation("/admin"); }}
+      className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-bold transition-colors shadow-[0_0_16px_rgba(245,197,24,0.35)] hover:scale-[1.02] active:scale-[0.98] ${
+        active
+          ? "bg-[#E0B015] text-[#1A1A2E] ring-2 ring-white/30"
+          : "bg-[#F5C518] text-[#1A1A2E] hover:bg-[#E0B015]"
+      }`}
+    >
+      <ClipboardCheck className="h-4 w-4" />
+      {label}
+    </Link>
   );
 }
 
@@ -133,7 +153,10 @@ export function BuyerHeader() {
           <BrandLogo variant="header" />
 
           <nav className="hidden md:flex items-center gap-3">
-            {isSupplier(user) && (
+            {isAdmin(user) && (
+              <EspaceAdminButton label={tr("nav.admin_space")} />
+            )}
+            {isSupplier(user) && !isAdmin(user) && (
               <EspaceFournisseurButton label={tr("header.supplier_space")} />
             )}
           </nav>
@@ -150,6 +173,31 @@ export function BuyerHeader() {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56 p-1" onCloseAutoFocus={e => e.preventDefault()}>
+                {isAdmin(user) && (
+                  <>
+                    <DropdownMenuItem asChild>
+                      <Link href="/admin" className="cursor-pointer text-sm py-2 font-semibold text-[#0461A5]">
+                        <ClipboardCheck className="h-4 w-4 mr-2 inline" /> {tr("nav.admin_space")}
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/admin" className="cursor-pointer text-sm py-2">
+                        <Pencil className="h-4 w-4 mr-2 inline text-[#0461A5]" /> {tr("nav.edit_products")}
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/facturation" className="cursor-pointer text-sm py-2">
+                        <DollarSign className="h-4 w-4 mr-2 inline text-[#0461A5]" /> {tr("nav.billing")}
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/rfq" className="cursor-pointer text-sm py-2">
+                        <FileText className="h-4 w-4 mr-2 inline text-[#0461A5]" /> {tr("nav.rfq_portal")}
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 {isSupplier(user) && (
                   <>
                     <DropdownMenuItem asChild>
@@ -292,14 +340,50 @@ export function BuyerHeader() {
                     className="hidden md:inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white px-3 py-2 rounded-lg text-[13px] font-semibold transition-colors"
                   >
                     <User className="h-4 w-4 text-[#F5C518] shrink-0" />
-                    <span dir="ltr" className="max-w-[120px] truncate hidden sm:inline text-start">{user.name}</span>
+                    <span dir="ltr" className="max-w-[140px] truncate hidden sm:inline text-start">
+                      {isAdmin(user) ? tr("nav.admin_space_short") : user.name}
+                    </span>
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48" onCloseAutoFocus={e => e.preventDefault()}>
+                <DropdownMenuContent align="end" className="w-56" onCloseAutoFocus={e => e.preventDefault()}>
                   <div className="px-3 py-2 text-xs text-muted-foreground">
                     {user.email ?? user.phone ?? tr("auth.login")}
+                    {isAdmin(user) && (
+                      <p className="text-[10px] font-bold text-[#0461A5] mt-1">{tr("messages.role_admin")}</p>
+                    )}
                   </div>
                   <DropdownMenuSeparator />
+                  {isAdmin(user) && (
+                    <>
+                      <DropdownMenuItem asChild>
+                        <Link href="/admin" className="cursor-pointer font-semibold text-[#0461A5]">
+                          <ClipboardCheck className="h-4 w-4 me-2 inline" /> {tr("nav.admin_space")}
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link href="/admin" className="cursor-pointer">
+                          <Pencil className="h-4 w-4 me-2 inline" /> {tr("nav.edit_products")}
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link href="/facturation" className="cursor-pointer">
+                          <DollarSign className="h-4 w-4 me-2 inline" /> {tr("nav.billing")}
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link href="/rfq" className="cursor-pointer">
+                          <FileText className="h-4 w-4 me-2 inline" /> {tr("nav.rfq_portal")}
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link href="/mes-rfq" className="cursor-pointer">{tr("nav.my_rfqs")}</Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link href="/inquiries" className="cursor-pointer">{tr("nav.inquiries")}</Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
                   <DropdownMenuItem asChild>
                     <Link href="/panier" className="cursor-pointer">{tr("cart.title")}</Link>
                   </DropdownMenuItem>
@@ -336,9 +420,11 @@ export function BuyerHeader() {
                       <DropdownMenuItem asChild>
                         <Link href="/dashboard" className="cursor-pointer">{tr("nav.dashboard")}</Link>
                       </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link href="/facturation" className="cursor-pointer">{tr("facturation.title")}</Link>
-                      </DropdownMenuItem>
+                      {!isAdmin(user) && (
+                        <DropdownMenuItem asChild>
+                          <Link href="/facturation" className="cursor-pointer">{tr("facturation.title")}</Link>
+                        </DropdownMenuItem>
+                      )}
                     </>
                   )}
                   <DropdownMenuSeparator />

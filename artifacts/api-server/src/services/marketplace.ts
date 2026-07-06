@@ -457,6 +457,17 @@ export async function updateOrderStatus(
   return enriched[0];
 }
 
+export async function deleteOrder(orderId: number, actor: { id: number; role: string }) {
+  if (actor.role !== "admin") throw new Error("Accès réservé à l'administration");
+  if (!(await dbOk())) throw new Error("Base de données indisponible");
+
+  const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, orderId)).limit(1);
+  if (!order) throw new Error("Commande introuvable");
+
+  await db.delete(ordersTable).where(eq(ordersTable.id, orderId));
+  return { ok: true, id: orderId };
+}
+
 export async function getProductContact(productId: number) {
   if (!(await dbOk())) return null;
 

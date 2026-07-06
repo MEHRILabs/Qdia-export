@@ -6,7 +6,7 @@ import {
   createDispute, getDisputes, mediateDispute,
   createOemRequest, createSampleRequest,
   getSupplierReviews, postSupplierReview, getRecommendations,
-  updateOrderStatus, getProductContact,
+  updateOrderStatus, getProductContact, deleteOrder,
 } from "../services/marketplace";
 import { trackParcel, detectCarrier, type Carrier } from "../services/tracking";
 import { broadcastDisputeUpdate, broadcastOrderUpdate } from "../services/websocket";
@@ -86,6 +86,15 @@ router.patch("/orders/:id", requireAuth, async (req: AuthedRequest, res) => {
     res.json(order);
   } catch (err) {
     res.status(400).json({ error: err instanceof Error ? err.message : "Erreur" });
+  }
+});
+
+router.delete("/orders/:id", requireAuth, requireRole("admin"), async (req: AuthedRequest, res) => {
+  try {
+    const result = await deleteOrder(parseInt(String(req.params.id), 10), { id: req.user!.id, role: req.user!.role });
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : "Erreur suppression" });
   }
 });
 

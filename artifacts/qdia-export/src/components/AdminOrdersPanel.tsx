@@ -9,7 +9,7 @@ import { platformApi } from "@/lib/platform-api";
 import { useI18n } from "@/contexts/I18nContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { Package, MessageSquare, CheckCircle2, Truck, Loader2, Copy } from "lucide-react";
+import { Package, MessageSquare, CheckCircle2, Truck, Loader2, Copy, Trash2 } from "lucide-react";
 
 type OrderRow = {
   id: number;
@@ -55,6 +55,24 @@ export function AdminOrdersPanel() {
     try {
       await platformApi.patchOrder(id, body);
       toast({ title: tr("admin.order_updated") });
+      qc.invalidateQueries({ queryKey: ["admin-orders"] });
+    } catch (e) {
+      toast({
+        title: tr("common.error"),
+        description: String(e instanceof Error ? e.message : e),
+        variant: "destructive",
+      });
+    } finally {
+      setUpdating(null);
+    }
+  };
+
+  const removeOrder = async (id: number) => {
+    if (!confirm(tr("admin.order_delete_confirm"))) return;
+    setUpdating(id);
+    try {
+      await platformApi.deleteOrder(id);
+      toast({ title: tr("admin.order_deleted") });
       qc.invalidateQueries({ queryKey: ["admin-orders"] });
     } catch (e) {
       toast({
@@ -218,6 +236,16 @@ export function AdminOrdersPanel() {
                     </Link>
                   </Button>
                 )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1 h-10 sm:h-9 text-red-600 border-red-200 col-span-2 sm:col-span-1"
+                  disabled={updating === o.id}
+                  onClick={() => void removeOrder(o.id)}
+                >
+                  {updating === o.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                  {tr("admin.order_delete")}
+                </Button>
               </div>
             </div>
           </div>

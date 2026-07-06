@@ -234,6 +234,9 @@ export const platformApi = {
   patchOrder: (orderId: number, data: { status?: string; tracking_number?: string; carrier?: string }) =>
     api(`/api/orders/${orderId}`, { method: "PATCH", body: JSON.stringify(data) }),
 
+  deleteOrder: (orderId: number) =>
+    api(`/api/orders/${orderId}`, { method: "DELETE" }),
+
   getProductContact: (productId: number) =>
     api<SupplierContact & { product_id: number; product_name: string; supplier_id: number }>(`/api/products/${productId}/contact`),
 
