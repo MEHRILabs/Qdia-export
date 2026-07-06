@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
-import { Clock, Loader2, Database, Sparkles, ImageIcon, DollarSign, Package, MessageSquare, Factory, ChevronDown } from "lucide-react";
+import { Clock, Loader2, Sparkles, ImageIcon, DollarSign, Package, MessageSquare, Factory, ChevronDown } from "lucide-react";
 import { platformApi } from "@/lib/platform-api";
 import { useI18n } from "@/contexts/I18nContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -113,20 +113,6 @@ export default function AdminReview() {
   };
 
   useEffect(() => { void loadStats(); }, [loadStats]);
-
-  const migrateMysql = async () => {
-    try {
-      const r = await platformApi.migrateMysql();
-      toast({
-        title: r.connected ? tr("admin.imported").replace("{count}", String(r.imported)) : tr("admin.mysql_not_connected"),
-        description: r.errors[0] ?? undefined,
-        variant: r.connected ? "default" : "destructive",
-      });
-      if (r.imported) loadStats();
-    } catch (e) {
-      toast({ title: tr("admin.migration_error"), description: String(e instanceof Error ? e.message : e), variant: "destructive" });
-    }
-  };
 
   return (
     <div className="min-h-dvh bg-background flex flex-col md:flex-row">
