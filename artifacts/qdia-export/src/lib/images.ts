@@ -3,11 +3,11 @@ import { apiUrl } from "./api-base";
 /** Chemins des images locales (dossier public/) */
 export const IMAGES = {
   logo: "/logo.png",
-  hero: "/hero.png",
-  oliveOil: "/olive-oil.png",
-  dates: "/dates.png",
-  honey: "/honey.png",
-  textile: "/rug.png",
+  hero: "/images/hero-port.jpg",
+  oliveOil: "/images/product-olive-oil.jpg",
+  dates: "/images/product-dates.jpg",
+  honey: "/images/product-honey.jpg",
+  textile: "/images/product-textile.jpg",
   couscous: "/couscous.png",
   pottery: "/pottery.png",
   agriculture: "/images/category-agriculture.jpg",
@@ -25,6 +25,7 @@ export function hasRealProductImage(imageUrl?: string | null): boolean {
   if (u.startsWith("/uploads/catalog/") && u.endsWith(".svg") && u.includes("QDIA Photo")) return false;
   if (u.startsWith("data:") || u.startsWith("http")) return true;
   if (u.startsWith("/uploads/catalog/")) return true;
+  if (u.startsWith("/images/")) return true;
   if (u.endsWith(".svg")) return !u.includes("qdia-photo-placeholder");
   return false;
 }

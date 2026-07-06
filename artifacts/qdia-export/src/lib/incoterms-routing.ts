@@ -6,6 +6,7 @@ export type IncotermMode = "domestic" | "export" | "local_stock";
 const COUNTRY_ALIASES: Record<string, string> = {
   algerie: "DZ", algérie: "DZ", algeria: "DZ", dz: "DZ",
   tunisie: "TN", tunisia: "TN", tn: "TN",
+  maroc: "MA", morocco: "MA", ma: "MA",
   france: "FR", fr: "FR",
   "émirats": "AE", emirats: "AE", uae: "AE", ae: "AE",
   allemagne: "DE", de: "DE", germany: "DE",
@@ -61,13 +62,20 @@ export function defaultIncoterm(mode: IncotermMode): IncotermCode {
   return "ddp";
 }
 
+export const BUYER_COUNTRY_REGIONS = [
+  { regionKey: "order_flow.region_maghreb", codes: ["DZ", "TN", "MA"] as const },
+  { regionKey: "order_flow.region_europe", codes: ["FR", "DE", "ES"] as const },
+  { regionKey: "order_flow.region_gulf", codes: ["AE"] as const },
+] as const;
+
 export const BUYER_COUNTRIES = [
-  { code: "DZ", labelKey: "order_flow.country_dz", flag: "🇩🇿" },
-  { code: "TN", labelKey: "order_flow.country_tn", flag: "🇹🇳" },
-  { code: "FR", labelKey: "order_flow.country_fr", flag: "🇫🇷" },
-  { code: "AE", labelKey: "order_flow.country_ae", flag: "🇦🇪" },
-  { code: "DE", labelKey: "order_flow.country_de", flag: "🇩🇪" },
-  { code: "ES", labelKey: "order_flow.country_es", flag: "🇪🇸" },
+  { code: "DZ", labelKey: "order_flow.country_dz", flag: "🇩🇿", region: "maghreb" as const },
+  { code: "TN", labelKey: "order_flow.country_tn", flag: "🇹🇳", region: "maghreb" as const },
+  { code: "MA", labelKey: "order_flow.country_ma", flag: "🇲🇦", region: "maghreb" as const },
+  { code: "FR", labelKey: "order_flow.country_fr", flag: "🇫🇷", region: "europe" as const },
+  { code: "DE", labelKey: "order_flow.country_de", flag: "🇩🇪", region: "europe" as const },
+  { code: "ES", labelKey: "order_flow.country_es", flag: "🇪🇸", region: "europe" as const },
+  { code: "AE", labelKey: "order_flow.country_ae", flag: "🇦🇪", region: "gulf" as const },
 ] as const;
 
 const STORAGE_KEY = "qdia_buyer_country";

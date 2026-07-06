@@ -180,7 +180,7 @@
   .qdia-hero-photo {
     background:
       linear-gradient(105deg, rgba(7, 59, 116, 0.93) 0%, rgba(4, 97, 165, 0.78) 45%, rgba(4, 97, 165, 0.55) 100%),
-      url("/hero.png") center 35% / cover no-repeat;
+      url("/images/hero-port.jpg") center 35% / cover no-repeat;
     color: white;
     max-height: 300px;
     overflow: hidden;

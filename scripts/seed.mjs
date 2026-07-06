@@ -19,10 +19,10 @@ const CATEGORIES = [
 ];
 
 const IMAGES = {
-  oliveOil: "/olive-oil.png",
-  dates: "/dates.png",
-  honey: "/honey.png",
-  textile: "/rug.png",
+  oliveOil: "/images/product-olive-oil.jpg",
+  dates: "/images/product-dates.jpg",
+  honey: "/images/product-honey.jpg",
+  textile: "/images/product-textile.jpg",
   couscous: "/couscous.png",
   pottery: "/pottery.png",
 };

@@ -6,7 +6,9 @@ import {
 } from "@workspace/db";
 import { eq, and, or, desc, sql, inArray } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import { ADMIN_EMAIL } from "../lib/default-accounts";
 import { sendPushToUser } from "./fcm";
+import { orderEmailHtml, sendEmail } from "./email";
 import { createInvoiceFromTransaction } from "./billing";
 import { createTransactionFromOrder } from "./payments";
 
@@ -113,6 +115,14 @@ async function notifySupplierOfOrder(
         body,
       });
       void sendPushToUser(supplierUser.id, "Nouvelle commande QDIA", `Commande #${orderId}`);
+      if (supplierUser.email) {
+        void sendEmail({
+          to: supplierUser.email,
+          subject: `Nouvelle commande #${orderId} — QDIA Export`,
+          text: body,
+          html: orderEmailHtml(`Nouvelle commande #${orderId}`, body.split("\n")),
+        });
+      }
     } catch { /* ignore */ }
     return {
       supplier_user_id: supplierUser.id,
@@ -155,7 +165,41 @@ async function notifyAdminOfOrder(
       body,
     });
     void sendPushToUser(admin.id, "Nouvelle commande QDIA", `Commande #${orderId} — ${total.toFixed(2)} ${currency}`);
+    const adminRecipients = [...new Set([admin.email, ADMIN_EMAIL].filter((e): e is string => Boolean(e?.includes("@"))))];
+    if (adminRecipients.length) {
+      void sendEmail({
+        to: adminRecipients,
+        subject: `Commande #${orderId} — ${total.toFixed(2)} ${currency}`,
+        text: body,
+        html: orderEmailHtml(`Nouvelle commande #${orderId}`, body.split("\n")),
+      });
+    }
   } catch { /* ignore */ }
+}
+
+async function notifyBuyerOfOrder(
+  orderId: number,
+  buyerId: number,
+  total: number,
+  currency: string,
+  items: Array<{ product_name: string; quantity: number; incoterm: string }>,
+) {
+  if (!(await dbOk())) return;
+
+  const [buyer] = await db.select().from(usersTable)
+    .where(eq(usersTable.id, buyerId))
+    .limit(1);
+  if (!buyer?.email) return;
+
+  const lines = items.map(i => `• ${i.product_name} × ${i.quantity} (${i.incoterm})`).join("\n");
+  const body = `Merci pour votre commande #${orderId} sur QDIA Export.\n\n${lines}\n\nTotal : ${total.toFixed(2)} ${currency}\n\nVous recevrez une confirmation dès validation par le fournisseur.`;
+
+  void sendEmail({
+    to: buyer.email,
+    subject: `Confirmation commande #${orderId} — QDIA Export`,
+    text: body,
+    html: orderEmailHtml(`Commande #${orderId} confirmée`, body.split("\n")),
+  });
 }
 
 async function enrichOrderRows(rows: typeof ordersTable.$inferSelect[]) {
@@ -357,6 +401,18 @@ export async function checkout(userId: number, paymentMethod: string) {
   );
 
   await notifyAdminOfOrder(
+    order.id as number,
+    userId,
+    total,
+    "USD",
+    orderItems.map(i => ({
+      product_name: i.product_name,
+      quantity: i.quantity,
+      incoterm: i.incoterm,
+    })),
+  );
+
+  await notifyBuyerOfOrder(
     order.id as number,
     userId,
     total,

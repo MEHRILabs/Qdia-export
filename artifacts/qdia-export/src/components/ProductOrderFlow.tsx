@@ -18,6 +18,7 @@ import { CART_QUERY_KEY } from "@/hooks/useCart";
 import { ProductIncotermPricing, type IncotermKey } from "@/components/ProductIncotermPricing";
 import {
   BUYER_COUNTRIES,
+  BUYER_COUNTRY_REGIONS,
   defaultIncoterm,
   getStoredBuyerCountry,
   resolveIncotermMode,
@@ -169,18 +170,27 @@ export function ProductOrderFlow({ product, unitLabel, moqUnitLabel }: Props) {
         <p className="text-xs font-bold text-[#334257] uppercase tracking-wide flex items-center gap-1">
           <Globe className="h-3.5 w-3.5" /> {tr("order_flow.your_country")}
         </p>
-        <div className="flex flex-wrap gap-2">
-          {BUYER_COUNTRIES.map(c => (
-            <Button
-              key={c.code}
-              type="button"
-              size="sm"
-              variant={buyerCountry === c.code ? "default" : "outline"}
-              className={buyerCountry === c.code ? "bg-[#0461A5]" : ""}
-              onClick={() => setBuyerCountry(c.code)}
-            >
-              {c.flag} {tr(c.labelKey)}
-            </Button>
+        <div className="space-y-3">
+          {BUYER_COUNTRY_REGIONS.map(region => (
+            <div key={region.regionKey} className="space-y-1.5">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                {tr(region.regionKey)}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {BUYER_COUNTRIES.filter(c => (region.codes as readonly string[]).includes(c.code)).map(c => (
+                  <Button
+                    key={c.code}
+                    type="button"
+                    size="sm"
+                    variant={buyerCountry === c.code ? "default" : "outline"}
+                    className={buyerCountry === c.code ? "bg-[#0461A5]" : ""}
+                    onClick={() => setBuyerCountry(c.code)}
+                  >
+                    {c.flag} {tr(c.labelKey)}
+                  </Button>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
         <Badge variant="secondary" className="text-[11px]">{modeLabel}</Badge>

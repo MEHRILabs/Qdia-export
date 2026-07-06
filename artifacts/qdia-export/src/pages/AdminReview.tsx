@@ -262,6 +262,35 @@ export default function AdminReview() {
               {enriching ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
               {tr("admin.photos_batch_btn")}
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 border-[#0461A5]/40"
+              disabled={enriching}
+              onClick={async () => {
+                setEnriching(true);
+                try {
+                  const result = await platformApi.enrichProductsBatch({
+                    limit: 500,
+                    generate_photos: true,
+                    skip_pricing: true,
+                    only_without_photo: true,
+                  });
+                  toast({
+                    title: tr("admin.photos_batch_500"),
+                    description: `${result.photos_generated} photo(s) · ${result.enriched} enrichi(s)`,
+                  });
+                  loadStats();
+                } catch (e) {
+                  toast({ title: tr("common.error"), description: String(e instanceof Error ? e.message : e), variant: "destructive" });
+                } finally {
+                  setEnriching(false);
+                }
+              }}
+            >
+              {enriching ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
+              {tr("admin.photos_batch_500")}
+            </Button>
           </div>
           </div>
           )}

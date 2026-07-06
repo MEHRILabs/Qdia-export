@@ -20,6 +20,7 @@ type GMaps = {
 const MARKER_EMOJI: Record<string, string> = {
   DZ: "🇩🇿",
   TN: "🇹🇳",
+  MA: "🇲🇦",
   FR: "🇫🇷",
   AE: "🇦🇪",
   DE: "🇩🇪",
@@ -30,6 +31,7 @@ const MARKER_EMOJI: Record<string, string> = {
 const HUB: Record<string, { x: number; y: number }> = {
   DZ: { x: 36, y: 62 },
   TN: { x: 46, y: 52 },
+  MA: { x: 40, y: 58 },
   FR: { x: 44, y: 28 },
   AE: { x: 78, y: 58 },
   DE: { x: 52, y: 22 },
@@ -38,6 +40,7 @@ const HUB: Record<string, { x: number; y: number }> = {
 
 const ROUTE_COLORS: Record<string, string> = {
   TN: "#E70013",
+  MA: "#C1272D",
   FR: "#0461A5",
   AE: "#F5C518",
   DZ: "#0461A5",
@@ -135,7 +138,7 @@ function AnimatedPortsMap({
 
       {/* Routes secondaires (faibles) */}
       <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden>
-        {(["TN", "FR", "AE"] as const)
+        {(["TN", "MA", "FR", "AE"] as const)
           .filter(c => c !== highlightCountry)
           .map(c => {
             const to = HUB[c];
@@ -302,6 +305,7 @@ export function PortsMap({ markers, height = 220, className, highlightCountry }:
       <div className="flex flex-wrap gap-3 text-[10px] text-[#656566] px-1">
         <span><span className="inline-block w-2 h-2 rounded-full bg-[#0461A5] mr-1" />Algérie</span>
         <span><span className="inline-block w-2 h-2 rounded-full bg-[#E70013] mr-1" />Tunisie</span>
+        <span><span className="inline-block w-2 h-2 rounded-full bg-[#C1272D] mr-1" />Maroc</span>
         <span><span className="inline-block w-2 h-2 rounded-full bg-[#2563eb] mr-1" />France</span>
         <span><span className="inline-block w-2 h-2 rounded-full bg-[#F5C518] mr-1" />UAE</span>
       </div>

@@ -35,6 +35,7 @@ export const FALLBACK_PORTS = [
   { code: "AEDXB", name: "Jebel Ali (Dubai)", city: "Dubai", country: "Émirats arabes unis", country_code: "AE", type: "seaport", region: "Golfe", handling_fee_dzd: 0 },
   { code: "AEKHL", name: "Khalifa Port", city: "Abu Dhabi", country: "Émirats arabes unis", country_code: "AE", type: "seaport", region: "Golfe", handling_fee_dzd: 0 },
   { code: "TNRDS", name: "Port de Radès", city: "Tunis", country: "Tunisie", country_code: "TN", type: "seaport", region: "Maghreb", handling_fee_dzd: 0 },
+  { code: "MACAS", name: "Port de Casablanca", city: "Casablanca", country: "Maroc", country_code: "MA", type: "seaport", region: "Maghreb", handling_fee_dzd: 0 },
 ] as const;
 
 export const FALLBACK_CUSTOMS = [
@@ -48,6 +49,9 @@ export const FALLBACK_CUSTOMS = [
   { destination_country: "Tunisie", destination_code: "TN", product_category: "Agriculture & Food", hs_code: "1509", duty_rate_pct: 0, vat_rate_pct: 7, customs_fee_dzd: 700, documentation_fee_dzd: 550, notes: "Maghreb — certificat origine DZ, accord commercial régional" },
   { destination_country: "Tunisie", destination_code: "TN", product_category: "Agriculture & Food", hs_code: "0804", duty_rate_pct: 0, vat_rate_pct: 7, customs_fee_dzd: 650, documentation_fee_dzd: 550, notes: "Dattes — contrôle phytosanitaire à l'arrivée" },
   { destination_country: "Tunisie", destination_code: "TN", product_category: "Handicrafts & Decor", hs_code: "5702", duty_rate_pct: 2, vat_rate_pct: 19, customs_fee_dzd: 600, documentation_fee_dzd: 500, notes: "Artisanat — déclaration en douane tunisienne" },
+  { destination_country: "Maroc", destination_code: "MA", product_category: "Agriculture & Food", hs_code: "1509", duty_rate_pct: 0, vat_rate_pct: 10, customs_fee_dzd: 720, documentation_fee_dzd: 560, notes: "Maghreb — certificat origine DZ, accord commercial régional" },
+  { destination_country: "Maroc", destination_code: "MA", product_category: "Agriculture & Food", hs_code: "0804", duty_rate_pct: 0, vat_rate_pct: 10, customs_fee_dzd: 680, documentation_fee_dzd: 560, notes: "Dattes — contrôle phytosanitaire à l'arrivée" },
+  { destination_country: "Maroc", destination_code: "MA", product_category: "Handicrafts & Decor", hs_code: "5702", duty_rate_pct: 2.5, vat_rate_pct: 20, customs_fee_dzd: 620, documentation_fee_dzd: 510, notes: "Artisanat — déclaration en douane marocaine" },
 ] as const;
 
 export type PortRow = (typeof FALLBACK_PORTS)[number];
@@ -60,6 +64,7 @@ export function getFreightDzd(port: PortRow, destinationCode: string): number {
   switch (destinationCode) {
     case "FR": return (port.freight_to_fr_dzd ?? 1200) + (custom.transit_fee_dzd ?? 0);
     case "TN": return 850 + (custom.transit_fee_dzd ?? 0);
+    case "MA": return 900 + (custom.transit_fee_dzd ?? 0);
     case "AE": return (port.freight_to_ae_dzd ?? 2200) + (custom.transit_fee_dzd ?? 0);
     case "US": return (port.freight_to_us_dzd ?? 3500) + (custom.transit_fee_dzd ?? 0);
     case "DE":
