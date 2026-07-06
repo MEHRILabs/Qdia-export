@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Link } from "wouter";
+import { Link, useSearchParams } from "wouter";
 import { SupplierSidebar } from "@/components/SupplierSidebar";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -20,6 +20,13 @@ const ADMIN_TABS = [
   { value: "export", icon: Factory, labelKey: "admin.tab_export" },
   { value: "messages", icon: MessageSquare, labelKey: "admin.tab_messages" },
 ] as const;
+
+const ADMIN_TAB_VALUES = new Set(ADMIN_TABS.map(t => t.value));
+
+function tabFromSearch(search: string): string {
+  const tab = new URLSearchParams(search).get("tab");
+  return tab && ADMIN_TAB_VALUES.has(tab as typeof ADMIN_TABS[number]["value"]) ? tab : "products";
+}
 
 function AdminMobileNav({
   activeTab,
@@ -58,6 +65,7 @@ export default function AdminReview() {
   const { toast } = useToast();
   const { tr } = useI18n();
   const isMobile = useIsMobile();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [adminStats, setAdminStats] = useState<Record<string, unknown> | null>(null);
   const [enrichStatus, setEnrichStatus] = useState<{
@@ -69,8 +77,21 @@ export default function AdminReview() {
   } | null>(null);
   const [enriching, setEnriching] = useState(false);
 
-  const [activeTab, setActiveTab] = useState("products");
+  const [activeTab, setActiveTab] = useState(() => tabFromSearch(searchParams.toString()));
   const [toolsOpen, setToolsOpen] = useState(false);
+
+  useEffect(() => {
+    const tab = tabFromSearch(searchParams.toString());
+    setActiveTab(prev => (prev === tab ? prev : tab));
+  }, [searchParams]);
+
+  const changeTab = useCallback((tab: string) => {
+    setActiveTab(tab);
+    const next = new URLSearchParams(searchParams.toString());
+    if (tab === "products") next.delete("tab");
+    else next.set("tab", tab);
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const loadStats = useCallback(async () => {
     try {
@@ -116,7 +137,10 @@ export default function AdminReview() {
 
   return (
     <div className="min-h-dvh bg-background flex flex-col md:flex-row">
-      <SupplierSidebar activePath="/admin" variant="admin" />
+      <SupplierSidebar
+        activePath={activeTab === "export" ? "/admin?tab=export" : "/admin"}
+        variant="admin"
+      />
       <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8 max-w-7xl mx-auto w-full">
         <div className="mb-4 md:mb-6">
           <header className="md:hidden flex items-center justify-between mb-3 pb-3 border-b">
@@ -190,9 +214,6 @@ export default function AdminReview() {
               "md:flex",
               toolsOpen ? "flex mt-2" : "hidden md:flex",
             )}>
-            <Button variant="outline" size="sm" className="gap-2" onClick={migrateMysql}>
-              <Database className="h-4 w-4" /> {tr("admin.migrate_mysql")}
-            </Button>
             <Button
               variant="gold"
               size="sm"
@@ -246,7 +267,7 @@ export default function AdminReview() {
           )}
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs value={activeTab} onValueChange={changeTab} className="w-full">
           <TabsList className="hidden md:flex mb-6 w-full flex-wrap h-auto gap-1">
             {ADMIN_TABS.map(({ value, icon: Icon, labelKey }) => (
               <TabsTrigger key={value} value={value} className="gap-1.5">
@@ -255,7 +276,7 @@ export default function AdminReview() {
             ))}
           </TabsList>
 
-          <AdminMobileNav activeTab={activeTab} onChange={setActiveTab} tr={tr} />
+          <AdminMobileNav activeTab={activeTab} onChange={changeTab} tr={tr} />
 
           <TabsContent value="products">
             <AdminProductsPanel />

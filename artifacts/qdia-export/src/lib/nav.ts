@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { LayoutDashboard, Package, MessageSquare, FileText,
-  ShieldCheck, Sparkles, ClipboardCheck, Wand2, DollarSign, CreditCard, Pencil,
+  ShieldCheck, Sparkles, ClipboardCheck, Wand2, DollarSign, CreditCard, Pencil, Factory,
 } from "lucide-react";
 
 export const BUYER_NAV_KEYS = [
@@ -23,12 +23,15 @@ export const SUPPLIER_NAV: { href: string; labelKey: string; icon: LucideIcon }[
   { href: "/profile", icon: ShieldCheck, labelKey: "nav.profile" },
   { href: "/rfq", icon: FileText, labelKey: "nav.rfq_portal" },
   { href: "/verification", icon: ShieldCheck, labelKey: "nav.verification" },
-  { href: "/admin", icon: ClipboardCheck, labelKey: "nav.admin" },
 ];
 
-/** Navigation latérale admin — modifier produits, facturation, RFQ */
+/** Lien admin réservé aux comptes administrateur (injecté dans la sidebar fournisseur). */
+export const SUPPLIER_ADMIN_LINK = { href: "/admin", icon: ClipboardCheck, labelKey: "nav.admin" } as const;
+
+/** Navigation latérale admin — modifier produits, export usine, facturation, RFQ */
 export const ADMIN_NAV: { href: string; labelKey: string; icon: LucideIcon }[] = [
   { href: "/admin", icon: Pencil, labelKey: "nav.edit_products" },
+  { href: "/admin?tab=export", icon: Factory, labelKey: "admin.tab_export" },
   { href: "/facturation", icon: DollarSign, labelKey: "nav.billing" },
   { href: "/rfq", icon: FileText, labelKey: "nav.rfq_portal" },
   { href: "/mes-rfq", icon: FileText, labelKey: "nav.my_rfqs" },

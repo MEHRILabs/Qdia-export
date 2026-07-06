@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link, useLocation } from "wouter";
+import { useAppNavigate } from "@/lib/navigate";
 import { motion } from "framer-motion";
 import { BrandLogo } from "@/components/BrandLogo";
 import { AuthModal } from "@/components/AuthModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { isSupplier, isAdmin, defaultHomeForUser } from "@/lib/roles";
 import { getStoredUser } from "@/lib/api-auth";
-import { Wand2, LogIn, LogOut, User, Store, Sparkles, Globe, Menu, MapPin, BookOpen, ShoppingCart, Package, Truck, Shield, MessageSquare, ClipboardCheck, Pencil, DollarSign, FileText } from "lucide-react";
+import { Wand2, LogIn, LogOut, User, Store, Sparkles, Globe, Menu, MapPin, BookOpen, ShoppingCart, Package, Truck, Shield, MessageSquare, ClipboardCheck, Pencil, DollarSign, FileText, Factory } from "lucide-react";
 import { useI18n } from "@/contexts/I18nContext";
 import type { Locale } from "@/lib/i18n";
 import { useCartCount } from "@/hooks/useCart";
@@ -48,14 +49,14 @@ function StudioIAButton({ label }: { label: string }) {
   );
 }
 
-function EspaceAdminButton({ label }: { label: string }) {
-  const [location, setLocation] = useLocation();
+function EspaceAdminButton({ label, onClick }: { label: string; onClick: () => void }) {
+  const [location] = useLocation();
   const active = location.startsWith("/admin");
 
   return (
-    <Link
-      href="/admin"
-      onClick={e => { e.preventDefault(); setLocation("/admin"); }}
+    <button
+      type="button"
+      onClick={onClick}
       className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-bold transition-colors shadow-[0_0_16px_rgba(245,197,24,0.35)] hover:scale-[1.02] active:scale-[0.98] ${
         active
           ? "bg-[#E0B015] text-[#1A1A2E] ring-2 ring-white/30"
@@ -64,7 +65,7 @@ function EspaceAdminButton({ label }: { label: string }) {
     >
       <ClipboardCheck className="h-4 w-4" />
       {label}
-    </Link>
+    </button>
   );
 }
 
@@ -98,6 +99,8 @@ export function BuyerHeader() {
   const { user, logout } = useAuth();
   const { locale, setLocale, tr } = useI18n();
   const [, setLocation] = useLocation();
+  const goTo = useAppNavigate();
+  const goAdmin = useCallback(() => goTo("/admin"), [goTo]);
   const [authOpen, setAuthOpen] = useState(false);
   const cartCount = useCartCount();
 
@@ -154,7 +157,7 @@ export function BuyerHeader() {
 
           <nav className="hidden md:flex items-center gap-3">
             {isAdmin(user) && (
-              <EspaceAdminButton label={tr("nav.admin_space")} />
+              <EspaceAdminButton label={tr("nav.admin_space")} onClick={goAdmin} />
             )}
             {isSupplier(user) && !isAdmin(user) && (
               <EspaceFournisseurButton label={tr("header.supplier_space")} />
@@ -162,6 +165,16 @@ export function BuyerHeader() {
           </nav>
 
           <div className="ms-auto flex items-center gap-1.5 sm:gap-2 md:gap-3">
+            {isAdmin(user) && (
+              <button
+                type="button"
+                onClick={goAdmin}
+                className="md:hidden inline-flex items-center justify-center h-9 w-9 bg-[#F5C518] text-[#1A1A2E] rounded-lg shadow-[0_0_12px_rgba(245,197,24,0.4)]"
+                aria-label={tr("nav.admin_space")}
+              >
+                <ClipboardCheck className="h-4 w-4" />
+              </button>
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -175,25 +188,20 @@ export function BuyerHeader() {
               <DropdownMenuContent align="end" className="w-56 p-1" onCloseAutoFocus={e => e.preventDefault()}>
                 {isAdmin(user) && (
                   <>
-                    <DropdownMenuItem asChild>
-                      <Link href="/admin" className="cursor-pointer text-sm py-2 font-semibold text-[#0461A5]">
-                        <ClipboardCheck className="h-4 w-4 mr-2 inline" /> {tr("nav.admin_space")}
-                      </Link>
+                    <DropdownMenuItem onClick={goAdmin} className="cursor-pointer text-sm py-2 font-semibold text-[#0461A5]">
+                      <ClipboardCheck className="h-4 w-4 mr-2 inline" /> {tr("nav.admin_space")}
                     </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href="/admin" className="cursor-pointer text-sm py-2">
-                        <Pencil className="h-4 w-4 mr-2 inline text-[#0461A5]" /> {tr("nav.edit_products")}
-                      </Link>
+                    <DropdownMenuItem onClick={goAdmin} className="cursor-pointer text-sm py-2">
+                      <Pencil className="h-4 w-4 mr-2 inline text-[#0461A5]" /> {tr("nav.edit_products")}
                     </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href="/facturation" className="cursor-pointer text-sm py-2">
-                        <DollarSign className="h-4 w-4 mr-2 inline text-[#0461A5]" /> {tr("nav.billing")}
-                      </Link>
+                    <DropdownMenuItem onClick={() => goTo("/admin?tab=export")} className="cursor-pointer text-sm py-2">
+                      <Factory className="h-4 w-4 mr-2 inline text-[#0461A5]" /> {tr("admin.tab_export")}
                     </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href="/rfq" className="cursor-pointer text-sm py-2">
-                        <FileText className="h-4 w-4 mr-2 inline text-[#0461A5]" /> {tr("nav.rfq_portal")}
-                      </Link>
+                    <DropdownMenuItem onClick={() => goTo("/facturation")} className="cursor-pointer text-sm py-2">
+                      <DollarSign className="h-4 w-4 mr-2 inline text-[#0461A5]" /> {tr("nav.billing")}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => goTo("/rfq")} className="cursor-pointer text-sm py-2">
+                      <FileText className="h-4 w-4 mr-2 inline text-[#0461A5]" /> {tr("nav.rfq_portal")}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                   </>
@@ -355,32 +363,23 @@ export function BuyerHeader() {
                   <DropdownMenuSeparator />
                   {isAdmin(user) && (
                     <>
-                      <DropdownMenuItem asChild>
-                        <Link href="/admin" className="cursor-pointer font-semibold text-[#0461A5]">
-                          <ClipboardCheck className="h-4 w-4 me-2 inline" /> {tr("nav.admin_space")}
-                        </Link>
+                      <DropdownMenuItem onClick={goAdmin} className="cursor-pointer font-semibold text-[#0461A5]">
+                        <ClipboardCheck className="h-4 w-4 me-2 inline" /> {tr("nav.admin_space")}
                       </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link href="/admin" className="cursor-pointer">
-                          <Pencil className="h-4 w-4 me-2 inline" /> {tr("nav.edit_products")}
-                        </Link>
+                      <DropdownMenuItem onClick={goAdmin} className="cursor-pointer">
+                        <Pencil className="h-4 w-4 me-2 inline" /> {tr("nav.edit_products")}
                       </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link href="/facturation" className="cursor-pointer">
-                          <DollarSign className="h-4 w-4 me-2 inline" /> {tr("nav.billing")}
-                        </Link>
+                      <DropdownMenuItem onClick={() => goTo("/admin?tab=export")} className="cursor-pointer">
+                        <Factory className="h-4 w-4 me-2 inline" /> {tr("admin.tab_export")}
                       </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link href="/rfq" className="cursor-pointer">
-                          <FileText className="h-4 w-4 me-2 inline" /> {tr("nav.rfq_portal")}
-                        </Link>
+                      <DropdownMenuItem onClick={() => goTo("/facturation")} className="cursor-pointer">
+                        <DollarSign className="h-4 w-4 me-2 inline" /> {tr("nav.billing")}
                       </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link href="/mes-rfq" className="cursor-pointer">{tr("nav.my_rfqs")}</Link>
+                      <DropdownMenuItem onClick={() => goTo("/rfq")} className="cursor-pointer">
+                        <FileText className="h-4 w-4 me-2 inline" /> {tr("nav.rfq_portal")}
                       </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link href="/inquiries" className="cursor-pointer">{tr("nav.inquiries")}</Link>
-                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => goTo("/mes-rfq")} className="cursor-pointer">{tr("nav.my_rfqs")}</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => goTo("/inquiries")} className="cursor-pointer">{tr("nav.inquiries")}</DropdownMenuItem>
                       <DropdownMenuSeparator />
                     </>
                   )}

@@ -2,35 +2,50 @@ import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { BrandLogo } from "@/components/BrandLogo";
-import { SUPPLIER_NAV, ADMIN_NAV } from "@/lib/nav";
+import { SUPPLIER_NAV, ADMIN_NAV, SUPPLIER_ADMIN_LINK } from "@/lib/nav";
 import { useI18n } from "@/contexts/I18nContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { isAdmin } from "@/lib/roles";
+import { useAppNavigate } from "@/lib/navigate";
 import { Sparkles, Plus } from "lucide-react";
-
 interface Props {
   activePath: string;
   variant?: "supplier" | "admin";
 }
 
 function isNavActive(activePath: string, href: string): boolean {
+  const [path, query] = href.split("?");
+  if (query) {
+    const params = new URLSearchParams(window.location.search);
+    const expected = new URLSearchParams(query);
+    for (const [k, v] of expected.entries()) {
+      if (params.get(k) !== v) return false;
+    }
+    return activePath === path || activePath.startsWith(`${path}?`);
+  }
   if (activePath === href) return true;
-  if (href === "/admin" && activePath.startsWith("/admin")) return true;
+  if (href === "/admin" && activePath.startsWith("/admin") && !window.location.search.includes("tab=export")) return true;
   if (href === "/supplier" && activePath.startsWith("/supplier/products")) return true;
   return false;
 }
 
 export function SupplierSidebar({ activePath, variant = "supplier" }: Props) {
   const { tr } = useI18n();
+  const { user } = useAuth();
+  const goTo = useAppNavigate();
   const onStudio = activePath === "/studio";
   const onAgent = activePath === "/agent-ia";
-  const isAdmin = variant === "admin";
-  const navItems = isAdmin ? ADMIN_NAV : SUPPLIER_NAV;
+  const isAdminVariant = variant === "admin";
+  const navItems = isAdminVariant
+    ? ADMIN_NAV
+    : (isAdmin(user) ? [...SUPPLIER_NAV, SUPPLIER_ADMIN_LINK] : SUPPLIER_NAV);
 
   return (
     <aside className="w-[260px] qdia-sidebar hidden md:flex flex-col shrink-0">
       <div className="p-5 border-b border-white/10">
         <BrandLogo variant="sidebar" />
         <p className="text-[11px] text-white/55 mt-3 leading-relaxed">
-          {isAdmin ? tr("admin.sidebar_title") : tr("brand.tagline")} 🇩🇿
+          {isAdminVariant ? tr("admin.sidebar_title") : tr("brand.tagline")} 🇩🇿
         </p>
       </div>
 
@@ -38,7 +53,12 @@ export function SupplierSidebar({ activePath, variant = "supplier" }: Props) {
         {navItems.map(({ href, icon: Icon, labelKey }) => {
           const active = isNavActive(activePath, href);
           return (
-            <Link key={href} href={href} className="block relative">
+            <button
+              key={href}
+              type="button"
+              onClick={() => goTo(href)}
+              className="block relative w-full text-start"
+            >
               {active && (
                 <motion.span
                   layoutId="qdia-sidebar-active"
@@ -61,14 +81,14 @@ export function SupplierSidebar({ activePath, variant = "supplier" }: Props) {
                 </motion.span>
                 {tr(labelKey)}
               </span>
-            </Link>
+            </button>
           );
         })}
       </nav>
 
       {!onStudio && !onAgent && (
         <div className="p-4 border-t border-white/10 space-y-2">
-          {isAdmin ? (
+          {isAdminVariant ? (
             <>
               <Button variant="gold" className="w-full text-sm font-bold gap-2" asChild>
                 <Link href="/admin/products/new"><Plus className="h-4 w-4" /> {tr("product_edit.new_title")}</Link>

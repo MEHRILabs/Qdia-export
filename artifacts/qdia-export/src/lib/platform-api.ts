@@ -354,8 +354,8 @@ export const platformApi = {
       errors: string[];
     }>("/api/products/enrich", { method: "POST", body: JSON.stringify(opts ?? { limit: 50 }) }),
 
-  listAdminExportProducts: (filter: "pending" | "authorized" | "all" = "pending") => {
-    const q = new URLSearchParams({ scope: "admin", limit: "100", export_status: "published" });
+  listAdminExportProducts: (filter: "pending" | "authorized" | "all" = "pending", limit = 200) => {
+    const q = new URLSearchParams({ scope: "admin", limit: String(limit), export_status: "published" });
     if (filter === "pending") q.set("export_authorized", "false");
     else if (filter === "authorized") q.set("export_authorized", "true");
     return api<{ data: Array<Record<string, unknown>> }>(`/api/products?${q.toString()}`);
