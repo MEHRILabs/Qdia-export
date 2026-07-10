@@ -478,8 +478,19 @@ router.post("/admin/scrape-photos", requireAuth, requireRole("admin"), async (re
   try {
     const limitRaw = Number(req.body?.limit ?? 50);
     const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.floor(limitRaw), 1), 200) : 50;
-    const { scrapeCatalogPhotosBatch } = await import("../services/catalog-web-scrape");
-    const result = await scrapeCatalogPhotosBatch(limit);
+    const productIds = Array.isArray(req.body?.product_ids)
+      ? (req.body.product_ids as unknown[]).map(Number).filter(n => Number.isFinite(n))
+      : undefined;
+    const { scrapeCatalogPhotosBatch, scrapeOneProductPhoto } = await import("../services/catalog-web-scrape");
+
+    if (req.body?.product_id) {
+      const id = Number(req.body.product_id);
+      const one = await scrapeOneProductPhoto(id);
+      res.json({ processed: 1, ok: one.ok ? 1 : 0, skipped: 0, errors: one.ok ? [] : [one.reason ?? "echec"], image_url: one.image_url });
+      return;
+    }
+
+    const result = await scrapeCatalogPhotosBatch(limit, { productIds });
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "Scraping photos échoué" });

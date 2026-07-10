@@ -2,7 +2,7 @@
  * Recherche web d'images packshot (Bing) + enregistrement catalogue.
  * Utilisé par le bouton admin « Scraper photos » (pas besoin de Python/CLI).
  */
-import { eq } from "drizzle-orm";
+import { eq, or, isNull, sql } from "drizzle-orm";
 import { db, productsTable } from "@workspace/db";
 import { logger } from "../lib/logger";
 import { fetchImageAsBase64 } from "./image-scraper";
@@ -19,6 +19,7 @@ export interface ScrapePhotosResult {
   ok: number;
   skipped: number;
   errors: string[];
+  ids_ok?: number[];
 }
 
 function scoreCandidate(url: string): number {
@@ -81,9 +82,59 @@ async function tryDownloadAndSave(productId: number, imageUrl: string): Promise<
   return saveCatalogImage(`product_${productId}`, base64, ext);
 }
 
-export async function scrapeCatalogPhotosBatch(limit = 50): Promise<ScrapePhotosResult> {
-  const result: ScrapePhotosResult = { processed: 0, ok: 0, skipped: 0, errors: [] };
-  const rows = await db.select().from(productsTable).limit(Math.max(limit * 8, 200));
+export async function scrapeOneProductPhoto(
+  productId: number,
+): Promise<{ ok: boolean; image_url?: string; reason?: string }> {
+  const [p] = await db.select().from(productsTable).where(eq(productsTable.id, productId)).limit(1);
+  if (!p) return { ok: false, reason: "introuvable" };
+  if (hasRealProductImage(p.imageUrl) && !needsPhoto(p)) {
+    return { ok: true, image_url: p.imageUrl ?? undefined, reason: "deja_ok" };
+  }
+
+  const candidates = await searchProductImageUrls(p.name);
+  for (const candidate of candidates) {
+    try {
+      const saved = await tryDownloadAndSave(p.id, candidate);
+      if (!saved) continue;
+      await db
+        .update(productsTable)
+        .set({ imageUrl: saved, images: [saved] })
+        .where(eq(productsTable.id, p.id));
+      void promoteProductToFeatured(p.id);
+      return { ok: true, image_url: saved };
+    } catch (err) {
+      logger.warn({ err, productId: p.id, candidate }, "candidat image rejeté");
+    }
+  }
+  return { ok: false, reason: "aucune_image" };
+}
+
+export async function scrapeCatalogPhotosBatch(
+  limit = 50,
+  opts: { productIds?: number[] } = {},
+): Promise<ScrapePhotosResult> {
+  const result: ScrapePhotosResult = { processed: 0, ok: 0, skipped: 0, errors: [], ids_ok: [] };
+
+  let rows;
+  if (opts.productIds?.length) {
+    rows = await db
+      .select()
+      .from(productsTable)
+      .where(sql`${productsTable.id} IN (${sql.join(opts.productIds.map((id) => sql`${id}`), sql`, `)})`);
+  } else {
+    rows = await db
+      .select()
+      .from(productsTable)
+      .where(
+        or(
+          isNull(productsTable.imageUrl),
+          eq(productsTable.imageUrl, ""),
+          sql`${productsTable.imageUrl} LIKE '%qdia-photo-placeholder%'`,
+          sql`${productsTable.imageUrl} LIKE '%.svg'`,
+        ),
+      )
+      .limit(limit);
+  }
 
   for (const p of rows) {
     if (result.ok >= limit) break;
@@ -94,29 +145,15 @@ export async function scrapeCatalogPhotosBatch(limit = 50): Promise<ScrapePhotos
 
     result.processed++;
     try {
-      const candidates = await searchProductImageUrls(p.name);
-      let saved: string | null = null;
-      for (const candidate of candidates) {
-        try {
-          saved = await tryDownloadAndSave(p.id, candidate);
-          if (saved) break;
-        } catch (err) {
-          logger.warn({ err, productId: p.id, candidate }, "candidat image rejeté");
-        }
+      const one = await scrapeOneProductPhoto(p.id);
+      if (one.ok && one.reason !== "deja_ok") {
+        result.ok++;
+        result.ids_ok!.push(p.id);
+      } else if (one.ok) {
+        result.skipped++;
+      } else {
+        result.errors.push(`${p.id}: ${one.reason ?? "echec"}`);
       }
-
-      if (!saved) {
-        result.errors.push(`${p.id}: aucune image`);
-        continue;
-      }
-
-      await db
-        .update(productsTable)
-        .set({ imageUrl: saved, images: [saved] })
-        .where(eq(productsTable.id, p.id));
-      void promoteProductToFeatured(p.id);
-      result.ok++;
-      logger.info({ productId: p.id, saved }, "photo scrapée");
     } catch (e) {
       result.errors.push(`${p.id}: ${e instanceof Error ? e.message : String(e)}`);
     }
