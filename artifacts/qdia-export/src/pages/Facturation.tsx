@@ -100,7 +100,7 @@ function FacturationContent() {
         certifications: selected?.certifications,
       });
       setLines(res.lines);
-      setAiNote(res.notes ?? (res.source === "ai" ? "Tableau généré par IA" : "Modèle QDIA"));
+      setAiNote(res.notes ?? (res.source === "ai" ? "Tableau généré automatiquement" : "Modèle QDIA"));
       if (selected?.port_depart) setPortDepart(selected.port_depart);
       toast({ title: tr("facturation_page.table_filled"), description: res.notes });
     } catch (e) {

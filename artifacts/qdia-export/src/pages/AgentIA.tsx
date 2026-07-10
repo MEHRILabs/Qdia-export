@@ -296,7 +296,7 @@ export default function AgentIA() {
       if (data._fallback) {
         toast({
           title: "Fiche générée (mode secours)",
-          description: data._fallback_reason ?? "Quota IA épuisé — fiche basique créée. Rechargez OpenAI/Gemini.",
+          description: data._fallback_reason ?? "Quota génération épuisé — fiche basique créée. Rechargez les clés API.",
           variant: "destructive",
         });
       } else {
@@ -850,7 +850,7 @@ export default function AgentIA() {
                   {pricingLoading && (
                     <div className="bg-muted/40 border rounded-xl p-5 space-y-3">
                       <div className="flex items-center gap-2 text-sm text-primary font-medium">
-                        <Loader2 className="h-4 w-4 animate-spin" /> Calcul Incoterms + analyse IA marché...
+                        <Loader2 className="h-4 w-4 animate-spin" /> Calcul Incoterms + analyse marché...
                       </div>
                       {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
                     </div>
@@ -915,7 +915,7 @@ export default function AgentIA() {
                       {pricingResult.market_benchmark && (
                         <div className="qdia-info-card p-4">
                           <p className="text-xs font-semibold text-[#0461A5] mb-1.5 flex items-center gap-1">
-                            <Sparkles className="h-3.5 w-3.5" /> Analyse IA du marché
+                            <Sparkles className="h-3.5 w-3.5" /> Analyse avancée du marché
                           </p>
                           <p className="text-xs leading-relaxed text-muted-foreground">{pricingResult.market_benchmark}</p>
                         </div>
@@ -958,7 +958,7 @@ export default function AgentIA() {
                     <div className="grid grid-cols-1 gap-2">
                       {[
                         { id: "remove_background" as const, label: "Détourage remove.bg", desc: "Suppression du fond automatique", icon: RefreshCw },
-                        { id: "studio_scene" as const, label: "Scène Studio IA", desc: "Décor professionnel (OpenAI / Gemini)", icon: Sparkles },
+                        { id: "studio_scene" as const, label: "Scène studio", desc: "Décor professionnel export", icon: Sparkles },
                         { id: "white_background" as const, label: "Fond Blanc Pro", desc: "Packshot catalogue e-commerce", icon: RefreshCw },
                         { id: "enhance" as const, label: "Amélioration Photo", desc: "Lumière, netteté et qualité pro", icon: Wand2 },
                       ].map(({ id, label, desc, icon: Icon }) => (
@@ -1024,7 +1024,7 @@ export default function AgentIA() {
                   {studioLoading && (
                     <div className="bg-muted/40 border rounded-xl overflow-hidden">
                       <div className="p-4 border-b flex items-center gap-2 text-sm text-primary font-medium">
-                        <Loader2 className="h-4 w-4 animate-spin" /> Génération image IA en cours (30-60s)...
+                        <Loader2 className="h-4 w-4 animate-spin" /> Génération image en cours (30-60s)...
                       </div>
                       <div className="p-4">
                         <Skeleton className="w-full aspect-square rounded-lg" />

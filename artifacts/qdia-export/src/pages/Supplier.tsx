@@ -126,7 +126,7 @@ export default function Supplier() {
               </Button>
               <Button className="gap-2 font-semibold" asChild>
                 <Link href="/agent-ia?new=1"><Plus className="h-4 w-4" /> {tr("supplier_page.new_product")}</Link>
-              </Button>
+            </Button>
             </div>
           </div>
 
@@ -184,7 +184,7 @@ export default function Supplier() {
                 ))}
               </div>
             </div>
-
+            
             <Table>
               <TableHeader>
                 <TableRow>
@@ -208,34 +208,34 @@ export default function Supplier() {
                 ) : products.map(product => {
                   const st = statusBadge(product.export_status);
                   return (
-                    <TableRow key={product.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded overflow-hidden bg-muted flex-shrink-0">
+                  <TableRow key={product.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded overflow-hidden bg-muted flex-shrink-0">
                             <ProductImage src={product.image_url} alt={product.name} compact className="h-full w-full" />
-                          </div>
-                          <div>
-                            <div className="font-medium line-clamp-1">{product.name}</div>
+                        </div>
+                        <div>
+                          <div className="font-medium line-clamp-1">{product.name}</div>
                             <div className="text-xs text-muted-foreground">{product.sku || tr("supplier_page.no_sku")}</div>
                           </div>
-                        </div>
-                      </TableCell>
+                      </div>
+                    </TableCell>
                       <TableCell><Badge variant="outline" className="bg-muted/50">{product.category}</Badge></TableCell>
                       <TableCell className="text-sm">
                         {product.prices.retail != null
                           ? `${product.prices.retail.toLocaleString()} DZD`
                           : "—"}
-                      </TableCell>
+                    </TableCell>
                       <TableCell className="text-sm">
                         {product.prices.wholesale != null
                           ? `${product.prices.wholesale.toLocaleString()} DZD`
                           : "—"}
-                      </TableCell>
+                    </TableCell>
                       <TableCell className="font-medium">${product.prices.fob?.toLocaleString() ?? "—"}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">MOQ: {product.moq} {product.moq_unit}</TableCell>
-                      <TableCell>
+                    <TableCell>
                         <Badge variant="secondary" className={st.className}>{st.label}</Badge>
-                      </TableCell>
+                    </TableCell>
                       <TableCell className="text-right space-x-1">
                         <Button variant="ghost" size="sm" asChild>
                           <Link href="/studio">{tr("nav.studio")}</Link>
@@ -243,16 +243,16 @@ export default function Supplier() {
                         <Button variant="ghost" size="sm" asChild>
                           <Link href="/agent-ia"><Sparkles className="h-3 w-3" /></Link>
                         </Button>
-                        <Button variant="ghost" size="sm" asChild>
+                      <Button variant="ghost" size="sm" asChild>
                           <Link href={user?.role === "admin" ? `/admin/products/${product.id}/edit` : `/supplier/products/${product.id}/edit`}>
                             <Pencil className="h-3 w-3" />
                           </Link>
                         </Button>
                         <Button variant="ghost" size="sm" className="text-red-600" onClick={() => removeProduct(product.id)}>
                           <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
                   );
                 })}
                 {!isLoading && products.length === 0 && (

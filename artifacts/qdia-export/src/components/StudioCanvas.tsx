@@ -118,7 +118,7 @@ export function StudioCanvas({ originalBase64, resultBase64, showBadge = true, o
         {resultBase64 && (
           <>
             <Button size="sm" variant={activeImage === "original" ? "default" : "outline"} onClick={() => setActiveImage("original")}>Original</Button>
-            <Button size="sm" variant={activeImage === "result" ? "default" : "outline"} onClick={() => setActiveImage("result")}>Résultat IA</Button>
+            <Button size="sm" variant={activeImage === "result" ? "default" : "outline"} onClick={() => setActiveImage("result")}>Résultat</Button>
           </>
         )}
         <Button size="sm" variant="outline" onClick={rotate}><RotateCw className="h-3.5 w-3.5" /></Button>

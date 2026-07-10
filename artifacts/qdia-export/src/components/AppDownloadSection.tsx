@@ -30,7 +30,7 @@ function AppleIcon({ className = "" }: { className?: string }) {
 const FLOAT_ITEMS = [
   { label: "Huile d'olive Béjaïa", price: "FOB · Export" },
   { label: "Dattes Deglet Nour", price: "MOQ 1000 kg" },
-  { label: "Studio IA photo", price: "Prêt export 🇩🇿" },
+  { label: "Studio Image photo", price: "Prêt export 🇩🇿" },
 ];
 
 export function AppDownloadSection() {

@@ -98,7 +98,7 @@ export default function Studio() {
       setProvider(data.provider ?? null);
       toast({
         title: tr("studio_page.done"),
-        description: tr("studio_page.done_desc").replace("{provider}", data.provider ?? "IA"),
+        description: tr("studio_page.done_desc").replace("{provider}", data.provider ?? "Studio"),
       });
     } catch (e) {
       toast({ title: tr("common.error"), description: String(e instanceof Error ? e.message : e), variant: "destructive" });

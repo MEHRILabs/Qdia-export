@@ -1,10 +1,12 @@
 import { useEffect, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
+import { defaultHomeForUser } from "@/lib/roles";
 import { Loader2 } from "lucide-react";
 
 interface Props {
   children: ReactNode;
+  /** RBAC : seuls ces rôles accèdent à la route. Sans roles = tout utilisateur connecté. */
   roles?: Array<"supplier" | "admin" | "buyer">;
 }
 
@@ -22,7 +24,8 @@ export function ProtectedRoute({ children, roles }: Props) {
       return;
     }
     if (roles && !roles.includes(user.role as "supplier" | "admin" | "buyer")) {
-      setLocation("/");
+      // Redirige vers le dashboard du rôle (pas une UI étrangère)
+      setLocation(defaultHomeForUser(user));
     }
   }, [user, isLoading, roles, setLocation, location]);
 

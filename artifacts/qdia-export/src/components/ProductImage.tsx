@@ -60,7 +60,7 @@ export function ProductImage({
         {compact ? "QDIA" : "Photo"}
       </span>
       {!compact && (
-        <span className="text-[10px] font-medium text-[#9CA3AF]/80">IA</span>
+        <span className="text-[10px] font-medium text-[#9CA3AF]/80">Photo</span>
       )}
     </div>
   );

@@ -15,7 +15,7 @@ export const SUPPLIER_NAV: { href: string; labelKey: string; icon: LucideIcon }[
   { href: "/dashboard", icon: LayoutDashboard, labelKey: "nav.dashboard" },
   { href: "/supplier", icon: Package, labelKey: "nav.products" },
   { href: "/agent-ia", icon: Sparkles, labelKey: "nav.agent_ia" },
-  { href: "/studio", icon: Wand2, labelKey: "nav.studio" },
+  { href: "/studio", icon: Wand2, labelKey: "header.studio_ia" },
   { href: "/inquiries", icon: MessageSquare, labelKey: "nav.inquiries" },
   { href: "/transactions", icon: CreditCard, labelKey: "nav.transactions" },
   { href: "/facturation", icon: DollarSign, labelKey: "nav.billing" },

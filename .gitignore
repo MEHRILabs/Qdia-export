@@ -54,6 +54,14 @@ Thumbs.db
 .env.*.local
 artifacts/qdia-export/.env
 
+# Pipeline Python enrichissement images
+scripts/catalog-image-enricher/.venv/
+scripts/catalog-image-enricher/.env
+scripts/catalog-image-enricher/output/
+scripts/catalog-image-enricher/logs/
+scripts/catalog-image-enricher/__pycache__/
+**/__pycache__/
+
 # Uploads produits (générés en prod, pas versionnés)
 artifacts/api-server/uploads/
 artifacts/uploads/
