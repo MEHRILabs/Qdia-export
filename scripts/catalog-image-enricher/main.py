@@ -28,6 +28,7 @@ from config import (
     REPORT_FILE,
     SEARCH_ENGINE,
     STATE_FILE,
+    UPLOAD_SYNC_DIR,
     ensure_dirs,
 )
 from database import Database, ProductRow, iter_products
@@ -138,6 +139,12 @@ def process_one(
         out_path = OUTPUT_DIR / filename
         if not dry_run:
             save_image(jpeg_bytes, out_path)
+            try:
+                UPLOAD_SYNC_DIR.mkdir(parents=True, exist_ok=True)
+                sync_path = UPLOAD_SYNC_DIR / filename
+                sync_path.write_bytes(jpeg_bytes)
+            except Exception as sync_err:
+                logger.warning("[%s] Sync uploads échouée: %s", pid, sync_err)
 
         public_url = f"{PUBLIC_IMAGE_PREFIX.rstrip('/')}/{filename}"
         desc = None

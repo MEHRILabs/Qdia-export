@@ -26,6 +26,13 @@ REPORT_FILE = Path(os.getenv("REPORT_FILE", SCRIPT_DIR / "output" / "report.json
 WATERMARK_PATH = Path(
     os.getenv("WATERMARK_PATH", SCRIPT_DIR / "assets" / "watermark.png")
 )
+# Copie auto vers le dossier servi par l'API (optionnel)
+UPLOAD_SYNC_DIR = Path(
+    os.getenv(
+        "UPLOAD_SYNC_DIR",
+        ROOT / "artifacts" / "api-server" / "uploads" / "catalog",
+    )
+)
 # URL publique relative (servie par l'API /uploads/…)
 PUBLIC_IMAGE_PREFIX = os.getenv("PUBLIC_IMAGE_PREFIX", "/uploads/catalog")
 
