@@ -354,6 +354,12 @@ export const platformApi = {
       errors: string[];
     }>("/api/products/enrich", { method: "POST", body: JSON.stringify(opts ?? { limit: 50 }) }),
 
+  scrapeCatalogPhotos: (limit = 50) =>
+    api<{ processed: number; ok: number; skipped: number; errors: string[] }>(
+      "/api/admin/scrape-photos",
+      { method: "POST", body: JSON.stringify({ limit }) },
+    ),
+
   listAdminExportProducts: (filter: "pending" | "authorized" | "all" = "pending", limit = 200) => {
     const q = new URLSearchParams({ scope: "admin", limit: String(limit), export_status: "published" });
     if (filter === "pending") q.set("export_authorized", "false");

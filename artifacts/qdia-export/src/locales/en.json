@@ -613,7 +613,15 @@
     "export_approve_selected": "Authorize selection",
     "export_select_category": "Select category",
     "export_products_count": "products",
-    "export_uncategorized": "Uncategorized"
+    "export_uncategorized": "Uncategorized",
+    "scrape_card_title": "Scrape missing photos",
+    "scrape_card_desc": "One click: finds product photos on the web and adds them to the catalog. No terminal needed.",
+    "scrape_btn_20": "Scrape 20 photos",
+    "scrape_btn_50": "Scrape 50 photos",
+    "scrape_running": "Scraping…",
+    "scrape_done": "Scraping done",
+    "scrape_done_desc": "{ok} photo(s) added · {processed} processed · {skipped} already OK",
+    "scrape_nav": "Scrape photos"
   },
   "footer": {
     "contact": "Contact",

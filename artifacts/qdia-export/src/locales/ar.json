@@ -610,7 +610,15 @@
     "export_approve_selected": "تفويض التحديد",
     "export_select_category": "تحديد الفئة",
     "export_products_count": "منتجات",
-    "export_uncategorized": "بدون فئة"
+    "export_uncategorized": "بدون فئة",
+    "scrape_card_title": "جلب الصور الناقصة",
+    "scrape_card_desc": "بنقرة واحدة: يبحث عن صور المنتجات على الويب ويضيفها للكتالوج. لا حاجة للطرفية.",
+    "scrape_btn_20": "جلب 20 صورة",
+    "scrape_btn_50": "جلب 50 صورة",
+    "scrape_running": "جاري الجلب…",
+    "scrape_done": "اكتمل الجلب",
+    "scrape_done_desc": "{ok} صورة مضافة · {processed} معالجة · {skipped} جاهزة مسبقاً",
+    "scrape_nav": "جلب الصور"
   },
   "footer": {
     "contact": "اتصل بنا",

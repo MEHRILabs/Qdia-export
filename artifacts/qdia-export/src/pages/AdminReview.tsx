@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
-import { Clock, Loader2, Sparkles, ImageIcon, DollarSign, Package, MessageSquare, Factory, ChevronDown } from "lucide-react";
+import { Clock, Loader2, Sparkles, ImageIcon, DollarSign, Package, MessageSquare, Factory, ChevronDown, Search } from "lucide-react";
 import { platformApi } from "@/lib/platform-api";
 import { useI18n } from "@/contexts/I18nContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -76,6 +76,7 @@ export default function AdminReview() {
     published: number;
   } | null>(null);
   const [enriching, setEnriching] = useState(false);
+  const [scraping, setScraping] = useState(false);
 
   const [activeTab, setActiveTab] = useState(() => tabFromSearch(searchParams.toString()));
   const [toolsOpen, setToolsOpen] = useState(false);
@@ -130,6 +131,31 @@ export default function AdminReview() {
       });
     } finally {
       setEnriching(false);
+    }
+  };
+
+  const runScrapePhotos = async (limit: number) => {
+    setScraping(true);
+    try {
+      const result = await platformApi.scrapeCatalogPhotos(limit);
+      toast({
+        title: tr("admin.scrape_done"),
+        description: tr("admin.scrape_done_desc")
+          .replace("{ok}", String(result.ok))
+          .replace("{processed}", String(result.processed))
+          .replace("{skipped}", String(result.skipped)),
+      });
+      const status = await platformApi.getEnrichmentStatus();
+      setEnrichStatus(status);
+      loadStats();
+    } catch (e) {
+      toast({
+        title: tr("common.error"),
+        description: String(e instanceof Error ? e.message : e),
+        variant: "destructive",
+      });
+    } finally {
+      setScraping(false);
     }
   };
 
@@ -197,7 +223,43 @@ export default function AdminReview() {
             </div>
           )}
           {activeTab === "products" && (
-          <div className="mt-3 md:mt-4">
+          <div className="mt-3 md:mt-4 space-y-3">
+            <div className="rounded-xl border-2 border-[#F5C518]/50 bg-gradient-to-br from-[#FFF8E1] to-white p-4 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-[#073B74] flex items-center gap-2 text-sm md:text-base">
+                    <Search className="h-4 w-4 text-[#0461A5] shrink-0" />
+                    {tr("admin.scrape_card_title")}
+                  </p>
+                  <p className="text-xs text-[#656566] mt-1 leading-relaxed">
+                    {tr("admin.scrape_card_desc")}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 shrink-0">
+                  <Button
+                    variant="gold"
+                    size="sm"
+                    className="gap-2 font-bold"
+                    disabled={scraping || enriching}
+                    onClick={() => void runScrapePhotos(20)}
+                  >
+                    {scraping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                    {scraping ? tr("admin.scrape_running") : tr("admin.scrape_btn_20")}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 font-bold border-[#0461A5]/40"
+                    disabled={scraping || enriching}
+                    onClick={() => void runScrapePhotos(50)}
+                  >
+                    {scraping ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
+                    {tr("admin.scrape_btn_50")}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
             <button
               type="button"
               className="md:hidden w-full flex items-center justify-between rounded-lg border bg-card px-3 py-2.5 text-sm font-medium"
@@ -218,7 +280,7 @@ export default function AdminReview() {
               variant="gold"
               size="sm"
               className="gap-2"
-              disabled={enriching}
+              disabled={enriching || scraping}
               onClick={() => runEnrichment(50)}
             >
               {enriching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
@@ -228,7 +290,7 @@ export default function AdminReview() {
               variant="outline"
               size="sm"
               className="gap-2"
-              disabled={enriching}
+              disabled={enriching || scraping}
               onClick={() => runEnrichment(200)}
             >
               {tr("admin.enrich_batch_200")}
@@ -237,7 +299,7 @@ export default function AdminReview() {
               variant="outline"
               size="sm"
               className="gap-2"
-              disabled={enriching}
+              disabled={enriching || scraping}
               onClick={async () => {
                 setEnriching(true);
                 try {
@@ -266,7 +328,7 @@ export default function AdminReview() {
               variant="outline"
               size="sm"
               className="gap-2 border-[#0461A5]/40"
-              disabled={enriching}
+              disabled={enriching || scraping}
               onClick={async () => {
                 setEnriching(true);
                 try {

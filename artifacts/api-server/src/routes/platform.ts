@@ -473,4 +473,17 @@ router.get("/admin/stats", requireAuth, requireRole("admin"), async (_req, res) 
   });
 });
 
+// ─── Admin : scraper photos catalogue (Bing) ─────────────────────────────────
+router.post("/admin/scrape-photos", requireAuth, requireRole("admin"), async (req, res) => {
+  try {
+    const limitRaw = Number(req.body?.limit ?? 50);
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.floor(limitRaw), 1), 200) : 50;
+    const { scrapeCatalogPhotosBatch } = await import("../services/catalog-web-scrape");
+    const result = await scrapeCatalogPhotosBatch(limit);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Scraping photos échoué" });
+  }
+});
+
 export default router;
