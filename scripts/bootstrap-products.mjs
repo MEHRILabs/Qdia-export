@@ -35,7 +35,7 @@ const SEED_PRODUCTS = [
     description: "Dattes branche calibre A, origine Biskra.",
     category: "Agriculture & Food",
     sku: "QDIA-DT-002",
-    image_url: "/images/product-dates.jpg",
+    image_url: "/images/product-dates-deglet.jpg",
     moq: 1000, moq_unit: "kg", port_depart: "Alger", origin_wilaya: "Biskra",
     certifications: ["Halal Certificate", "Phytosanitary Certificate"],
     packaging: "Carton 5 kg branche",

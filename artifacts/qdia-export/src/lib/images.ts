@@ -5,7 +5,7 @@ export const IMAGES = {
   logo: "/logo.png",
   hero: "/images/hero-port.jpg",
   oliveOil: "/images/product-olive-oil.jpg",
-  dates: "/images/product-dates.jpg",
+  dates: "/images/product-dates-deglet.jpg",
   honey: "/images/product-honey.jpg",
   textile: "/images/product-textile.jpg",
   couscous: "/couscous.png",

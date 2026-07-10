@@ -5,7 +5,7 @@ import { db, usersTable, otpCodesTable } from "@workspace/db";
 import { sendSmsOtp } from "./sms-twilio";
 import { verifyGoogleIdToken } from "./google-verify";
 import { logger } from "../lib/logger";
-import { ADMIN_EMAIL, ADMIN_PASSWORD } from "../lib/default-accounts";
+import { ADMIN_EMAIL, ADMIN_PASSWORD, ADMIN2_EMAIL, ADMIN2_PASSWORD, adminEmails } from "../lib/default-accounts";
 
 import { getJwtSecretBytes, isProduction } from "../lib/env-security";
 
@@ -96,7 +96,7 @@ export async function registerEmail(input: {
   name?: string;
   role?: string;
 }) {
-  if (input.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+  if (adminEmails().includes(input.email.toLowerCase())) {
     throw new Error("Cet email est réservé à l'administration.");
   }
   if (input.role === "admin") {
@@ -138,6 +138,9 @@ export async function loginEmail(email: string, password: string) {
 
 const DEMO_ACCOUNTS: Array<PublicUser & { password: string }> = [
   { id: 2, name: "Administration QDIA", email: ADMIN_EMAIL, role: "admin", provider: "email", password: ADMIN_PASSWORD },
+  { id: 3, name: "Admin QDIA 2", email: ADMIN2_EMAIL, role: "admin", provider: "email", password: ADMIN2_PASSWORD },
+  { id: 10, name: "Exportateur Démo", email: "vendeur@qdiadz.com", role: "supplier", provider: "email", password: "Vendeur@2026" },
+  { id: 20, name: "Acheteur Démo", email: "acheteur@qdiadz.com", role: "buyer", provider: "email", password: "Acheteur@2026" },
 ];
 
 function tryDemoLogin(email: string, password: string) {

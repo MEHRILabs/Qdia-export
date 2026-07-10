@@ -27,7 +27,8 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 const MAP = {
   "/olive-oil.png": "/images/product-olive-oil.jpg",
-  "/dates.png": "/images/product-dates.jpg",
+  "/dates.png": "/images/product-dates-deglet.jpg",
+  "/images/product-dates.jpg": "/images/product-dates-deglet.jpg",
   "/honey.png": "/images/product-honey.jpg",
   "/rug.png": "/images/product-textile.jpg",
 };

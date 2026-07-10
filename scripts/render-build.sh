@@ -20,4 +20,10 @@ export VITE_GOOGLE_MAPS_API_KEY="${VITE_GOOGLE_MAPS_API_KEY:-${GOOGLE_MAPS_API_K
 
 pnpm -C artifacts/qdia-export build
 
+# Comptes admin + démo (si DATABASE_URL présent)
+if [ -n "${DATABASE_URL:-}" ]; then
+  node scripts/ensure-admin.mjs || true
+  node scripts/ensure-demo-accounts.mjs || true
+fi
+
 echo "Build Render terminé."
