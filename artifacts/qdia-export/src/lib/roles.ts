@@ -15,9 +15,14 @@ import type { AuthUser } from "@/lib/api-auth";
 
 export type AppRole = "buyer" | "supplier" | "admin";
 
+/** Accès outils fournisseur (routes protégées) — admin inclus. */
 export function isSupplier(user: AuthUser | null | undefined): boolean {
-  // L'admin hérite des outils fournisseur (édition produits, studio…)
   return user?.role === "supplier" || user?.role === "admin";
+}
+
+/** Vrai uniquement pour un compte exportateur (pas admin). Pour l'UI header. */
+export function isExporterOnly(user: AuthUser | null | undefined): boolean {
+  return user?.role === "supplier";
 }
 
 export function isBuyer(user: AuthUser | null | undefined): boolean {
@@ -26,6 +31,11 @@ export function isBuyer(user: AuthUser | null | undefined): boolean {
 
 export function isAdmin(user: AuthUser | null | undefined): boolean {
   return user?.role === "admin";
+}
+
+/** Acheteur connecté OU visiteur (parcours achat). */
+export function showBuyerUi(user: AuthUser | null | undefined): boolean {
+  return !user || user.role === "buyer";
 }
 
 export function defaultHomeForUser(user: AuthUser | null | undefined): string {
@@ -42,6 +52,6 @@ export function roleLabelKey(role: string | undefined): string {
     case "supplier":
       return "header.supplier_space";
     default:
-      return "orders.title";
+      return "header.buyer_space";
   }
 }

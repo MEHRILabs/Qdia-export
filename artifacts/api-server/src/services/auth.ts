@@ -192,9 +192,20 @@ export async function loginGoogle(input: {
       role: chosenRole,
       verified: true,
     }).returning();
+  } else if (user.role !== "admin" && input.role) {
+    // Permet de passer Exportateur ↔ Acheteur au prochain login Google
+    [user] = await db.update(usersTable)
+      .set({
+        role: chosenRole,
+        name: input.name || user.name,
+        googleId: input.googleId ?? user.googleId,
+        provider: "google",
+      })
+      .where(eq(usersTable.id, user.id))
+      .returning();
   }
 
-  const publicUser = toPublicUser(user);
+  const publicUser = toPublicUser(user!);
   return { user: publicUser, token: await signToken(publicUser) };
 }
 

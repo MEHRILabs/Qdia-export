@@ -5,7 +5,7 @@ import { CONTACT, CERTIFICATIONS } from "@/lib/contact";
 import { Mail, MapPin, Phone, ArrowUpRight } from "lucide-react";
 import { useI18n } from "@/contexts/I18nContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { isSupplier } from "@/lib/roles";
+import { isExporterOnly } from "@/lib/roles";
 
 function FooterColTitle({ children }: { children: ReactNode }) {
   return (
@@ -74,12 +74,19 @@ function DesktopFooter() {
   const { tr } = useI18n();
   const { user } = useAuth();
 
-  const exportLinks = isSupplier(user) ? [
+  const exportLinks = isExporterOnly(user) ? [
     { href: "/supplier", label: tr("header.supplier_space") },
     { href: "/studio", label: tr("header.studio_ia") },
     { href: "/dashboard", label: tr("nav.dashboard") },
     { href: "/agent-ia", label: tr("nav.agent_ia") },
-  ] : [];
+  ] : [
+    { href: "/commandes", label: tr("orders.title") },
+    { href: "/favoris", label: tr("nav.favorites") },
+    { href: "/panier", label: tr("cart.title") },
+    { href: "/rfq", label: tr("home.cta_rfq") },
+  ];
+
+  const buyersColTitle = isExporterOnly(user) ? tr("footer.exporters") : tr("header.buyer_space");
 
   const platformLinks = [
     { href: "/products", label: tr("nav.catalog") },
@@ -127,7 +134,7 @@ function DesktopFooter() {
             viewport={{ once: true }}
             className="lg:col-span-2"
           >
-            <FooterColTitle>{tr("footer.exporters")}</FooterColTitle>
+            <FooterColTitle>{buyersColTitle}</FooterColTitle>
             <nav className="flex flex-col gap-2">
               {exportLinks.map(({ href, label }) => (
                 <Link
@@ -242,20 +249,26 @@ function MobileFooter() {
   const { user } = useAuth();
 
   const mobileNav = [
-    ...(isSupplier(user) ? [
+    ...(isExporterOnly(user) ? [
       { href: "/supplier", label: tr("header.supplier_space") },
       { href: "/studio", label: tr("header.studio_ia") },
-    ] : []),
+    ] : [
+      { href: "/commandes", label: tr("orders.title") },
+      { href: "/favoris", label: tr("nav.favorites") },
+    ]),
     { href: "/products", label: tr("nav.catalog") },
     { href: "/#emplacement", label: tr("header.location") },
   ];
 
   const mobilePlatform = [
     { href: "/rfq", label: tr("footer.rfq") },
-    ...(isSupplier(user) ? [
+    ...(isExporterOnly(user) ? [
       { href: "/dashboard", label: tr("nav.dashboard") },
       { href: "/agent-ia", label: tr("nav.agent_ia") },
-    ] : []),
+    ] : [
+      { href: "/panier", label: tr("cart.title") },
+      { href: "/commandes", label: tr("orders.title") },
+    ]),
     { href: "/mes-rfq", label: tr("footer.my_rfqs") },
   ];
 

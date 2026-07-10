@@ -13,7 +13,7 @@ import { ALL_CATEGORIES } from "@/lib/catalog-categories";
 import { useCatalogCategory } from "@/hooks/useCatalogCategory";
 import { useI18n } from "@/contexts/I18nContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { isSupplier } from "@/lib/roles";
+import { isExporterOnly } from "@/lib/roles";
 import type { Product } from "@workspace/api-client-react";
 
 export default function Catalog() {
@@ -61,7 +61,7 @@ export default function Catalog() {
             <Button variant="outline" className="font-bold gap-2" onClick={() => window.open(platformApi.catalogPdfUrl(), "_blank")}>
               <FileDown className="h-4 w-4" /> {tr("catalog.pdf")}
             </Button>
-            {isSupplier(user) && (
+            {isExporterOnly(user) && (
               <Button variant="gold" className="font-bold gap-2" asChild>
                 <Link href="/agent-ia?new=1">
                   <Plus className="h-4 w-4" /> {tr("supplier.add_product")}
@@ -109,7 +109,7 @@ export default function Catalog() {
           products={products}
           isLoading={isLoading}
           isError={isError}
-          showPublishCta={isSupplier(user)}
+          showPublishCta={isExporterOnly(user)}
         />
       </main>
 

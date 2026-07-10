@@ -53,8 +53,8 @@ export function AuthModal({ open, onOpenChange, onSuccess }: Props) {
   const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
-  /** Exportateur/fournisseur = supplier · Acheteur = buyer */
-  const [accountRole, setAccountRole] = useState<"supplier" | "buyer">("supplier");
+  /** Par défaut acheteur — parcours marketplace. Exportateur = choix explicite. */
+  const [accountRole, setAccountRole] = useState<"supplier" | "buyer">("buyer");
 
   const reset = () => {
     setPhoneStep("number");

@@ -5,9 +5,9 @@ import { motion } from "framer-motion";
 import { BrandLogo } from "@/components/BrandLogo";
 import { AuthModal } from "@/components/AuthModal";
 import { useAuth } from "@/contexts/AuthContext";
-import { isSupplier, isAdmin, defaultHomeForUser } from "@/lib/roles";
+import { isExporterOnly, isAdmin, isBuyer, defaultHomeForUser } from "@/lib/roles";
 import { getStoredUser } from "@/lib/api-auth";
-import { Wand2, LogIn, LogOut, User, Store, Sparkles, Globe, Menu, MapPin, BookOpen, ShoppingCart, Package, Truck, Shield, MessageSquare, ClipboardCheck, Pencil, DollarSign, FileText, Factory } from "lucide-react";
+import { Wand2, LogIn, LogOut, User, Store, Sparkles, Globe, Menu, MapPin, BookOpen, ShoppingCart, Package, Truck, Shield, MessageSquare, ClipboardCheck, Pencil, DollarSign, FileText, Factory, Heart, FileQuestion } from "lucide-react";
 import { useI18n } from "@/contexts/I18nContext";
 import type { Locale } from "@/lib/i18n";
 import { useCartCount } from "@/hooks/useCart";
@@ -66,6 +66,25 @@ function EspaceAdminButton({ label, onClick }: { label: string; onClick: () => v
       <ClipboardCheck className="h-4 w-4" />
       {label}
     </button>
+  );
+}
+
+function EspaceAcheteurButton({ label }: { label: string }) {
+  const [location] = useLocation();
+  const active = location.startsWith("/commandes") || location.startsWith("/favoris") || location.startsWith("/panier");
+
+  return (
+    <Link
+      href="/commandes"
+      className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-bold transition-colors shadow-[0_0_16px_rgba(4,97,165,0.35)] hover:scale-[1.02] active:scale-[0.98] ${
+        active
+          ? "bg-white text-[#0461A5] ring-2 ring-white/40"
+          : "bg-white/95 text-[#073B74] hover:bg-white"
+      }`}
+    >
+      <ShoppingCart className="h-4 w-4" />
+      {label}
+    </Link>
   );
 }
 
@@ -159,8 +178,20 @@ export function BuyerHeader() {
             {isAdmin(user) && (
               <EspaceAdminButton label={tr("nav.admin_space")} onClick={goAdmin} />
             )}
-            {isSupplier(user) && !isAdmin(user) && (
+            {isExporterOnly(user) && (
               <EspaceFournisseurButton label={tr("header.supplier_space")} />
+            )}
+            {isBuyer(user) && (
+              <EspaceAcheteurButton label={tr("header.buyer_space")} />
+            )}
+            {!user && (
+              <Link
+                href="/products"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-bold bg-[#F5C518] text-[#1A1A2E] hover:bg-[#E0B015] transition-colors shadow-[0_0_16px_rgba(245,197,24,0.35)]"
+              >
+                <BookOpen className="h-4 w-4" />
+                {tr("header.explore_catalog")}
+              </Link>
             )}
           </nav>
 
@@ -206,7 +237,7 @@ export function BuyerHeader() {
                     <DropdownMenuSeparator />
                   </>
                 )}
-                {isSupplier(user) && (
+                {isExporterOnly(user) && (
                   <>
                     <DropdownMenuItem asChild>
                       <Link href="/supplier" className="cursor-pointer text-sm py-2">
@@ -216,6 +247,26 @@ export function BuyerHeader() {
                     <DropdownMenuItem asChild>
                       <Link href="/studio" className="cursor-pointer text-sm py-2">
                         <Wand2 className="h-4 w-4 mr-2 inline text-[#0461A5]" /> {tr("header.studio_ia")}
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                {isBuyer(user) && (
+                  <>
+                    <DropdownMenuItem asChild>
+                      <Link href="/commandes" className="cursor-pointer text-sm py-2 font-semibold text-[#0461A5]">
+                        <Package className="h-4 w-4 mr-2 inline" /> {tr("header.buyer_space")}
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/favoris" className="cursor-pointer text-sm py-2">
+                        <Heart className="h-4 w-4 mr-2 inline text-[#0461A5]" /> {tr("nav.favorites")}
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/rfq" className="cursor-pointer text-sm py-2">
+                        <FileQuestion className="h-4 w-4 mr-2 inline text-[#0461A5]" /> {tr("home.cta_rfq")}
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
@@ -334,10 +385,19 @@ export function BuyerHeader() {
               </Link>
             )}
 
-            {isSupplier(user) && (
+            {isExporterOnly(user) && (
               <div className="hidden md:block">
                 <StudioIAButton label={tr("header.studio_ia")} />
               </div>
+            )}
+            {isBuyer(user) && (
+              <Link
+                href="/rfq"
+                className="hidden md:inline-flex items-center gap-1.5 bg-[#F5C518] text-[#1A1A2E] px-4 py-2 rounded-lg text-[13px] font-bold hover:bg-[#E0B015] transition-colors shadow-[0_0_16px_rgba(245,197,24,0.35)]"
+              >
+                <FileQuestion className="h-4 w-4" />
+                {tr("home.cta_rfq")}
+              </Link>
             )}
 
             {user ? (
@@ -410,7 +470,7 @@ export function BuyerHeader() {
                   <DropdownMenuItem asChild>
                     <Link href="/profile" className="cursor-pointer">{tr("nav.profile")}</Link>
                   </DropdownMenuItem>
-                  {isSupplier(user) && (
+                  {isExporterOnly(user) && (
                     <>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem asChild>

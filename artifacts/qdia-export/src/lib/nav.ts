@@ -4,10 +4,11 @@ import { LayoutDashboard, Package, MessageSquare, FileText,
 } from "lucide-react";
 
 export const BUYER_NAV_KEYS = [
-  { href: "/supplier", labelKey: "header.supplier_space" },
+  { href: "/products", labelKey: "header.explore_catalog" },
   { href: "/favoris", labelKey: "nav.favorites" },
   { href: "/panier", labelKey: "cart.title" },
   { href: "/commandes", labelKey: "orders.title" },
+  { href: "/rfq", labelKey: "home.cta_rfq" },
   { href: "/suivi", labelKey: "tracking.page_title" },
 ] as const;
 

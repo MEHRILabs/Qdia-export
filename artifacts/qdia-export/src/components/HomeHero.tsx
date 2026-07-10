@@ -5,10 +5,10 @@ import { IMAGES } from "@/lib/images";
 import { ProductImage } from "@/components/ProductImage";
 import { useI18n } from "@/contexts/I18nContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { isSupplier } from "@/lib/roles";
+import { isExporterOnly, isBuyer } from "@/lib/roles";
 import {
   ArrowRight, Sparkles, Globe, Package, Users, TrendingUp,
-  ShieldCheck, Ship,
+  ShieldCheck, Ship, ShoppingCart, FileQuestion, Heart,
 } from "lucide-react";
 
 const STAT_KEYS = [
@@ -41,10 +41,10 @@ const fadeUp = {
 export function HomeHero() {
   const { tr } = useI18n();
   const { user } = useAuth();
+  const buyerMode = !isExporterOnly(user); // acheteur ou visiteur
 
   return (
     <section className="qdia-hero-immersive relative overflow-hidden">
-      {/* Fond animé */}
       <div className="absolute inset-0">
         <motion.img
           src={IMAGES.hero}
@@ -58,7 +58,6 @@ export function HomeHero() {
         <div className="qdia-hero-grid absolute inset-0 opacity-[0.07]" aria-hidden />
       </div>
 
-      {/* Orbes lumineux */}
       <motion.div
         className="qdia-hero-orb qdia-hero-orb-gold"
         animate={{ x: [0, 30, 0], y: [0, -20, 0] }}
@@ -72,7 +71,6 @@ export function HomeHero() {
 
       <div className="relative z-10 max-w-7xl mx-auto px-6 pt-10 pb-8 md:pt-14 md:pb-12">
         <div className="grid lg:grid-cols-2 gap-10 lg:gap-12 items-center">
-          {/* Texte */}
           <div>
             <motion.div
               custom={0}
@@ -85,7 +83,7 @@ export function HomeHero() {
                 <span className="qdia-pulse-dot absolute inline-flex h-full w-full rounded-full bg-[#F5C518]" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-[#F5C518]" />
               </span>
-              🇩🇿 {tr("home.badge")}
+              🇩🇿 {buyerMode ? tr("home.badge_buyer") : tr("home.badge")}
             </motion.div>
 
             <motion.h1
@@ -95,10 +93,21 @@ export function HomeHero() {
               animate="visible"
               className="text-3xl sm:text-4xl lg:text-[2.75rem] xl:text-5xl font-black text-white leading-[1.08] mb-4 tracking-tight"
             >
-              {tr("home.title_line1")}{" "}
-              <span className="qdia-hero-highlight">{tr("home.title_highlight")}</span>
-              <br />
-              {tr("home.title_line2")}
+              {buyerMode ? (
+                <>
+                  {tr("home.buyer_title_line1")}{" "}
+                  <span className="qdia-hero-highlight">{tr("home.buyer_title_highlight")}</span>
+                  <br />
+                  {tr("home.buyer_title_line2")}
+                </>
+              ) : (
+                <>
+                  {tr("home.title_line1")}{" "}
+                  <span className="qdia-hero-highlight">{tr("home.title_highlight")}</span>
+                  <br />
+                  {tr("home.title_line2")}
+                </>
+              )}
             </motion.h1>
 
             <motion.p
@@ -108,7 +117,7 @@ export function HomeHero() {
               animate="visible"
               className="text-base md:text-lg text-white/85 mb-6 leading-relaxed max-w-lg"
             >
-              {tr("home.subtitle")}
+              {buyerMode ? tr("home.buyer_subtitle") : tr("home.subtitle")}
             </motion.p>
 
             <motion.div
@@ -118,28 +127,71 @@ export function HomeHero() {
               animate="visible"
               className="flex flex-wrap gap-3 mb-8"
             >
-              <Button variant="gold" size="lg" className="font-bold qdia-hero-cta-glow gap-2 h-12 px-6" asChild>
-                <Link href="/products">
-                  {tr("home.cta_catalog")} <ArrowRight className="h-4 w-4" />
-                </Link>
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="border-white/40 text-white bg-white/10 hover:bg-white/20 font-semibold h-12 backdrop-blur-sm"
-                asChild
-              >
-                <Link href="/rfq">{tr("home.cta_rfq")}</Link>
-              </Button>
-              <Button
-                size="lg"
-                className="btn-qdia-ai h-12 gap-2 border-0"
-                asChild
-              >
-                <Link href={isSupplier(user) ? "/agent-ia?new=1" : "/rfq"}>
-                  <Sparkles className="h-4 w-4" /> {isSupplier(user) ? tr("home.cta_ai") : tr("home.cta_rfq")}
-                </Link>
-              </Button>
+              {buyerMode ? (
+                <>
+                  <Button variant="gold" size="lg" className="font-bold qdia-hero-cta-glow gap-2 h-12 px-6" asChild>
+                    <Link href="/products">
+                      <ShoppingCart className="h-4 w-4" />
+                      {tr("home.cta_catalog")} <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="border-white/40 text-white bg-white/10 hover:bg-white/20 font-semibold h-12 backdrop-blur-sm gap-2"
+                    asChild
+                  >
+                    <Link href="/rfq">
+                      <FileQuestion className="h-4 w-4" />
+                      {tr("home.cta_rfq")}
+                    </Link>
+                  </Button>
+                  {isBuyer(user) ? (
+                    <Button
+                      size="lg"
+                      className="bg-white text-[#073B74] hover:bg-white/90 font-semibold h-12 gap-2"
+                      asChild
+                    >
+                      <Link href="/commandes">
+                        <Package className="h-4 w-4" />
+                        {tr("orders.title")}
+                      </Link>
+                    </Button>
+                  ) : (
+                    <Button
+                      size="lg"
+                      className="bg-white/15 text-white border border-white/30 hover:bg-white/25 font-semibold h-12 gap-2"
+                      asChild
+                    >
+                      <Link href="/favoris">
+                        <Heart className="h-4 w-4" />
+                        {tr("nav.favorites")}
+                      </Link>
+                    </Button>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Button variant="gold" size="lg" className="font-bold qdia-hero-cta-glow gap-2 h-12 px-6" asChild>
+                    <Link href="/dashboard">
+                      {tr("nav.dashboard")} <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="border-white/40 text-white bg-white/10 hover:bg-white/20 font-semibold h-12 backdrop-blur-sm"
+                    asChild
+                  >
+                    <Link href="/supplier">{tr("nav.products")}</Link>
+                  </Button>
+                  <Button size="lg" className="btn-qdia-ai h-12 gap-2 border-0" asChild>
+                    <Link href="/agent-ia?new=1">
+                      <Sparkles className="h-4 w-4" /> {tr("home.cta_ai")}
+                    </Link>
+                  </Button>
+                </>
+              )}
             </motion.div>
 
             <motion.div
@@ -158,7 +210,6 @@ export function HomeHero() {
             </motion.div>
           </div>
 
-          {/* Cartes produits flottantes */}
           <div className="relative hidden lg:block h-[380px]">
             {FLOATING.map((product, i) => (
               <motion.div
@@ -199,14 +250,19 @@ export function HomeHero() {
               transition={{ delay: 0.9, duration: 0.5 }}
               className="absolute bottom-8 left-8 bg-[#073B74]/90 backdrop-blur-md text-white rounded-xl px-4 py-3 border border-white/20 shadow-xl"
             >
-              <p className="text-[10px] uppercase tracking-wider text-white/60 mb-0.5">Export live</p>
-              <p className="text-lg font-black text-[#F5C518]">+127 devis</p>
-              <p className="text-[11px] text-white/70">ce mois-ci</p>
+              <p className="text-[10px] uppercase tracking-wider text-white/60 mb-0.5">
+                {buyerMode ? tr("home.buyer_live_label") : "Export live"}
+              </p>
+              <p className="text-lg font-black text-[#F5C518]">
+                {buyerMode ? tr("home.buyer_live_value") : "+127 devis"}
+              </p>
+              <p className="text-[11px] text-white/70">
+                {buyerMode ? tr("home.buyer_live_hint") : "ce mois-ci"}
+              </p>
             </motion.div>
           </div>
         </div>
 
-        {/* Stats */}
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
@@ -230,7 +286,6 @@ export function HomeHero() {
         </motion.div>
       </div>
 
-      {/* Bandeau défilant */}
       <div className="relative z-10 border-t border-white/10 bg-[#073B74]/60 backdrop-blur-sm overflow-hidden py-2.5">
         <div className="qdia-marquee-track flex gap-8 whitespace-nowrap">
           {[...MARQUEE_ITEMS, ...MARQUEE_ITEMS].map((item, i) => (
