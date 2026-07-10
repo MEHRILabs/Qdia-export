@@ -151,7 +151,13 @@ function tryDemoLogin(email: string, password: string) {
   return signToken(publicUser).then(token => ({ user: publicUser, token }));
 }
 
-export async function loginGoogle(input: { email: string; name: string; googleId?: string; idToken?: string }) {
+export async function loginGoogle(input: {
+  email: string;
+  name: string;
+  googleId?: string;
+  idToken?: string;
+  role?: string;
+}) {
   if (isProduction() && !input.idToken) {
     throw new Error("Token Google requis.");
   }
@@ -161,12 +167,19 @@ export async function loginGoogle(input: { email: string; name: string; googleId
     if (!verified) {
       throw new Error("Token Google invalide.");
     }
-    input = { email: verified.email, name: verified.name, googleId: verified.sub };
+    input = {
+      email: verified.email,
+      name: verified.name,
+      googleId: verified.sub,
+      role: input.role,
+    };
   } else if (!input.email) {
     throw new Error("Token Google invalide.");
   }
 
   if (!input.email) throw new Error("Email Google manquant.");
+
+  const chosenRole = input.role === "buyer" ? "buyer" : "supplier";
 
   let [user] = await db.select().from(usersTable).where(eq(usersTable.email, input.email)).limit(1);
 
@@ -176,7 +189,7 @@ export async function loginGoogle(input: { email: string; name: string; googleId
       name: input.name,
       googleId: input.googleId ?? `google-${input.email}`,
       provider: "google",
-      role: "supplier",
+      role: chosenRole,
       verified: true,
     }).returning();
   }
@@ -207,7 +220,7 @@ export async function sendPhoneOtp(phone: string) {
   };
 }
 
-export async function verifyPhoneOtp(phone: string, code: string) {
+export async function verifyPhoneOtp(phone: string, code: string, role?: string) {
   const normalized = phone.replace(/\s/g, "");
   const [otp] = await db.select().from(otpCodesTable).where(
     and(
@@ -222,13 +235,15 @@ export async function verifyPhoneOtp(phone: string, code: string) {
 
   await db.update(otpCodesTable).set({ used: true }).where(eq(otpCodesTable.id, otp.id));
 
+  const chosenRole = role === "buyer" ? "buyer" : "supplier";
+
   let [user] = await db.select().from(usersTable).where(eq(usersTable.phone, normalized)).limit(1);
   if (!user) {
     [user] = await db.insert(usersTable).values({
       phone: normalized,
-      name: "Exportateur DZ",
+      name: chosenRole === "buyer" ? "Acheteur DZ" : "Exportateur DZ",
       provider: "phone",
-      role: "supplier",
+      role: chosenRole,
       verified: true,
     }).returning();
   }

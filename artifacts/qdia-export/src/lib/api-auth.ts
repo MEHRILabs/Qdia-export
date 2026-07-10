@@ -72,10 +72,10 @@ async function authFetch<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const authApi = {
-  register: (email: string, password: string, name?: string) =>
+  register: (email: string, password: string, name?: string, role: "buyer" | "supplier" = "supplier") =>
     authFetch<AuthResponse>("/api/auth/register", {
       method: "POST",
-      body: JSON.stringify({ email, password, name, role: "supplier" }),
+      body: JSON.stringify({ email, password, name, role }),
     }),
 
   login: (email: string, password: string) =>
@@ -84,10 +84,22 @@ export const authApi = {
       body: JSON.stringify({ email, password }),
     }),
 
-  google: (email: string, name: string, googleId?: string, idToken?: string) =>
+  google: (
+    email: string,
+    name: string,
+    googleId?: string,
+    idToken?: string,
+    role: "buyer" | "supplier" = "supplier",
+  ) =>
     authFetch<AuthResponse>("/api/auth/google", {
       method: "POST",
-      body: JSON.stringify({ email, name, google_id: googleId, id_token: idToken }),
+      body: JSON.stringify({
+        email,
+        name,
+        google_id: googleId,
+        id_token: idToken,
+        role,
+      }),
     }),
 
   sendOtp: (phone: string) =>
@@ -96,10 +108,10 @@ export const authApi = {
       body: JSON.stringify({ phone }),
     }),
 
-  verifyOtp: (phone: string, code: string) =>
+  verifyOtp: (phone: string, code: string, role: "buyer" | "supplier" = "supplier") =>
     authFetch<AuthResponse>("/api/auth/phone/verify", {
       method: "POST",
-      body: JSON.stringify({ phone, code }),
+      body: JSON.stringify({ phone, code, role }),
     }),
 
   me: () => authFetch<{ user: AuthUser }>("/api/auth/me"),

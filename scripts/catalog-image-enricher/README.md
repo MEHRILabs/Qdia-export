@@ -93,14 +93,33 @@ Copiez ensuite les fichiers de `output/images/` vers le dossier uploads de l'API
 - `MAX_WORKERS` ≤ 3 recommandé avec Playwright.
 - Remove.bg : crédits API ; sinon `BG_PROVIDER=rembg` (local, plus lent au 1er run).
 
-## Bonus
+## Déploiement (production)
 
-Dans `.env` :
+### Option A — depuis votre PC (recommandé pour démarrer)
 
+1. Dans `.env`, mettez le `DATABASE_URL` **Render** (Postgres production).
+2. Lancez par lots :
+
+```bash
+python main.py --limit 100 --engine duckduckgo --workers 2
+python main.py --resume --limit 500
 ```
-GENERATE_DESCRIPTIONS=true
-TRANSLATE_DESCRIPTIONS=true
-OPENAI_API_KEY=sk-...
+
+3. Copiez `output/images/*.jpg` vers le stockage API :
+   - dossier `artifacts/api-server/uploads/catalog/` sur le serveur, **ou**
+   - bucket S3 / Render Disk monté sur `/uploads/catalog`.
+
+### Option B — job one-off sur Render
+
+1. Dashboard Render → **New** → **Background Worker** (ou Shell).
+2. Root : même repo, commande :
+
+```bash
+cd scripts/catalog-image-enricher && pip install -r requirements.txt && playwright install chromium && python main.py --resume --limit 200 --engine duckduckgo
 ```
 
-Génère une description FR si absente, et traductions EN/AR (stockage description FR en BDD par défaut).
+3. Variables d’env : `DATABASE_URL`, `REMOVEBG_API_KEY` (optionnel), `OUTPUT_DIR`.
+
+### Option C — cron nocturne
+
+Planifiez `python main.py --resume --limit 500` chaque nuit jusqu’à épuisement du catalogue (~19k).

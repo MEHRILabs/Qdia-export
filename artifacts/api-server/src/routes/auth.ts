@@ -25,10 +25,15 @@ const googleSchema = z.object({
   name: z.string().min(1),
   google_id: z.string().optional(),
   id_token: z.string().optional(),
+  role: z.enum(["buyer", "supplier"]).optional(),
 });
 
 const phoneSendSchema = z.object({ phone: z.string().min(8) });
-const phoneVerifySchema = z.object({ phone: z.string().min(8), code: z.string().min(4) });
+const phoneVerifySchema = z.object({
+  phone: z.string().min(8),
+  code: z.string().min(4),
+  role: z.enum(["buyer", "supplier"]).optional(),
+});
 
 router.post("/auth/register", authLimiter, async (req, res) => {
   try {
@@ -58,6 +63,7 @@ router.post("/auth/google", authLimiter, async (req, res) => {
       name: body.name,
       googleId: body.google_id,
       idToken: body.id_token,
+      role: body.role,
     });
     res.json(result);
   } catch (err) {
@@ -78,7 +84,7 @@ router.post("/auth/phone/send", authLimiter, async (req, res) => {
 router.post("/auth/phone/verify", authLimiter, async (req, res) => {
   try {
     const body = phoneVerifySchema.parse(req.body);
-    const result = await verifyPhoneOtp(body.phone, body.code);
+    const result = await verifyPhoneOtp(body.phone, body.code, body.role);
     res.json(result);
   } catch (err) {
     res.status(401).json({ error: err instanceof Error ? err.message : "OTP invalide" });

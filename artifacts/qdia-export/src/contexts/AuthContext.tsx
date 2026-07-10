@@ -10,10 +10,10 @@ interface AuthContextValue {
   token: string | null;
   isLoading: boolean;
   loginEmail: (email: string, password: string) => Promise<void>;
-  registerEmail: (email: string, password: string, name?: string) => Promise<void>;
-  loginGoogle: () => Promise<void>;
-  loginGoogleCredential: (cred: GoogleCredential) => Promise<void>;
-  loginPhone: (phone: string, code: string) => Promise<void>;
+  registerEmail: (email: string, password: string, name?: string, role?: "buyer" | "supplier") => Promise<void>;
+  loginGoogle: (role?: "buyer" | "supplier") => Promise<void>;
+  loginGoogleCredential: (cred: GoogleCredential, role?: "buyer" | "supplier") => Promise<void>;
+  loginPhone: (phone: string, code: string, role?: "buyer" | "supplier") => Promise<void>;
   sendPhoneCode: (phone: string) => Promise<void>;
   logout: () => void;
 }
@@ -48,27 +48,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     applyAuth(result);
   }, [applyAuth]);
 
-  const registerEmail = useCallback(async (email: string, password: string, name?: string) => {
-    const result = await authApi.register(email, password, name);
+  const registerEmail = useCallback(async (
+    email: string,
+    password: string,
+    name?: string,
+    role: "buyer" | "supplier" = "supplier",
+  ) => {
+    const result = await authApi.register(email, password, name, role);
     applyAuth(result);
   }, [applyAuth]);
 
-  const loginGoogleCredential = useCallback(async (cred: GoogleCredential) => {
-    const result = await authApi.google(cred.email, cred.name, cred.googleId, cred.idToken);
+  const loginGoogleCredential = useCallback(async (
+    cred: GoogleCredential,
+    role: "buyer" | "supplier" = "supplier",
+  ) => {
+    const result = await authApi.google(cred.email, cred.name, cred.googleId, cred.idToken, role);
     applyAuth(result);
   }, [applyAuth]);
 
-  const loginGoogle = useCallback(async () => {
+  const loginGoogle = useCallback(async (role: "buyer" | "supplier" = "supplier") => {
     const cred = await signInWithGoogle();
-    await loginGoogleCredential(cred);
+    await loginGoogleCredential(cred, role);
   }, [loginGoogleCredential]);
 
   const sendPhoneCode = useCallback(async (phone: string) => {
     await authApi.sendOtp(phone);
   }, []);
 
-  const loginPhone = useCallback(async (phone: string, code: string) => {
-    const result = await authApi.verifyOtp(phone, code);
+  const loginPhone = useCallback(async (
+    phone: string,
+    code: string,
+    role: "buyer" | "supplier" = "supplier",
+  ) => {
+    const result = await authApi.verifyOtp(phone, code, role);
     applyAuth(result);
   }, [applyAuth]);
 
