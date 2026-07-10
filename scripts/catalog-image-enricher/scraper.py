@@ -189,16 +189,41 @@ def search_google_image_urls(query: str, max_results: int = 8) -> list[str]:
     return ordered[:max_results]
 
 
-def search_duckduckgo_image_urls(query: str, max_results: int = 8) -> list[str]:
-    """Fallback DuckDuckGo (moins fragile que Google)."""
+def search_ddgs_image_urls(query: str, max_results: int = 8) -> list[str]:
+    """Recherche images via librairie ddgs (sans navigateur — plus fiable)."""
     try:
-        from playwright.sync_api import sync_playwright
-    except ImportError as e:
-        raise RuntimeError("Playwright requis") from e
+        from ddgs import DDGS
+    except ImportError:
+        from duckduckgo_search import DDGS  # type: ignore
 
     urls: list[str] = []
-    search_url = "https://duckduckgo.com/?q=" + quote_plus(query) + "&iax=images&ia=images"
+    try:
+        with DDGS() as ddgs:
+            results = ddgs.images(query, max_results=max_results * 2)
+            for r in results or []:
+                src = (r.get("image") or r.get("url") or "").strip()
+                if src.startswith("http") and not _is_blocked_url(src) and src not in urls:
+                    urls.append(src)
+                if len(urls) >= max_results:
+                    break
+    except Exception as exc:
+        logger.warning("ddgs images échoué: %s", exc)
+    logger.info("ddgs « %s » → %d URL(s)", query[:60], len(urls))
+    return urls
 
+
+def search_duckduckgo_image_urls(query: str, max_results: int = 8) -> list[str]:
+    """DuckDuckGo : ddgs d'abord, Playwright en secours."""
+    urls = search_ddgs_image_urls(query, max_results)
+    if urls:
+        return urls
+
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        return []
+
+    search_url = "https://duckduckgo.com/?q=" + quote_plus(query) + "&iax=images&ia=images"
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=HEADLESS)
         page = browser.new_page(user_agent=USER_AGENT)
@@ -213,14 +238,30 @@ def search_duckduckgo_image_urls(query: str, max_results: int = 8) -> list[str]:
                     urls.append(src)
                 if len(urls) >= max_results:
                     break
+        except Exception as exc:
+            logger.warning("Playwright DDG échoué: %s", exc)
         finally:
             browser.close()
     return urls
 
 
+def _build_search_query(title: str) -> str:
+    """Nettoie le titre produit pour une recherche image plus pertinente."""
+    q = re.sub(r"\s+", " ", title).strip()
+    # Retire poids / volumes trop spécifiques
+    q = re.sub(
+        r"\b\d+([.,]\d+)?\s*(g|gr|kg|ml|l|cl|pcs?|pi[eè]ces?)\b",
+        "",
+        q,
+        flags=re.I,
+    )
+    q = re.sub(r"\s+", " ", q).strip()
+    return f"{q} product packshot"
+
+
 def find_best_product_image(title: str) -> Optional[Image.Image]:
     """Recherche + télécharge la première image pertinente."""
-    query = re.sub(r"\s+", " ", title).strip()
+    query = _build_search_query(title)
     if not query:
         return None
 
@@ -231,16 +272,29 @@ def find_best_product_image(title: str) -> Optional[Image.Image]:
         else:
             candidates = search_google_image_urls(query)
             if not candidates:
-                logger.warning("Google vide — fallback DuckDuckGo pour « %s »", query[:40])
+                logger.warning("Google vide — fallback ddgs pour « %s »", query[:40])
                 candidates = search_duckduckgo_image_urls(query)
     except Exception as exc:
         logger.error("Recherche images échouée: %s", exc)
         return None
 
+    # Assouplir un peu la résolution min pour le 1er lot
     for url in candidates:
         polite_delay()
         img = download_image(url)
         if img:
-            logger.info("Image OK (%sx%s) ← %s", img.width, img.height, urlparse(url).netloc)
+            logger.info("Image OK (%sx%s) <- %s", img.width, img.height, urlparse(url).netloc)
             return img
+        # Retry sans filtre résolution stricte
+        try:
+            resp = SESSION.get(url, timeout=REQUEST_TIMEOUT)
+            if resp.ok and len(resp.content) >= MIN_FILE_BYTES and not _is_blocked_url(url):
+                from io import BytesIO
+                img2 = Image.open(BytesIO(resp.content))
+                img2.load()
+                if img2.width >= 400 and img2.height >= 400:
+                    logger.info("Image OK assouplie (%sx%s)", img2.width, img2.height)
+                    return img2.convert("RGBA")
+        except Exception:
+            continue
     return None

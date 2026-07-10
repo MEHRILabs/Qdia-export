@@ -44,7 +44,9 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[
         logging.FileHandler(LOG_FILE, encoding="utf-8"),
-        logging.StreamHandler(sys.stdout),
+        logging.StreamHandler(
+            open(sys.stdout.fileno(), mode="w", encoding="utf-8", errors="replace", closefd=False)
+        ),
     ],
 )
 logger = logging.getLogger("main")
@@ -182,7 +184,7 @@ def write_report(stats: Stats) -> None:
     }
     REPORT_FILE.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
     logger.info(
-        "Rapport: total=%d ok=%d skip=%d err=%d dup=%d → %s",
+        "Rapport: total=%d ok=%d skip=%d err=%d dup=%d -> %s",
         stats.total,
         stats.success,
         stats.skipped,
