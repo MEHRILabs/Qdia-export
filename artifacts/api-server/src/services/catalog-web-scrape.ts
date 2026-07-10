@@ -78,6 +78,13 @@ async function tryDownloadAndSave(productId: number, imageUrl: string): Promise<
   const raw = Buffer.from(base64, "base64");
   if (raw.byteLength < MIN_BYTES) return null;
   if (!mime.startsWith("image/")) return null;
+
+  // Sur Render le disque est éphémère : on garde l'URL https source (durable).
+  const ephemeralDisk = process.env.RENDER === "true" || process.env.CATALOG_IMAGE_MODE === "remote";
+  if (ephemeralDisk) {
+    return imageUrl;
+  }
+
   const ext = mime.includes("png") ? "png" : mime.includes("webp") ? "webp" : "jpg";
   return saveCatalogImage(`product_${productId}`, base64, ext);
 }

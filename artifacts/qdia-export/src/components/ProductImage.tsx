@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Camera } from "lucide-react";
 import { hasRealProductImage, resolveProductImageUrl } from "@/lib/images";
 import { cn } from "@/lib/utils";
@@ -14,7 +15,7 @@ interface ProductImageProps {
 
 /**
  * Affiche la vraie photo produit, ou un placeholder « QDIA Photo » élégant
- * tant qu'aucune image IA n'a été générée.
+ * tant qu'aucune image n'est disponible (ou si le fichier distant est cassé).
  */
 export function ProductImage({
   src,
@@ -23,12 +24,15 @@ export function ProductImage({
   fit = "cover",
   compact = false,
 }: ProductImageProps) {
-  if (hasRealProductImage(src)) {
+  const [broken, setBroken] = useState(false);
+
+  if (hasRealProductImage(src) && !broken) {
     return (
       <img
         src={resolveProductImageUrl(src)}
         alt={alt}
         loading="lazy"
+        onError={() => setBroken(true)}
         className={cn(fit === "cover" ? "object-cover" : "object-contain", className)}
       />
     );

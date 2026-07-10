@@ -54,6 +54,11 @@ async function persistProductImage(
 ): Promise<string> {
   const masterId = product.sku?.trim() || `product-${product.id}`;
   const { data, mimeType } = normalizeImageBase64(fileBase64);
+  // Render : disque éphémère → data URL en BDD pour que la photo survive aux redéploiements
+  if (process.env.RENDER === "true" || process.env.CATALOG_IMAGE_MODE === "data") {
+    const raw = data.replace(/^data:image\/\w+;base64,/, "");
+    return `data:${mimeType};base64,${raw}`;
+  }
   return saveCatalogImage(masterId, data, imageExtFromMime(mimeType));
 }
 
@@ -750,6 +755,8 @@ router.patch("/products/:id", requireAuth, requireRole("supplier", "admin"), asy
     export_authorized: z.boolean().optional(),
     stock_countries: z.array(z.string().min(2).max(3)).optional(),
     origin_country: z.string().min(2).max(3).optional(),
+    image_url: z.string().min(1).optional(),
+    images: z.array(z.string()).optional(),
   }).safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -778,6 +785,8 @@ router.patch("/products/:id", requireAuth, requireRole("supplier", "admin"), asy
   if (parsed.data.export_authorized != null) update.exportAuthorized = parsed.data.export_authorized;
   if (parsed.data.stock_countries) update.stockCountries = parsed.data.stock_countries.map(c => c.toUpperCase());
   if (parsed.data.origin_country) update.originCountry = parsed.data.origin_country.toUpperCase();
+  if (parsed.data.image_url) update.imageUrl = parsed.data.image_url;
+  if (parsed.data.images) update.images = parsed.data.images;
 
   if (!Object.keys(update).length) {
     res.status(400).json({ error: "Aucune modification" });
