@@ -78,7 +78,6 @@ export default function AdminReview() {
   } | null>(null);
   const [enriching, setEnriching] = useState(false);
   const [scraping, setScraping] = useState(false);
-  const [purging, setPurging] = useState(false);
   const [scrapeProgress, setScrapeProgress] = useState<string | null>(null);
   const [reviewIds, setReviewIds] = useState<number[]>([]);
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -139,29 +138,7 @@ export default function AdminReview() {
     }
   };
 
-  const runPurgeUnsafePhotos = async () => {
-    setPurging(true);
-    try {
-      const result = await platformApi.purgeUnsafePhotos();
-      toast({
-        title: tr("admin.purge_done"),
-        description: tr("admin.purge_done_desc").replace("{cleared}", String(result.cleared)),
-      });
-      const status = await platformApi.getEnrichmentStatus();
-      setEnrichStatus(status);
-      void loadStats();
-    } catch (e) {
-      toast({
-        title: tr("common.error"),
-        description: String(e instanceof Error ? e.message : e),
-        variant: "destructive",
-      });
-    } finally {
-      setPurging(false);
-    }
-  };
-
-  /** Lots de 5 (timeout Render ~30s) jusqu’à atteindre 20 ou 30 photos OK. */
+  /** Lots de 5 — images depuis sites alimentaires algériens, puis validation. */
   const runScrapePhotos = async (target = 20) => {
     const CHUNK = 5;
     const maxRounds = Math.ceil(target / CHUNK) + 4;
@@ -292,20 +269,10 @@ export default function AdminReview() {
                 </div>
                 <div className="flex flex-wrap gap-2 shrink-0">
                   <Button
-                    variant="destructive"
-                    size="sm"
-                    className="gap-2 font-bold"
-                    disabled={scraping || enriching || purging}
-                    onClick={() => void runPurgeUnsafePhotos()}
-                  >
-                    {purging ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
-                    {purging ? tr("admin.purge_running") : tr("admin.purge_btn")}
-                  </Button>
-                  <Button
                     variant="gold"
                     size="sm"
                     className="gap-2 font-bold"
-                    disabled={scraping || enriching || purging}
+                    disabled={scraping || enriching}
                     onClick={() => void runScrapePhotos(20)}
                   >
                     {scraping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
@@ -315,7 +282,7 @@ export default function AdminReview() {
                     variant="outline"
                     size="sm"
                     className="gap-2 font-bold border-[#0461A5]/40"
-                    disabled={scraping || enriching || purging}
+                    disabled={scraping || enriching}
                     onClick={() => void runScrapePhotos(30)}
                   >
                     {scraping ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}

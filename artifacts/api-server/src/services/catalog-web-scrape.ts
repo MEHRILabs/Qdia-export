@@ -1,5 +1,5 @@
 /**
- * Recherche web d'images packshot (Bing SafeSearch) + enregistrement catalogue.
+ * Recherche images packshot — priorité sites alimentaires algériens.
  * Filtre NSFW strict — refuse les URLs adult / hors produit.
  */
 import { eq, or, isNull, sql, and } from "drizzle-orm";
@@ -13,8 +13,8 @@ import {
   scoreSafeProductCandidate,
   shouldPurgeCatalogImage,
 } from "./catalog-image-safety";
+import { searchAlgerianProductImageUrls } from "./algeria-product-images";
 
-const SEARCH_TIMEOUT_MS = 15_000;
 const MIN_BYTES = 8_000;
 const MAX_CANDIDATES = 8;
 
@@ -31,7 +31,7 @@ export interface PurgeUnsafeResult {
   ids: number[];
 }
 
-/** Extrait des URLs d'images depuis la réponse async Bing Images. */
+/** @deprecated conservé pour tests — préférer searchProductImageUrls */
 export function extractBingImageUrls(html: string, productName = ""): string[] {
   const urls = new Set<string>();
   const murlRe = /murl&quot;:&quot;(https?:\/\/[^&]+?)&quot;/gi;
@@ -57,52 +57,11 @@ export function extractBingImageUrls(html: string, productName = ""): string[] {
     .map((x) => x.url);
 }
 
-function buildSafeSearchQuery(productName: string, category?: string | null): string {
-  const cat = (category ?? "").trim();
-  const name = productName.trim().slice(0, 80);
-  // Requête très ciblée packshot alimentaire / emballage — évite le contenu adulte
-  const bits = [
-    `"${name}"`,
-    cat ? cat : "agroalimentaire",
-    "product packaging",
-    "packshot",
-    "white background",
-    "-lingerie",
-    "-nude",
-    "-sexy",
-    "-porn",
-    "-adult",
-  ];
-  return bits.join(" ");
-}
-
 export async function searchProductImageUrls(
   productName: string,
   category?: string | null,
 ): Promise<string[]> {
-  const q = buildSafeSearchQuery(productName, category);
-  // adlt=strict = SafeSearch Bing
-  const url =
-    `https://www.bing.com/images/async?q=${encodeURIComponent(q)}` +
-    `&async=1&first=1&count=35&adlt=strict&safesearch=strict`;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), SEARCH_TIMEOUT_MS);
-  try {
-    const resp = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        Accept: "text/html,application/xhtml+xml",
-        "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
-      },
-    });
-    if (!resp.ok) throw new Error(`Bing HTTP ${resp.status}`);
-    const html = await resp.text();
-    return extractBingImageUrls(html, productName);
-  } finally {
-    clearTimeout(timer);
-  }
+  return searchAlgerianProductImageUrls(productName, category);
 }
 
 async function tryDownloadAndSave(productId: number, imageUrl: string, productName?: string): Promise<string | null> {

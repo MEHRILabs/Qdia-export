@@ -618,7 +618,7 @@
     "scrape_card_desc": "Batches of 50: web search, clean background, square crop, QDIA watermark, compression. Auto-resume if interrupted.",
     "scrape_btn_20": "Scrape 20 photos",
     "scrape_btn_30": "Scrape 30 photos",
-    "scrape_card_desc_short": "Purge +18, SafeSearch scrape (batches of 5), then a window to approve/edit each photo before publishing.",
+    "scrape_card_desc_short": "Photos from Algerian food sites (Tidjaria, Elwajed, Batolis…). Then a window to approve/edit before publishing.",
     "purge_btn": "Purge +18 photos",
     "purge_running": "Purging…",
     "purge_done": "Unsafe photos removed",

@@ -15,7 +15,7 @@ const JUNK_URL_RE =
 
 /** Hôtes autorisés pour conserver une image distante (sinon purge des scrapes web). */
 const TRUSTED_HOST_RE =
-  /(?:^|\.)(?:onrender\.com|qdiadz\.com|qdia-export|cloudinary\.com|imgur\.com|googleusercontent\.com|ggpht\.com|alicdn\.com|alibaba\.com|alibaba-inc\.com|slatic\.net|shopify\.com|amazonaws\.com|cloudfront\.net)$/i;
+  /(?:^|\.)(?:onrender\.com|qdiadz\.com|qdia-export|cloudinary\.com|imgur\.com|googleusercontent\.com|ggpht\.com|alicdn\.com|alibaba\.com|alibaba-inc\.com|slatic\.net|shopify\.com|amazonaws\.com|cloudfront\.net|tidjaria\.com|elwajed\.com|batolis\.com|yassir\.com)$/i;
 
 export function isNsfwOrBlockedImageUrl(url: string | null | undefined): boolean {
   if (!url?.trim()) return false;
@@ -59,6 +59,7 @@ export function scoreSafeProductCandidate(url: string, productName = ""): number
   if (isNsfwOrBlockedImageUrl(u)) return -100;
   if (/\.(jpe?g|png|webp)(\?|$)/i.test(u)) s += 3;
   if (/product|pack|packshot|catalog|produit|emballage|bottle|jar|box|sachet|epice|huile|datte|agro/i.test(u)) s += 4;
+  if (/tidjaria|elwajed|batolis|yassir|cevital|soummam/i.test(u)) s += 8;
   if (/white.?background|isolated|studio/i.test(u)) s += 2;
   const tokens = productName
     .toLowerCase()
