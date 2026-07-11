@@ -498,17 +498,29 @@ router.post("/admin/scrape-photos/stop", requireAuth, requireRole("admin"), asyn
   res.json(stopScrapeJob());
 });
 
-/** One-shot court (max 5) — Render coupe ~30s ; l’admin enchaîne des lots pour 20/30 */
+/** One-shot court (max 5) — purge NSFW d'abord, puis scrape SafeSearch */
 router.post("/admin/scrape-photos", requireAuth, requireRole("admin"), async (req, res) => {
   try {
     const limitRaw = Number(req.body?.limit ?? 5);
     const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.floor(limitRaw), 1), 5) : 5;
-    const { scrapeCatalogPhotosBatch, scrapeOneProductPhoto } = await import("../services/catalog-web-scrape");
+    const { scrapeCatalogPhotosBatch, scrapeOneProductPhoto, purgeUnsafeCatalogImages } = await import("../services/catalog-web-scrape");
+
+    // Purge une fois (les lots suivants envoient skip_purge)
+    if (req.body?.skip_purge !== true) {
+      await purgeUnsafeCatalogImages();
+    }
 
     if (req.body?.product_id) {
       const id = Number(req.body.product_id);
       const one = await scrapeOneProductPhoto(id);
-      res.json({ processed: 1, ok: one.ok ? 1 : 0, skipped: 0, errors: one.ok ? [] : [one.reason ?? "echec"], image_url: one.image_url });
+      res.json({
+        processed: 1,
+        ok: one.ok ? 1 : 0,
+        skipped: 0,
+        errors: one.ok ? [] : [one.reason ?? "echec"],
+        image_url: one.image_url,
+        ids_ok: one.ok && one.reason !== "deja_ok" ? [id] : [],
+      });
       return;
     }
 
@@ -516,6 +528,73 @@ router.post("/admin/scrape-photos", requireAuth, requireRole("admin"), async (re
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "Scraping photos échoué" });
+  }
+});
+
+/** Purge immédiate des photos web NSFW / non fiables du catalogue */
+router.post("/admin/purge-unsafe-photos", requireAuth, requireRole("admin"), async (_req, res) => {
+  try {
+    const { purgeUnsafeCatalogImages } = await import("../services/catalog-web-scrape");
+    const result = await purgeUnsafeCatalogImages();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Purge échouée" });
+  }
+});
+
+/** Photos scrapées en attente de validation */
+router.get("/admin/photo-reviews", requireAuth, requireRole("admin"), async (req, res) => {
+  try {
+    const { listPhotoReviews } = await import("../services/catalog-web-scrape");
+    const idsRaw = String(req.query.ids ?? "");
+    const ids = idsRaw
+      .split(",")
+      .map((x) => Number(x.trim()))
+      .filter((n) => Number.isFinite(n) && n > 0);
+    const data = await listPhotoReviews(ids.length ? ids : undefined);
+    res.json({ data });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Liste reviews échouée" });
+  }
+});
+
+router.post("/admin/photo-reviews/approve", requireAuth, requireRole("admin"), async (req, res) => {
+  try {
+    const ids = (Array.isArray(req.body?.ids) ? req.body.ids : [])
+      .map((x: unknown) => Number(x))
+      .filter((n: number) => Number.isFinite(n) && n > 0);
+    const { approvePhotoReviews } = await import("../services/catalog-web-scrape");
+    res.json(await approvePhotoReviews(ids));
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Approbation échouée" });
+  }
+});
+
+router.post("/admin/photo-reviews/reject", requireAuth, requireRole("admin"), async (req, res) => {
+  try {
+    const ids = (Array.isArray(req.body?.ids) ? req.body.ids : [])
+      .map((x: unknown) => Number(x))
+      .filter((n: number) => Number.isFinite(n) && n > 0);
+    const { rejectPhotoReviews } = await import("../services/catalog-web-scrape");
+    res.json(await rejectPhotoReviews(ids));
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Rejet échoué" });
+  }
+});
+
+router.post("/admin/photo-reviews/rescrape", requireAuth, requireRole("admin"), async (req, res) => {
+  try {
+    const id = Number(req.body?.id);
+    if (!Number.isFinite(id) || id <= 0) {
+      res.status(400).json({ error: "id requis" });
+      return;
+    }
+    const { rescrapeProductPhotoForReview, listPhotoReviews } = await import("../services/catalog-web-scrape");
+    const one = await rescrapeProductPhotoForReview(id);
+    const [item] = await listPhotoReviews([id]);
+    res.json({ ...one, item: item ?? null });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Re-scrape échoué" });
   }
 });
 

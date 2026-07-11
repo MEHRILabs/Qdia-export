@@ -23,6 +23,7 @@ import {
   hasRealProductImage,
 } from "../services/product-enrichment";
 import { syncPremiumFeaturedProducts, promoteProductToFeatured } from "../services/featured-products";
+import { shouldPurgeCatalogImage } from "../services/catalog-image-safety";
 import { verifyToken, getUserById } from "../services/auth";
 import { logger } from "../lib/logger";
 import {
@@ -113,14 +114,20 @@ function compactImageUrl(productId: number, url?: string | null): string | null 
   return url;
 }
 
+function safeCatalogImageUrl(productId: number, url?: string | null, compact = true): string | null | undefined {
+  if (!url) return url;
+  if (shouldPurgeCatalogImage(url)) return null;
+  return compact ? compactImageUrl(productId, url) : url;
+}
+
 function toProductShape(p: typeof productsTable.$inferSelect, opts?: { compactImages?: boolean }) {
   const stockCountries = p.stockCountries?.length
     ? p.stockCountries
     : inferStockCountries(p.targetMarkets ?? []);
   const compact = opts?.compactImages !== false;
-  const imageUrl = compact ? compactImageUrl(p.id, p.imageUrl) : p.imageUrl;
+  const imageUrl = safeCatalogImageUrl(p.id, p.imageUrl, compact);
   const images = (p.images ?? [])
-    .map(img => (compact ? compactImageUrl(p.id, img) : img))
+    .map(img => safeCatalogImageUrl(p.id, img, compact))
     .filter((x): x is string => Boolean(x));
   return {
     id: p.id,
@@ -312,13 +319,14 @@ router.get("/products", optionalAuth, async (req: AuthedRequest, res): Promise<v
   let listQuery = db.select().from(productsTable).$dynamic();
   if (conditions.length > 0) listQuery = listQuery.where(and(...conditions));
   if (isPublicCatalog) {
-    // Priorité stricte : vraie photo (http/data/api) → uploads → placeholder → vide
+    // Priorité : photo locale/proxy fiable → placeholder → vide (pas les URL http scrapées brutes)
     listQuery = listQuery.orderBy(
       sql`CASE
-        WHEN ${productsTable.imageUrl} LIKE 'http%' OR ${productsTable.imageUrl} LIKE 'data:%' OR ${productsTable.imageUrl} LIKE '/api/products/%' THEN 0
-        WHEN ${productsTable.imageUrl} LIKE '/uploads/catalog/%' AND ${productsTable.imageUrl} NOT LIKE '%.svg' THEN 1
+        WHEN ${productsTable.imageUrl} LIKE 'data:%' OR ${productsTable.imageUrl} LIKE '/api/products/%' THEN 0
+        WHEN ${productsTable.imageUrl} LIKE '/uploads/catalog/%' AND ${productsTable.imageUrl} NOT LIKE '%.svg' THEN 0
         WHEN ${productsTable.imageUrl} LIKE '%qdia-photo-placeholder%' OR ${productsTable.imageUrl} LIKE '%.svg' THEN 3
         WHEN ${productsTable.imageUrl} IS NULL OR trim(${productsTable.imageUrl}) = '' THEN 4
+        WHEN ${productsTable.imageUrl} LIKE 'http%' THEN 4
         ELSE 2
       END`,
       sql`CASE WHEN length(coalesce(${productsTable.description}, '')) >= 40 THEN 0 ELSE 1 END`,
@@ -871,15 +879,22 @@ router.get("/products/:id/image", async (req, res): Promise<void> => {
     return;
   }
   const [product] = await db
-    .select({ imageUrl: productsTable.imageUrl })
+    .select({ imageUrl: productsTable.imageUrl, images: productsTable.images })
     .from(productsTable)
     .where(eq(productsTable.id, id))
     .limit(1);
-  if (!product?.imageUrl) {
+  if (!product) {
     res.status(404).json({ error: "Image introuvable" });
     return;
   }
-  const url = product.imageUrl;
+  // Photo en attente de validation (images[0]=marker, images[1]=data/url)
+  const pending =
+    product.images?.[0] === "__qdia_photo_review__" ? product.images[1] : null;
+  const url = product.imageUrl || pending;
+  if (!url) {
+    res.status(404).json({ error: "Image introuvable" });
+    return;
+  }
   if (url.startsWith("data:")) {
     const m = url.match(/^data:(image\/[\w.+-]+);base64,(.+)$/s);
     if (!m) {
@@ -887,7 +902,7 @@ router.get("/products/:id/image", async (req, res): Promise<void> => {
       return;
     }
     res.setHeader("Content-Type", m[1]);
-    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.setHeader("Cache-Control", "private, max-age=60");
     res.send(Buffer.from(m[2], "base64"));
     return;
   }

@@ -1,14 +1,18 @@
 /**
- * Recherche web d'images packshot (Bing) + enregistrement catalogue.
- * Utilisé par le bouton admin « Scraper photos » (pas besoin de Python/CLI).
+ * Recherche web d'images packshot (Bing SafeSearch) + enregistrement catalogue.
+ * Filtre NSFW strict — refuse les URLs adult / hors produit.
  */
-import { eq, or, isNull, sql } from "drizzle-orm";
+import { eq, or, isNull, sql, and } from "drizzle-orm";
 import { db, productsTable } from "@workspace/db";
 import { logger } from "../lib/logger";
 import { fetchImageAsBase64 } from "./image-scraper";
 import { saveCatalogImage } from "./catalog-image-store";
 import { hasRealProductImage, needsPhoto } from "./product-enrichment";
-import { promoteProductToFeatured } from "./featured-products";
+import {
+  isNsfwOrBlockedImageUrl,
+  scoreSafeProductCandidate,
+  shouldPurgeCatalogImage,
+} from "./catalog-image-safety";
 
 const SEARCH_TIMEOUT_MS = 15_000;
 const MIN_BYTES = 8_000;
@@ -22,18 +26,13 @@ export interface ScrapePhotosResult {
   ids_ok?: number[];
 }
 
-function scoreCandidate(url: string): number {
-  const u = url.toLowerCase();
-  let s = 0;
-  if (/\.(jpe?g|png|webp)(\?|$)/i.test(u)) s += 3;
-  if (/product|pack|catalog|produit|epice|huile|datte/.test(u)) s += 2;
-  if (/logo|icon|avatar|sprite|favicon|1x1|pixel|banner/.test(u)) s -= 6;
-  if (/bing\.com\/th|thumbnail/.test(u)) s -= 1;
-  return s;
+export interface PurgeUnsafeResult {
+  cleared: number;
+  ids: number[];
 }
 
 /** Extrait des URLs d'images depuis la réponse async Bing Images. */
-export function extractBingImageUrls(html: string): string[] {
+export function extractBingImageUrls(html: string, productName = ""): string[] {
   const urls = new Set<string>();
   const murlRe = /murl&quot;:&quot;(https?:\/\/[^&]+?)&quot;/gi;
   const jsonRe = /"murl"\s*:\s*"(https?:\/\/[^"]+)"/gi;
@@ -42,18 +41,50 @@ export function extractBingImageUrls(html: string): string[] {
     while ((m = re.exec(html)) !== null) {
       try {
         const url = decodeURIComponent(m[1].replace(/\\u0026/g, "&").replace(/\\\//g, "/"));
-        if (/^https?:\/\//i.test(url)) urls.add(url);
+        if (!/^https?:\/\//i.test(url)) continue;
+        if (isNsfwOrBlockedImageUrl(url)) continue;
+        urls.add(url);
       } catch {
         /* ignore */
       }
     }
   }
-  return [...urls].sort((a, b) => scoreCandidate(b) - scoreCandidate(a)).slice(0, MAX_CANDIDATES);
+  return [...urls]
+    .map((url) => ({ url, score: scoreSafeProductCandidate(url, productName) }))
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, MAX_CANDIDATES)
+    .map((x) => x.url);
 }
 
-export async function searchProductImageUrls(productName: string): Promise<string[]> {
-  const q = `${productName} product packshot`;
-  const url = `https://www.bing.com/images/async?q=${encodeURIComponent(q)}&async=1&first=1&count=35`;
+function buildSafeSearchQuery(productName: string, category?: string | null): string {
+  const cat = (category ?? "").trim();
+  const name = productName.trim().slice(0, 80);
+  // Requête très ciblée packshot alimentaire / emballage — évite le contenu adulte
+  const bits = [
+    `"${name}"`,
+    cat ? cat : "agroalimentaire",
+    "product packaging",
+    "packshot",
+    "white background",
+    "-lingerie",
+    "-nude",
+    "-sexy",
+    "-porn",
+    "-adult",
+  ];
+  return bits.join(" ");
+}
+
+export async function searchProductImageUrls(
+  productName: string,
+  category?: string | null,
+): Promise<string[]> {
+  const q = buildSafeSearchQuery(productName, category);
+  // adlt=strict = SafeSearch Bing
+  const url =
+    `https://www.bing.com/images/async?q=${encodeURIComponent(q)}` +
+    `&async=1&first=1&count=35&adlt=strict&safesearch=strict`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), SEARCH_TIMEOUT_MS);
   try {
@@ -63,26 +94,52 @@ export async function searchProductImageUrls(productName: string): Promise<strin
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         Accept: "text/html,application/xhtml+xml",
+        "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
       },
     });
     if (!resp.ok) throw new Error(`Bing HTTP ${resp.status}`);
     const html = await resp.text();
-    return extractBingImageUrls(html);
+    return extractBingImageUrls(html, productName);
   } finally {
     clearTimeout(timer);
   }
 }
 
 async function tryDownloadAndSave(productId: number, imageUrl: string, productName?: string): Promise<string | null> {
+  if (isNsfwOrBlockedImageUrl(imageUrl)) return null;
+
   const { base64, mime } = await fetchImageAsBase64(imageUrl);
   const raw = Buffer.from(base64, "base64");
   if (raw.byteLength < MIN_BYTES) return null;
   if (!mime.startsWith("image/")) return null;
 
-  // Render : URL https source (légère) — data URL trop lourde pour 19k produits
+  // Heuristique peau seulement si l'URL n'a aucun signal « produit »
+  const urlScore = scoreSafeProductCandidate(imageUrl, productName);
+  if (urlScore < 4 && (await looksMostlySkinTone(raw))) {
+    logger.warn({ productId, imageUrl: imageUrl.slice(0, 120) }, "image rejetée (heuristique peau)");
+    return null;
+  }
+
+  // Render : on n'enregistre PAS l'URL source externe (risque NSFW / disparition).
+  // On stocke en data-URL courte via proxy, ou on refuse si trop lourd → placeholder null.
   const ephemeralDisk = process.env.RENDER === "true" || process.env.CATALOG_IMAGE_MODE === "remote";
   if (ephemeralDisk) {
-    return imageUrl;
+    // Compresser via sharp si dispo, sinon data URL limitée
+    try {
+      const { processCatalogPhoto } = await import("./catalog-image-process");
+      const processed = await processCatalogPhoto(base64, productName);
+      if (!processed?.base64) return null;
+      const dataUrl = `data:image/jpeg;base64,${processed.base64}`;
+      // Trop gros pour la DB → refuser (évite OOM) — l'admin pourra re-scraper plus tard
+      if (dataUrl.length > 180_000) {
+        logger.warn({ productId, len: dataUrl.length }, "image trop lourde après process, skip");
+        return null;
+      }
+      return dataUrl;
+    } catch (err) {
+      logger.warn({ err, productId }, "process image Render échoué");
+      return null;
+    }
   }
 
   const { processCatalogPhoto } = await import("./catalog-image-process");
@@ -91,31 +148,198 @@ async function tryDownloadAndSave(productId: number, imageUrl: string, productNa
   return saveCatalogImage(`product_${productId}`, outB64, "jpg");
 }
 
+/** Détection grossière NSFW via proportion de pixels « peau ». */
+async function looksMostlySkinTone(buf: Buffer): Promise<boolean> {
+  try {
+    const sharp = (await import("sharp")).default;
+    const { data, info } = await sharp(buf)
+      .resize(64, 64, { fit: "inside" })
+      .removeAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const pixels = info.width * info.height;
+    if (pixels < 16) return false;
+    let skin = 0;
+    for (let i = 0; i < data.length; i += 3) {
+      const r = data[i]!;
+      const g = data[i + 1]!;
+      const b = data[i + 2]!;
+      // Plages peau courantes (approximation)
+      const isSkin =
+        r > 95 && g > 40 && b > 20 &&
+        r > g && r > b &&
+        Math.abs(r - g) > 15 &&
+        r - b > 15;
+      if (isSkin) skin++;
+    }
+    return skin / pixels > 0.55;
+  } catch {
+    return false;
+  }
+}
+
 export async function scrapeOneProductPhoto(
   productId: number,
 ): Promise<{ ok: boolean; image_url?: string; reason?: string }> {
   const [p] = await db.select().from(productsTable).where(eq(productsTable.id, productId)).limit(1);
   if (!p) return { ok: false, reason: "introuvable" };
-  if (hasRealProductImage(p.imageUrl) && !needsPhoto(p)) {
+
+  // Purge si déjà une image dangereuse / non fiable
+  if (shouldPurgeCatalogImage(p.imageUrl)) {
+    await db
+      .update(productsTable)
+      .set({ imageUrl: null, images: [], isFeatured: false })
+      .where(eq(productsTable.id, p.id));
+  } else if (hasRealProductImage(p.imageUrl) && !needsPhoto(p)) {
     return { ok: true, image_url: p.imageUrl ?? undefined, reason: "deja_ok" };
   }
 
-  const candidates = await searchProductImageUrls(p.name);
+  const candidates = await searchProductImageUrls(p.name, p.category);
   for (const candidate of candidates) {
+    if (isNsfwOrBlockedImageUrl(candidate)) continue;
     try {
       const saved = await tryDownloadAndSave(p.id, candidate, p.name);
       if (!saved) continue;
+      if (isNsfwOrBlockedImageUrl(saved)) continue;
+      // En attente de validation admin — pas visible dans le catalogue public
       await db
         .update(productsTable)
-        .set({ imageUrl: saved, images: [saved] })
+        .set({
+          imageUrl: null,
+          images: ["__qdia_photo_review__", saved],
+          isFeatured: false,
+        })
         .where(eq(productsTable.id, p.id));
-      void promoteProductToFeatured(p.id);
       return { ok: true, image_url: saved };
     } catch (err) {
       logger.warn({ err, productId: p.id, candidate }, "candidat image rejeté");
     }
   }
   return { ok: false, reason: "aucune_image" };
+}
+
+/**
+ * Retire du catalogue toutes les images web non fiables / NSFW
+ * (URLs https scrapées Bing, domaines adult, etc.).
+ */
+export async function purgeUnsafeCatalogImages(): Promise<PurgeUnsafeResult> {
+  const rows = await db
+    .select({ id: productsTable.id, imageUrl: productsTable.imageUrl, images: productsTable.images })
+    .from(productsTable)
+    .where(
+      and(
+        sql`${productsTable.imageUrl} IS NOT NULL`,
+        sql`trim(${productsTable.imageUrl}) <> ''`,
+      ),
+    );
+
+  const ids: number[] = [];
+  for (const row of rows) {
+    const badMain = shouldPurgeCatalogImage(row.imageUrl);
+    const badGallery = (row.images ?? []).some((u) => shouldPurgeCatalogImage(u));
+    if (!badMain && !badGallery) continue;
+    await db
+      .update(productsTable)
+      .set({ imageUrl: null, images: [], isFeatured: false })
+      .where(eq(productsTable.id, row.id));
+    ids.push(row.id);
+  }
+
+  logger.info({ cleared: ids.length }, "purge images catalogue non sûres");
+  return { cleared: ids.length, ids: ids.slice(0, 200) };
+}
+
+export const PHOTO_REVIEW_MARKER = "__qdia_photo_review__";
+
+export function getPendingReviewImage(images?: string[] | null): string | null {
+  if (!images?.length) return null;
+  if (images[0] === PHOTO_REVIEW_MARKER && images[1]) return images[1];
+  return null;
+}
+
+export async function listPhotoReviews(ids?: number[]) {
+  const rows = ids?.length
+    ? await db
+        .select({
+          id: productsTable.id,
+          name: productsTable.name,
+          category: productsTable.category,
+          images: productsTable.images,
+          imageUrl: productsTable.imageUrl,
+        })
+        .from(productsTable)
+        .where(sql`${productsTable.id} IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})`)
+    : await db
+        .select({
+          id: productsTable.id,
+          name: productsTable.name,
+          category: productsTable.category,
+          images: productsTable.images,
+          imageUrl: productsTable.imageUrl,
+        })
+        .from(productsTable)
+        .where(sql`${productsTable.images}[1] = ${PHOTO_REVIEW_MARKER}`)
+        .limit(60);
+
+  return rows
+    .map((r) => {
+      const pending = getPendingReviewImage(r.images);
+      const url = pending ?? (hasRealProductImage(r.imageUrl) ? r.imageUrl : null);
+      if (!url) return null;
+      return {
+        id: r.id,
+        name: r.name,
+        category: r.category,
+        image_url: url.startsWith("data:") ? `/api/products/${r.id}/image?review=1` : url,
+        pending: Boolean(pending),
+      };
+    })
+    .filter(Boolean) as Array<{
+    id: number;
+    name: string;
+    category: string | null;
+    image_url: string;
+    pending: boolean;
+  }>;
+}
+
+export async function approvePhotoReviews(ids: number[]): Promise<{ approved: number }> {
+  let approved = 0;
+  for (const id of ids) {
+    const [p] = await db.select().from(productsTable).where(eq(productsTable.id, id)).limit(1);
+    if (!p) continue;
+    const pending = getPendingReviewImage(p.images);
+    if (!pending || isNsfwOrBlockedImageUrl(pending)) continue;
+    await db
+      .update(productsTable)
+      .set({ imageUrl: pending, images: [pending], isFeatured: false })
+      .where(eq(productsTable.id, id));
+    approved++;
+  }
+  return { approved };
+}
+
+export async function rejectPhotoReviews(ids: number[]): Promise<{ rejected: number }> {
+  let rejected = 0;
+  for (const id of ids) {
+    await db
+      .update(productsTable)
+      .set({ imageUrl: null, images: [], isFeatured: false })
+      .where(eq(productsTable.id, id));
+    rejected++;
+  }
+  return { rejected };
+}
+
+export async function rescrapeProductPhotoForReview(
+  productId: number,
+): Promise<{ ok: boolean; image_url?: string; reason?: string }> {
+  // Force re-scrape même si pending
+  await db
+    .update(productsTable)
+    .set({ imageUrl: null, images: [], isFeatured: false })
+    .where(eq(productsTable.id, productId));
+  return scrapeOneProductPhoto(productId);
 }
 
 export async function scrapeCatalogPhotosBatch(
@@ -147,7 +371,7 @@ export async function scrapeCatalogPhotosBatch(
 
   for (const p of rows) {
     if (result.ok >= limit) break;
-    if (!needsPhoto(p) || hasRealProductImage(p.imageUrl)) {
+    if (!needsPhoto(p) || (hasRealProductImage(p.imageUrl) && !shouldPurgeCatalogImage(p.imageUrl))) {
       result.skipped++;
       continue;
     }

@@ -68,6 +68,9 @@ export function needsPricing(p: Product): boolean {
 }
 
 export function needsPhoto(p: Product): boolean {
+  // Photo en attente de validation admin : ne pas re-scraper
+  const imgs = p.images ?? [];
+  if (imgs[0] === "__qdia_photo_review__" && imgs[1]) return false;
   return !hasRealProductImage(p.imageUrl);
 }
 

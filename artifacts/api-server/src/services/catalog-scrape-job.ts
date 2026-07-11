@@ -116,33 +116,10 @@ async function persistProcessedImage(productId: number, sku: string | null | und
 }
 
 async function scrapeOne(product: { id: number; name: string; imageUrl: string | null; sku?: string | null }) {
-  if (!needsPhoto(product as never) || hasRealProductImage(product.imageUrl)) {
-    return { ok: false, skipped: true as const };
-  }
-
-  const candidates = await searchProductImageUrls(product.name);
-  for (const candidate of candidates) {
-    try {
-      const { base64, mime } = await fetchImageAsBase64(candidate);
-      const raw = Buffer.from(base64, "base64");
-      if (raw.byteLength < MIN_BYTES || !mime.startsWith("image/")) continue;
-
-      const processed = await processCatalogPhoto(base64, product.name);
-      if (!processed) continue;
-
-      const saved = await persistProcessedImage(product.id, product.sku, processed.base64, candidate);
-      await db
-        .update(productsTable)
-        .set({ imageUrl: saved, images: [saved] })
-        .where(eq(productsTable.id, product.id));
-
-      // Ne pas bloquer / planter sur featured
-      void promoteProductToFeatured(product.id);
-      return { ok: true as const, skipped: false as const, image_url: saved };
-    } catch (err) {
-      logger.warn({ err, productId: product.id, candidate }, "candidat scrape rejeté");
-    }
-  }
+  const { scrapeOneProductPhoto } = await import("./catalog-web-scrape");
+  const one = await scrapeOneProductPhoto(product.id);
+  if (one.reason === "deja_ok") return { ok: false, skipped: true as const };
+  if (one.ok) return { ok: true as const, skipped: false as const, image_url: one.image_url };
   return { ok: false as const, skipped: false as const };
 }
 

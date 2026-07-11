@@ -355,11 +355,51 @@ export const platformApi = {
     }>("/api/products/enrich", { method: "POST", body: JSON.stringify(opts ?? { limit: 50 }) }),
 
   /** Un lot court (max 5 côté serveur — timeout Render). Pour 20/30, enchaîner côté UI. */
-  scrapeCatalogPhotos: (limit = 5) =>
-    api<{ processed: number; ok: number; skipped: number; errors: string[] }>(
+  scrapeCatalogPhotos: (limit = 5, opts?: { skip_purge?: boolean }) =>
+    api<{ processed: number; ok: number; skipped: number; errors: string[]; ids_ok?: number[] }>(
       "/api/admin/scrape-photos",
-      { method: "POST", body: JSON.stringify({ limit: Math.min(Math.max(1, limit), 5) }) },
+      {
+        method: "POST",
+        body: JSON.stringify({
+          limit: Math.min(Math.max(1, limit), 5),
+          skip_purge: opts?.skip_purge === true,
+        }),
+      },
     ),
+
+  purgeUnsafePhotos: () =>
+    api<{ cleared: number; ids: number[] }>("/api/admin/purge-unsafe-photos", {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+
+  listPhotoReviews: (ids?: number[]) =>
+    api<{ data: Array<{ id: number; name: string; category: string | null; image_url: string; pending: boolean }> }>(
+      `/api/admin/photo-reviews${ids?.length ? `?ids=${ids.join(",")}` : ""}`,
+    ),
+
+  approvePhotoReviews: (ids: number[]) =>
+    api<{ approved: number }>("/api/admin/photo-reviews/approve", {
+      method: "POST",
+      body: JSON.stringify({ ids }),
+    }),
+
+  rejectPhotoReviews: (ids: number[]) =>
+    api<{ rejected: number }>("/api/admin/photo-reviews/reject", {
+      method: "POST",
+      body: JSON.stringify({ ids }),
+    }),
+
+  rescrapePhotoReview: (id: number) =>
+    api<{
+      ok: boolean;
+      image_url?: string;
+      reason?: string;
+      item: { id: number; name: string; category: string | null; image_url: string; pending: boolean } | null;
+    }>("/api/admin/photo-reviews/rescrape", {
+      method: "POST",
+      body: JSON.stringify({ id }),
+    }),
 
   getScrapeJobStatus: () =>
     api<{

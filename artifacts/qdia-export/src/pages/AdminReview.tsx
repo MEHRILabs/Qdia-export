@@ -13,6 +13,7 @@ import { AdminOrdersPanel } from "@/components/AdminOrdersPanel";
 import { AdminExportAuthPanel } from "@/components/AdminExportAuthPanel";
 import { AdminProductsPanel } from "@/components/AdminProductsPanel";
 import { MessagesPanel } from "@/components/MessagesPanel";
+import { ScrapePhotoReviewDialog } from "@/components/ScrapePhotoReviewDialog";
 
 const ADMIN_TABS = [
   { value: "products", icon: Clock, labelKey: "admin.tab_products" },
@@ -77,7 +78,10 @@ export default function AdminReview() {
   } | null>(null);
   const [enriching, setEnriching] = useState(false);
   const [scraping, setScraping] = useState(false);
+  const [purging, setPurging] = useState(false);
   const [scrapeProgress, setScrapeProgress] = useState<string | null>(null);
+  const [reviewIds, setReviewIds] = useState<number[]>([]);
+  const [reviewOpen, setReviewOpen] = useState(false);
 
   const [activeTab, setActiveTab] = useState(() => tabFromSearch(searchParams.toString()));
   const [toolsOpen, setToolsOpen] = useState(false);
@@ -135,6 +139,28 @@ export default function AdminReview() {
     }
   };
 
+  const runPurgeUnsafePhotos = async () => {
+    setPurging(true);
+    try {
+      const result = await platformApi.purgeUnsafePhotos();
+      toast({
+        title: tr("admin.purge_done"),
+        description: tr("admin.purge_done_desc").replace("{cleared}", String(result.cleared)),
+      });
+      const status = await platformApi.getEnrichmentStatus();
+      setEnrichStatus(status);
+      void loadStats();
+    } catch (e) {
+      toast({
+        title: tr("common.error"),
+        description: String(e instanceof Error ? e.message : e),
+        variant: "destructive",
+      });
+    } finally {
+      setPurging(false);
+    }
+  };
+
   /** Lots de 5 (timeout Render ~30s) jusqu’à atteindre 20 ou 30 photos OK. */
   const runScrapePhotos = async (target = 20) => {
     const CHUNK = 5;
@@ -144,16 +170,18 @@ export default function AdminReview() {
     let ok = 0;
     let processed = 0;
     let skipped = 0;
+    const idsOk: number[] = [];
     try {
       for (let round = 0; round < maxRounds && ok < target; round++) {
         const chunk = Math.min(CHUNK, target - ok);
         setScrapeProgress(
           tr("admin.scrape_progress").replace("{done}", String(ok)).replace("{total}", String(target)),
         );
-        const result = await platformApi.scrapeCatalogPhotos(chunk);
+        const result = await platformApi.scrapeCatalogPhotos(chunk, { skip_purge: round > 0 });
         ok += result.ok ?? 0;
         processed += result.processed ?? 0;
         skipped += result.skipped ?? 0;
+        if (result.ids_ok?.length) idsOk.push(...result.ids_ok);
         if ((result.processed ?? 0) === 0 && (result.ok ?? 0) === 0) break;
       }
       setScrapeProgress(null);
@@ -167,6 +195,10 @@ export default function AdminReview() {
       const status = await platformApi.getEnrichmentStatus();
       setEnrichStatus(status);
       void loadStats();
+      if (idsOk.length) {
+        setReviewIds([...new Set(idsOk)]);
+        setReviewOpen(true);
+      }
     } catch (e) {
       setScrapeProgress(null);
       toast({
@@ -260,10 +292,20 @@ export default function AdminReview() {
                 </div>
                 <div className="flex flex-wrap gap-2 shrink-0">
                   <Button
+                    variant="destructive"
+                    size="sm"
+                    className="gap-2 font-bold"
+                    disabled={scraping || enriching || purging}
+                    onClick={() => void runPurgeUnsafePhotos()}
+                  >
+                    {purging ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
+                    {purging ? tr("admin.purge_running") : tr("admin.purge_btn")}
+                  </Button>
+                  <Button
                     variant="gold"
                     size="sm"
                     className="gap-2 font-bold"
-                    disabled={scraping || enriching}
+                    disabled={scraping || enriching || purging}
                     onClick={() => void runScrapePhotos(20)}
                   >
                     {scraping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
@@ -273,7 +315,7 @@ export default function AdminReview() {
                     variant="outline"
                     size="sm"
                     className="gap-2 font-bold border-[#0461A5]/40"
-                    disabled={scraping || enriching}
+                    disabled={scraping || enriching || purging}
                     onClick={() => void runScrapePhotos(30)}
                   >
                     {scraping ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
@@ -418,6 +460,15 @@ export default function AdminReview() {
           <Link href="/products" className="text-primary underline">{tr("admin.view_catalog")}</Link>
         </p>
       </main>
+
+      <ScrapePhotoReviewDialog
+        open={reviewOpen}
+        ids={reviewIds}
+        onClose={() => {
+          setReviewOpen(false);
+          void loadStats();
+        }}
+      />
     </div>
   );
 }
