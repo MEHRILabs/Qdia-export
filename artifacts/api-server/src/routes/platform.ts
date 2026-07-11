@@ -505,11 +505,13 @@ router.post("/admin/scrape-photos", requireAuth, requireRole("admin"), async (re
     const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.floor(limitRaw), 1), 5) : 5;
     const { scrapeCatalogPhotosBatch, scrapeOneProductPhoto, purgeUnsafeCatalogImages } = await import("../services/catalog-web-scrape");
 
-    // Purge NSFW + publie les photos pending déjà scrapées vers le catalogue
+    // Sync pending → catalogue (rapide). Purge NSFW optionnelle (lente sur 19k).
     if (req.body?.skip_purge !== true) {
-      await purgeUnsafeCatalogImages();
       const { syncPendingPhotosToCatalog } = await import("../services/catalog-web-scrape");
       await syncPendingPhotosToCatalog();
+    }
+    if (req.body?.purge === true) {
+      await purgeUnsafeCatalogImages();
     }
 
     if (req.body?.product_id) {

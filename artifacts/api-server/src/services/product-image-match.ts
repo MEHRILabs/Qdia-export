@@ -1,5 +1,5 @@
 /**
- * Matching strict : phrase marque complète + mot type produit dans URL/alt.
+ * Matching : marque détectée intelligemment + mots du produit dans URL/alt.
  */
 
 const UNIT_STOP =
@@ -11,14 +11,23 @@ const GENERIC_STOP = new Set([
   "liquide", "liquid", "nature", "classic", "original", "new", "extra",
 ]);
 
-const PRODUCT_TYPE_WORDS =
-  /^(cafe|caf[eé]|huile|datte|epice|miel|sucre|farine|lait|eau|jus|sauce|pates?|riz|confiture|vinaigre|semoule|couscous|harissa|tomate|fromage|yaourt|beurre|chocolat|biscuit|the|thé)$/i;
+/** Mots descriptifs (pas une marque) — souvent en tête du nom catalogue. */
+const WEAK_NAME_WORDS = new Set([
+  "support", "bloc", "note", "ruban", "adhesif", "adhesive", "surligneur",
+  "stylo", "cahier",   "papier", "carton", "boite", "lot", "set",
+  "pack", "huile", "cafe", "datte", "epice", "miel", "sucre", "farine",
+  "lait", "eau", "jus", "sauce", "pates", "riz", "confiture", "vinaigre",
+  "semoule", "couscous", "harissa", "tomate", "fromage", "yaourt", "beurre",
+  "chocolat", "biscuit", "neon", "promot", "promotion",
+]);
 
-/** Lifestyle / personne — hors sujet sauf si dans le nom. */
+const PRODUCT_TYPE_WORDS =
+  /^(cafe|caf[eé]|huile|datte|epice|miel|sucre|farine|lait|eau|jus|sauce|pates?|riz|confiture|vinaigre|semoule|couscous|harissa|tomate|fromage|yaourt|beurre|chocolat|biscuit|the|thé|surligneur|ruban|stylo|cahier|support|bloc|note)$/i;
+
 const LIFESTYLE_RE =
   /\b(legume|l[eé]gumes?|vegetable|fruit|farmer|fermier|panier|basket|bio[_\-]?logo|organic.?farm|portrait|person|people|woman|man|girl|boy|smil|jardin|garden|harvest|r[eé]colte|carrots?|radish|salade)\b/i;
 
-const PACKSHOT_RE = /packshot|emballage|flacon|bouteille|bottle|jar|sachet|boite|boîte|canette|tube|product|produit/i;
+const PACKSHOT_RE = /packshot|emballage|flacon|bouteille|bottle|jar|sachet|boite|boîte|canette|tube|product|produit|marker|highlighter|tape/i;
 
 function normalize(s: string): string {
   return s
@@ -45,8 +54,9 @@ export function significantProductTokens(productName: string): string[] {
 }
 
 /**
- * Marque = 1–2 premiers tokens (phrase).
- * Ex. "GLOBAL AROME AR LIQUIDE CAFE" → ["global", "arome"]
+ * Marque : premier mot « fort », ou dernier token si le début est descriptif.
+ * Ex. "GLOBAL AROME … CAFE" → global arome
+ * Ex. "SUPPORT BLOC NOTE … TECHNO" → techno
  */
 export function extractBrandTokens(productName: string, explicitBrand?: string | null): string[] {
   if (explicitBrand?.trim()) {
@@ -54,21 +64,31 @@ export function extractBrandTokens(productName: string, explicitBrand?: string |
   }
   const tokens = significantProductTokens(productName);
   if (!tokens.length) return [];
+
+  const strong = tokens.filter((t) => !WEAK_NAME_WORDS.has(t) && !PRODUCT_TYPE_WORDS.test(t));
+  // Cas catalogue DZ : marque souvent en fin (TECHNO, SOUMMAM…)
+  if (strong.length && WEAK_NAME_WORDS.has(tokens[0]!)) {
+    const last = strong[strong.length - 1]!;
+    return [last];
+  }
+
   const brand: string[] = [tokens[0]!];
-  if (tokens[1] && (tokens[0]!.length < 5 || tokens[1].length >= 4)) {
-    if (!PRODUCT_TYPE_WORDS.test(tokens[1])) {
+  if (tokens[1] && !PRODUCT_TYPE_WORDS.test(tokens[1]) && !WEAK_NAME_WORDS.has(tokens[1])) {
+    if (tokens[0]!.length < 5 || tokens[1].length >= 4) {
       brand.push(tokens[1]);
     }
+  }
+  // Si 1er token faible, préférer strong[0]
+  if (WEAK_NAME_WORDS.has(brand[0]!) && strong[0]) {
+    return [strong[0]];
   }
   return brand;
 }
 
-/** Phrase marque normalisée, ex. "global arome". */
 export function brandPhrase(productName: string, explicitBrand?: string | null): string {
   return extractBrandTokens(productName, explicitBrand).join(" ");
 }
 
-/** Tokens produit hors marque (type / variante). */
 export function extractProductTypeTokens(productName: string, brandTokens: string[]): string[] {
   const brandSet = new Set(brandTokens);
   return significantProductTokens(productName).filter((t) => !brandSet.has(t));
@@ -95,27 +115,21 @@ export function hasAnyToken(blob: string, tokens: string[]): boolean {
   return tokens.some((t) => b.includes(t));
 }
 
-/** Marque OK si phrase contiguë OU tous les tokens marque présents. */
 export function hasBrandMatch(blob: string, brand: string[]): boolean {
   if (!brand.length) return false;
   const b = normalize(blob);
   const phrase = brand.join(" ");
   if (phrase && b.includes(phrase)) return true;
-  // Aussi accepter tokens séparés par - _ /
-  const loose = brand.join("[\\s\\-_./]+");
-  try {
-    if (new RegExp(loose, "i").test(b)) return true;
-  } catch {
-    /* ignore */
-  }
+  // Au moins le token marque principal (le plus discriminant)
+  const primary = [...brand].sort((a, b) => b.length - a.length)[0]!;
+  if (primary.length >= 4 && b.includes(primary)) return true;
+  if (brand.length === 1) return b.includes(brand[0]!);
   return hasAllTokens(blob, brand);
 }
 
 /**
- * Image OK seulement si :
- * 1) phrase marque (ou tous tokens marque) dans URL/alt
- * 2) au moins 1 mot type produit
- * Refuse lifestyle hors sujet.
+ * Image OK si marque (token principal) + au moins 1 autre mot du nom.
+ * Moins strict que « phrase entière » pour que le scrape trouve des résultats.
  */
 export function isRelevantProductImage(
   url: string,
@@ -124,7 +138,7 @@ export function isRelevantProductImage(
   explicitBrand?: string | null,
 ): boolean {
   const brand = extractBrandTokens(productName, explicitBrand);
-  const typeTokens = extractProductTypeTokens(productName, brand);
+  const allTokens = significantProductTokens(productName);
   if (!brand.length) return false;
 
   const blob = `${url} ${alt}`;
@@ -134,12 +148,16 @@ export function isRelevantProductImage(
     if (!productOkLifestyle) return false;
   }
 
-  // Marque complète obligatoire (plus seulement le 1er mot)
   if (!hasBrandMatch(blob, brand)) return false;
 
-  if (typeTokens.length > 0) {
-    if (!hasAnyToken(blob, typeTokens)) return false;
-  } else if (!hasAllTokens(blob, brand)) {
+  // Autre mot du nom (hors marque) OU 2 tokens du nom au total
+  const others = allTokens.filter((t) => !brand.includes(t));
+  if (others.length > 0) {
+    if (!hasAnyToken(blob, others)) {
+      // Fallback : au moins 2 tokens quelconques du nom
+      if (countTokenHits(blob, allTokens) < 2) return false;
+    }
+  } else if (countTokenHits(blob, allTokens) < 1) {
     return false;
   }
 

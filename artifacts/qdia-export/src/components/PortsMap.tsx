@@ -68,8 +68,9 @@ function loadMapsScript(apiKey: string): Promise<void> {
     }
     const script = document.createElement("script");
     script.id = id;
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&loading=async&v=weekly`;
     script.async = true;
+    script.defer = true;
     script.onload = () => resolve();
     script.onerror = () => reject(new Error("Google Maps indisponible"));
     document.head.appendChild(script);

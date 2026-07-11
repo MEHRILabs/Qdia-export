@@ -74,7 +74,6 @@ async function tryDownloadAndSave(productId: number, imageUrl: string, productNa
   if (raw.byteLength < MIN_BYTES) return null;
   if (!mime.startsWith("image/")) return null;
 
-  // Heuristique peau OU image non liée au nom → refuse
   const urlScore = scoreSafeProductCandidate(imageUrl, productName);
   if (urlScore < 4 && (await looksMostlySkinTone(raw))) {
     logger.warn({ productId, imageUrl: imageUrl.slice(0, 120) }, "image rejetée (heuristique peau)");
@@ -82,38 +81,53 @@ async function tryDownloadAndSave(productId: number, imageUrl: string, productNa
   }
 
   const { isRelevantProductImage } = await import("./product-image-match");
-  // data: URLs n'ont pas le nom — on a déjà filtré à la sélection; OK
   if (!imageUrl.startsWith("data:") && productName && !isRelevantProductImage(imageUrl, productName)) {
     logger.warn({ productId, imageUrl: imageUrl.slice(0, 120) }, "image rejetée (hors sujet nom)");
     return null;
   }
 
-  // Render : on n'enregistre PAS l'URL source externe (risque NSFW / disparition).
-  // On stocke en data-URL courte via proxy, ou on refuse si trop lourd → placeholder null.
   const ephemeralDisk = process.env.RENDER === "true" || process.env.CATALOG_IMAGE_MODE === "remote";
-  if (ephemeralDisk) {
-    // Compresser via sharp si dispo, sinon data URL limitée
-    try {
-      const { processCatalogPhoto } = await import("./catalog-image-process");
-      const processed = await processCatalogPhoto(base64, productName);
-      if (!processed?.base64) return null;
-      const dataUrl = `data:image/jpeg;base64,${processed.base64}`;
-      // Trop gros pour la DB → refuser (évite OOM) — l'admin pourra re-scraper plus tard
-      if (dataUrl.length > 180_000) {
-        logger.warn({ productId, len: dataUrl.length }, "image trop lourde après process, skip");
-        return null;
+
+  const asDataUrl = (b64: string, m = "image/jpeg") => {
+    const url = `data:${m};base64,${b64.replace(/^data:image\/\w+;base64,/, "")}`;
+    return url.length <= 220_000 ? url : null;
+  };
+
+  // 1) Traitement catalogue (filigrane) si possible
+  try {
+    const { processCatalogPhoto } = await import("./catalog-image-process");
+    const processed = await processCatalogPhoto(base64, productName);
+    if (processed?.base64) {
+      const dataUrl = asDataUrl(processed.base64);
+      if (dataUrl) {
+        if (!ephemeralDisk) {
+          return saveCatalogImage(`product_${productId}`, processed.base64, "jpg");
+        }
+        return dataUrl;
       }
-      return dataUrl;
-    } catch (err) {
-      logger.warn({ err, productId }, "process image Render échoué");
-      return null;
     }
+  } catch (err) {
+    logger.warn({ err, productId }, "processCatalogPhoto échoué — fallback");
   }
 
-  const { processCatalogPhoto } = await import("./catalog-image-process");
-  const processed = await processCatalogPhoto(base64, productName);
-  const outB64 = processed?.base64 ?? base64.replace(/^data:image\/\w+;base64,/, "");
-  return saveCatalogImage(`product_${productId}`, outB64, "jpg");
+  // 2) Fallback sharp compress
+  try {
+    const sharp = (await import("sharp")).default;
+    const buf = await sharp(raw).resize(640, 640, { fit: "inside" }).jpeg({ quality: 62 }).toBuffer();
+    const b64 = buf.toString("base64");
+    if (!ephemeralDisk) return saveCatalogImage(`product_${productId}`, b64, "jpg");
+    const dataUrl = asDataUrl(b64);
+    if (dataUrl) return dataUrl;
+  } catch (err) {
+    logger.warn({ err, productId }, "sharp compress échoué — fallback brut");
+  }
+
+  // 3) Dernier recours : data URL brute si assez petite
+  const rawData = asDataUrl(base64, mime.startsWith("image/") ? mime : "image/jpeg");
+  if (rawData) return rawData;
+
+  logger.warn({ productId, bytes: raw.byteLength }, "image trop lourde, abandon");
+  return null;
 }
 
 /** Détection grossière NSFW via proportion de pixels « peau ». */
@@ -164,14 +178,13 @@ export async function scrapeOneProductPhoto(
 
   const candidates = await searchProductImageUrls(p.name, p.category);
   const savedList: string[] = [];
-  for (const candidate of candidates) {
-    if (savedList.length >= 3) break;
+  for (const candidate of candidates.slice(0, 8)) {
+    if (savedList.length >= 2) break; // max 2 pour rester sous timeout Render
     if (isNsfwOrBlockedImageUrl(candidate)) continue;
     try {
       const saved = await tryDownloadAndSave(p.id, candidate, p.name);
-      if (!saved) continue;
+      if (!saved || savedList.includes(saved)) continue;
       if (isNsfwOrBlockedImageUrl(saved)) continue;
-      if (savedList.includes(saved)) continue;
       savedList.push(saved);
     } catch (err) {
       logger.warn({ err, productId: p.id, candidate }, "candidat image rejeté");

@@ -154,7 +154,7 @@ export default function AdminReview() {
         setScrapeProgress(
           tr("admin.scrape_progress").replace("{done}", String(ok)).replace("{total}", String(target)),
         );
-        const result = await platformApi.scrapeCatalogPhotos(chunk, { skip_purge: round > 0 });
+        const result = await platformApi.scrapeCatalogPhotos(chunk, { skip_purge: true });
         ok += result.ok ?? 0;
         processed += result.processed ?? 0;
         skipped += result.skipped ?? 0;
@@ -192,8 +192,15 @@ export default function AdminReview() {
 
   // Au chargement admin : publie les photos pending déjà scrapées vers le catalogue
   useEffect(() => {
-    void platformApi.syncPendingPhotosToCatalog().catch(() => null);
-  }, []);
+    void (async () => {
+      try {
+        const r = await platformApi.syncPendingPhotosToCatalog();
+        if (r.synced > 0) void loadStats();
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, [loadStats]);
 
   return (
     <div className="min-h-dvh bg-background flex flex-col md:flex-row">
