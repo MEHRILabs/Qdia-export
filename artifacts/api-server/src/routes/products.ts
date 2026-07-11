@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { db, pool, productsTable, suppliersTable, categoriesTable, productViewsTable, usersTable } from "@workspace/db";
-import { eq, ilike, and, or, sql, gte, lte, desc, asc, inArray, count, type SQL } from "drizzle-orm";
+import { eq, ilike, and, or, sql, gte, lte, desc, inArray, count, type SQL } from "drizzle-orm";
 import { requireAuth, requireRole, optionalAuth, type AuthedRequest } from "../middleware/auth";
 import { writeLimiter } from "../middleware/rate-limit";
 import { canModifyProduct } from "../middleware/access-control";
@@ -14,7 +14,7 @@ import {
   CreateProductBody,
 } from "@workspace/api-zod";
 import { parseExcelProducts, wholesaleToIncoterms, buildTemplateWorkbook } from "../services/excel-import";
-import { filterProducts, getRecommendations } from "../services/marketplace";
+import { getRecommendations } from "../services/marketplace";
 import {
   enrichProductById,
   enrichProductBatch,
