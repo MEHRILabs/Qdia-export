@@ -54,7 +54,7 @@ export function SupplierSidebar({ activePath, variant = "supplier" }: Props) {
           const active = isNavActive(activePath, href);
           return (
             <button
-              key={href}
+              key={`${href}::${labelKey}`}
               type="button"
               onClick={() => goTo(href)}
               className="block relative w-full text-start"

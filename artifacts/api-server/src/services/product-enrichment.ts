@@ -57,7 +57,7 @@ export function hasRealProductImage(imageUrl?: string | null): boolean {
   if (!imageUrl?.trim()) return false;
   const u = imageUrl.trim();
   if (isPlaceholderCatalogImage(u)) return false;
-  if (u.startsWith("data:") || u.startsWith("http")) return true;
+  if (u.startsWith("data:") || u.startsWith("http") || u.startsWith("/api/products/")) return true;
   if (u.startsWith("/uploads/catalog/")) return true;
   if (u.startsWith("/") && !u.endsWith(".svg")) return true;
   return false;

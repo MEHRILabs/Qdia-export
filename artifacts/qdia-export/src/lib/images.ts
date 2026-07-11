@@ -23,7 +23,7 @@ export function hasRealProductImage(imageUrl?: string | null): boolean {
   if (u.includes("/qdia-photo-placeholder")) return false;
   if (u.includes("Photo IA à générer")) return false;
   if (u.startsWith("/uploads/catalog/") && u.endsWith(".svg") && u.includes("QDIA Photo")) return false;
-  if (u.startsWith("data:") || u.startsWith("http")) return true;
+  if (u.startsWith("data:") || u.startsWith("http") || u.startsWith("/api/products/")) return true;
   if (u.startsWith("/uploads/catalog/")) return true;
   if (u.startsWith("/images/")) return true;
   if (u.endsWith(".svg")) return !u.includes("qdia-photo-placeholder");
@@ -41,6 +41,6 @@ export function resolveProductImageUrl(imageUrl?: string | null): string {
   if (!imageUrl?.trim()) return "";
   const u = imageUrl.trim();
   if (u.startsWith("http") || u.startsWith("data:")) return u;
-  if (u.startsWith("/uploads/")) return apiUrl(u);
+  if (u.startsWith("/uploads/") || u.startsWith("/api/products/")) return apiUrl(u);
   return u;
 }

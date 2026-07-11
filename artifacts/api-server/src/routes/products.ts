@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { db, pool, productsTable, suppliersTable, categoriesTable, productViewsTable, usersTable } from "@workspace/db";
-import { eq, ilike, and, or, sql, gte, lte, desc, inArray, type SQL } from "drizzle-orm";
+import { eq, ilike, and, or, sql, gte, lte, desc, asc, inArray, count, type SQL } from "drizzle-orm";
 import { requireAuth, requireRole, optionalAuth, type AuthedRequest } from "../middleware/auth";
 import { writeLimiter } from "../middleware/rate-limit";
 import { canModifyProduct } from "../middleware/access-control";
@@ -47,21 +47,6 @@ function imageExtFromMime(mime: ImageMime): "jpg" | "png" | "webp" {
   if (mime === "image/png") return "png";
   if (mime === "image/webp") return "webp";
   return "jpg";
-}
-
-/** Score catalogue public : photo + description + prix = plus visible. */
-function catalogRelevanceScore(p: typeof productsTable.$inferSelect): number {
-  let s = 0;
-  if (hasRealProductImage(p.imageUrl)) s += 100;
-  const desc = (p.description ?? "").trim();
-  if (desc.length >= 60 && !desc.startsWith(p.name)) s += 50;
-  else if (desc.length >= 20) s += 25;
-  if ((p.priceFob ?? 0) > 1) s += 15;
-  if ((p.priceDdp ?? 0) > 0) s += 5;
-  if (p.isFeatured) s += 10;
-  s += Math.min(20, (p.rating ?? 0) * 4);
-  s += Math.min(10, (p.ordersFulfilled ?? 0) / 10);
-  return s;
 }
 
 async function persistProductImage(
@@ -121,18 +106,30 @@ async function resolveSupplierForUser(user?: AuthedRequest["user"]): Promise<num
   return created.id;
 }
 
-function toProductShape(p: typeof productsTable.$inferSelect) {
+function compactImageUrl(productId: number, url?: string | null): string | null | undefined {
+  if (!url) return url;
+  // Ne jamais renvoyer des data-URL énormes dans les listes (crash / timeout)
+  if (url.startsWith("data:")) return `/api/products/${productId}/image`;
+  return url;
+}
+
+function toProductShape(p: typeof productsTable.$inferSelect, opts?: { compactImages?: boolean }) {
   const stockCountries = p.stockCountries?.length
     ? p.stockCountries
     : inferStockCountries(p.targetMarkets ?? []);
+  const compact = opts?.compactImages !== false;
+  const imageUrl = compact ? compactImageUrl(p.id, p.imageUrl) : p.imageUrl;
+  const images = (p.images ?? [])
+    .map(img => (compact ? compactImageUrl(p.id, img) : img))
+    .filter((x): x is string => Boolean(x));
   return {
     id: p.id,
     name: p.name,
     description: p.description,
     category: p.category,
     sku: p.sku,
-    image_url: p.imageUrl,
-    images: p.images ?? [],
+    image_url: imageUrl,
+    images: images.length ? images : (imageUrl ? [imageUrl] : []),
     supplier_id: p.supplierId,
     supplier_name: p.supplierName,
     supplier_location: p.supplierLocation,
@@ -300,10 +297,39 @@ router.get("/products", optionalAuth, async (req: AuthedRequest, res): Promise<v
     }
   }
 
-  const query = db.select().from(productsTable).$dynamic();
-  let rows = conditions.length > 0
-    ? await query.where(and(...conditions))
-    : await query;
+  const pageNum = Math.max(1, page ?? 1);
+  const pageSize = Math.min(Math.max(1, limit ?? 20), 100);
+
+  // Total sans charger toutes les lignes (évite OOM avec data-URL)
+  const countQuery = db.select({ value: count() }).from(productsTable).$dynamic();
+  const [{ value: totalRaw }] = conditions.length > 0
+    ? await countQuery.where(and(...conditions))
+    : await countQuery;
+  const total = Number(totalRaw ?? 0);
+
+  const isPublicCatalog = !(scope === "admin" || scope === "supplier");
+
+  let listQuery = db.select().from(productsTable).$dynamic();
+  if (conditions.length > 0) listQuery = listQuery.where(and(...conditions));
+  if (isPublicCatalog) {
+    listQuery = listQuery.orderBy(
+      sql`CASE
+        WHEN ${productsTable.imageUrl} IS NULL OR trim(${productsTable.imageUrl}) = '' THEN 3
+        WHEN ${productsTable.imageUrl} LIKE '%qdia-photo-placeholder%' OR ${productsTable.imageUrl} LIKE '%.svg' THEN 2
+        ELSE 0
+      END`,
+      sql`CASE
+        WHEN length(coalesce(${productsTable.description}, '')) >= 60 THEN 0
+        WHEN length(coalesce(${productsTable.description}, '')) >= 20 THEN 1
+        ELSE 2
+      END`,
+      desc(productsTable.id),
+    );
+  } else {
+    listQuery = listQuery.orderBy(desc(productsTable.id));
+  }
+
+  let rows = await listQuery.limit(pageSize).offset((pageNum - 1) * pageSize);
 
   if (incotermFilter) {
     const inc = incotermFilter.toUpperCase();
@@ -316,26 +342,17 @@ router.get("/products", optionalAuth, async (req: AuthedRequest, res): Promise<v
     });
   }
 
-  rows = filterProducts(rows, {
-    moq_min: moqMin, moq_max: moqMax, price_min: priceMin, price_max: priceMax,
-    origin_wilaya: originWilaya, supplier_id: supplierIdFilter, search: search ?? undefined,
-  });
-
-  // Tri pertinence : photo réelle + description utile d'abord (site plus « complet »)
-  const isPublicCatalog = !(scope === "admin" || scope === "supplier");
-  if (isPublicCatalog) {
-    rows = [...rows].sort((a, b) => catalogRelevanceScore(b) - catalogRelevanceScore(a));
+  try {
+    res.json(ListProductsResponse.parse({
+      data: rows.map(p => toProductShape(p)),
+      total,
+      page: pageNum,
+      limit: pageSize,
+    }));
+  } catch (err) {
+    logger.error({ err }, "ListProductsResponse parse failed");
+    res.status(500).json({ error: "Réponse catalogue invalide" });
   }
-
-  const offset = ((page ?? 1) - 1) * (limit ?? 20);
-  const paginated = rows.slice(offset, offset + (limit ?? 20));
-
-  res.json(ListProductsResponse.parse({
-    data: paginated.map(toProductShape),
-    total: rows.length,
-    page: page ?? 1,
-    limit: limit ?? 20,
-  }));
 });
 
 router.post("/products", requireAuth, requireRole("supplier", "admin"), writeLimiter, async (req: AuthedRequest, res): Promise<void> => {
@@ -846,6 +863,44 @@ router.get("/products/:id/pricing", async (req, res): Promise<void> => {
     return;
   }
   res.json(resolveProductPricing(product, destination, quantity));
+});
+
+router.get("/products/:id/image", async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  if (Number.isNaN(id)) {
+    res.status(400).json({ error: "ID invalide" });
+    return;
+  }
+  const [product] = await db
+    .select({ imageUrl: productsTable.imageUrl })
+    .from(productsTable)
+    .where(eq(productsTable.id, id))
+    .limit(1);
+  if (!product?.imageUrl) {
+    res.status(404).json({ error: "Image introuvable" });
+    return;
+  }
+  const url = product.imageUrl;
+  if (url.startsWith("data:")) {
+    const m = url.match(/^data:(image\/[\w.+-]+);base64,(.+)$/s);
+    if (!m) {
+      res.status(404).json({ error: "Image invalide" });
+      return;
+    }
+    res.setHeader("Content-Type", m[1]);
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.send(Buffer.from(m[2], "base64"));
+    return;
+  }
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    res.redirect(302, url);
+    return;
+  }
+  if (url.startsWith("/uploads/")) {
+    res.redirect(302, url);
+    return;
+  }
+  res.status(404).json({ error: "Image introuvable" });
 });
 
 router.get("/products/:id", async (req, res): Promise<void> => {

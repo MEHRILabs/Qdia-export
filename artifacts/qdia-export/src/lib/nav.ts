@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { LayoutDashboard, Package, MessageSquare, FileText,
-  ShieldCheck, Sparkles, ClipboardCheck, Wand2, DollarSign, CreditCard, Pencil, Factory, ImageIcon,
+  ShieldCheck, Sparkles, ClipboardCheck, Wand2, DollarSign, CreditCard, Pencil, Factory,
 } from "lucide-react";
 
 export const BUYER_NAV_KEYS = [
@@ -33,7 +33,6 @@ export const SUPPLIER_ADMIN_LINK = { href: "/admin", icon: ClipboardCheck, label
 export const ADMIN_NAV: { href: string; labelKey: string; icon: LucideIcon }[] = [
   { href: "/admin", icon: Pencil, labelKey: "nav.edit_products" },
   { href: "/admin?tab=export", icon: Factory, labelKey: "admin.tab_export" },
-  { href: "/admin", icon: ImageIcon, labelKey: "admin.scrape_nav" },
   { href: "/facturation", icon: DollarSign, labelKey: "nav.billing" },
   { href: "/rfq", icon: FileText, labelKey: "nav.rfq_portal" },
   { href: "/mes-rfq", icon: FileText, labelKey: "nav.my_rfqs" },

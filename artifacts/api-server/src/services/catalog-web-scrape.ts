@@ -79,16 +79,15 @@ async function tryDownloadAndSave(productId: number, imageUrl: string, productNa
   if (raw.byteLength < MIN_BYTES) return null;
   if (!mime.startsWith("image/")) return null;
 
+  // Render : URL https source (légère) — data URL trop lourde pour 19k produits
+  const ephemeralDisk = process.env.RENDER === "true" || process.env.CATALOG_IMAGE_MODE === "remote";
+  if (ephemeralDisk) {
+    return imageUrl;
+  }
+
   const { processCatalogPhoto } = await import("./catalog-image-process");
   const processed = await processCatalogPhoto(base64, productName);
   const outB64 = processed?.base64 ?? base64.replace(/^data:image\/\w+;base64,/, "");
-
-  // Render : data URL durable (disque éphémère)
-  const ephemeralDisk = process.env.RENDER === "true" || process.env.CATALOG_IMAGE_MODE === "data";
-  if (ephemeralDisk) {
-    return `data:image/jpeg;base64,${outB64}`;
-  }
-
   return saveCatalogImage(`product_${productId}`, outB64, "jpg");
 }
 

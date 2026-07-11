@@ -82,7 +82,7 @@ export function AdminProductsPanel() {
     setLoading(true);
     try {
       const token = localStorage.getItem("qdia_auth_token");
-      const params = new URLSearchParams({ scope: "admin", limit: "500" });
+      const params = new URLSearchParams({ scope: "admin", limit: "100" });
       if (statusFilter !== "all") params.set("export_status", statusFilter);
       if (categoryFilter !== ALL_CATEGORIES) params.set("category", categoryFilter);
       if (search.trim()) params.set("search", search.trim());

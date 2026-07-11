@@ -103,8 +103,11 @@ async function nextBatch(limit: number) {
     .limit(limit);
 }
 
-async function persistProcessedImage(productId: number, sku: string | null | undefined, base64: string): Promise<string> {
-  const ephemeral = process.env.RENDER === "true" || process.env.CATALOG_IMAGE_MODE === "data";
+async function persistProcessedImage(productId: number, sku: string | null | undefined, base64: string, sourceUrl?: string): Promise<string> {
+  const ephemeral = process.env.RENDER === "true" || process.env.CATALOG_IMAGE_MODE === "remote";
+  if (ephemeral && sourceUrl?.startsWith("http")) {
+    return sourceUrl;
+  }
   if (ephemeral) {
     return `data:image/jpeg;base64,${base64}`;
   }
@@ -127,7 +130,7 @@ async function scrapeOne(product: { id: number; name: string; imageUrl: string |
       const processed = await processCatalogPhoto(base64, product.name);
       if (!processed) continue;
 
-      const saved = await persistProcessedImage(product.id, product.sku, processed.base64);
+      const saved = await persistProcessedImage(product.id, product.sku, processed.base64, candidate);
       await db
         .update(productsTable)
         .set({ imageUrl: saved, images: [saved] })
