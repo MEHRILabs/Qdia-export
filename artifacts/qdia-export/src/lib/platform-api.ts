@@ -360,6 +360,33 @@ export const platformApi = {
       { method: "POST", body: JSON.stringify({ limit }) },
     ),
 
+  getScrapeJobStatus: () =>
+    api<{
+      status: "idle" | "running" | "stopping" | "done" | "error";
+      batch_size: number;
+      total_products: number;
+      without_photo: number;
+      with_photo: number;
+      processed: number;
+      ok: number;
+      failed: number;
+      skipped: number;
+      current_batch: number;
+      last_product_id: number | null;
+      last_product_name: string | null;
+      message: string;
+      errors: string[];
+    }>("/api/admin/scrape-photos/status"),
+
+  startScrapeJob: (batch_size = 50) =>
+    api<{ status: string; message: string; without_photo: number; with_photo: number; total_products: number }>(
+      "/api/admin/scrape-photos/start",
+      { method: "POST", body: JSON.stringify({ batch_size }) },
+    ),
+
+  stopScrapeJob: () =>
+    api<{ status: string; message: string }>("/api/admin/scrape-photos/stop", { method: "POST", body: "{}" }),
+
   listAdminExportProducts: (filter: "pending" | "authorized" | "all" = "pending", limit = 200) => {
     const q = new URLSearchParams({ scope: "admin", limit: String(limit), export_status: "published" });
     if (filter === "pending") q.set("export_authorized", "false");

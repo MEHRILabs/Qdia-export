@@ -41,11 +41,27 @@ import {
 import { calculateCustoms } from "../services/ports-customs";
 import { saveCatalogImage } from "../services/catalog-image-store";
 import { normalizeImageBase64, type ImageMime } from "../lib/image-base64";
+import { usdToDzd } from "../lib/fx";
 
 function imageExtFromMime(mime: ImageMime): "jpg" | "png" | "webp" {
   if (mime === "image/png") return "png";
   if (mime === "image/webp") return "webp";
   return "jpg";
+}
+
+/** Score catalogue public : photo + description + prix = plus visible. */
+function catalogRelevanceScore(p: typeof productsTable.$inferSelect): number {
+  let s = 0;
+  if (hasRealProductImage(p.imageUrl)) s += 100;
+  const desc = (p.description ?? "").trim();
+  if (desc.length >= 60 && !desc.startsWith(p.name)) s += 50;
+  else if (desc.length >= 20) s += 25;
+  if ((p.priceFob ?? 0) > 1) s += 15;
+  if ((p.priceDdp ?? 0) > 0) s += 5;
+  if (p.isFeatured) s += 10;
+  s += Math.min(20, (p.rating ?? 0) * 4);
+  s += Math.min(10, (p.ordersFulfilled ?? 0) / 10);
+  return s;
 }
 
 async function persistProductImage(
@@ -162,14 +178,16 @@ function resolveProductPricing(
   const buyer = normalizeCountryCode(buyerCountry);
   const mode = resolveIncotermMode(origin, buyer, stockCountries);
   const incoterms = availableIncoterms(mode);
-  const cifUsd = (p.priceCif ?? p.priceFob) * quantity;
-  const cifDzd = cifUsd * Number(process.env.DZD_USD_RATE ?? 135);
+  const qty = Math.max(1, quantity);
+  const unitCif = p.priceCif ?? p.priceFob ?? 0;
   const customs = calculateCustoms({
     product_category: p.category,
     destination_code: buyer,
-    cif_value_dzd: cifDzd,
+    cif_value_dzd: usdToDzd(unitCif),
   });
-  const ddpUsd = p.priceDdp ?? calculateDdpUsdFromCif(cifUsd, customs.total_customs_dzd);
+  const unitDdp = p.priceDdp && p.priceDdp > 0
+    ? p.priceDdp
+    : calculateDdpUsdFromCif(unitCif, customs.total_customs_dzd);
 
   return {
     mode,
@@ -184,14 +202,14 @@ function resolveProductPricing(
       fob: p.priceFob,
       cfr: p.priceCfr,
       cif: p.priceCif,
-      ddp: ddpUsd,
+      ddp: unitDdp,
     },
     customs,
-    quantity,
+    quantity: qty,
     line_total_usd: {
-      fob: p.priceFob * quantity,
-      cif: p.priceCif * quantity,
-      ddp: ddpUsd * quantity,
+      fob: (p.priceFob ?? 0) * qty,
+      cif: unitCif * qty,
+      ddp: unitDdp * qty,
     },
   };
 }
@@ -302,6 +320,12 @@ router.get("/products", optionalAuth, async (req: AuthedRequest, res): Promise<v
     moq_min: moqMin, moq_max: moqMax, price_min: priceMin, price_max: priceMax,
     origin_wilaya: originWilaya, supplier_id: supplierIdFilter, search: search ?? undefined,
   });
+
+  // Tri pertinence : photo réelle + description utile d'abord (site plus « complet »)
+  const isPublicCatalog = !(scope === "admin" || scope === "supplier");
+  if (isPublicCatalog) {
+    rows = [...rows].sort((a, b) => catalogRelevanceScore(b) - catalogRelevanceScore(a));
+  }
 
   const offset = ((page ?? 1) - 1) * (limit ?? 20);
   const paginated = rows.slice(offset, offset + (limit ?? 20));

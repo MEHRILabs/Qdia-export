@@ -5,6 +5,8 @@ import { hasProviderKey, getProvider } from "./ai/config";
 import { saveCatalogImage, saveCatalogSvg } from "./catalog-image-store";
 import { generateClaudeProductSvg, canGenerateClaudeProductVisual } from "./claude-product-image";
 import { FALLBACK_PORTS, getFreightDzd, calculateCustoms } from "./ports-customs";
+import { dzdToUsd } from "../lib/fx";
+import { calculateDdpUsdFromCif } from "../lib/incoterms-routing";
 import { logger } from "../lib/logger";
 
 export interface EnrichProductOptions {
@@ -78,8 +80,7 @@ function estimateCostDzd(p: Product): number {
 export function calculateFormulaPricing(
   p: Product,
   opts: EnrichProductOptions = {},
-): { exw: number; fob: number; cfr: number; cif: number; currency: string; unit: string } {
-  const USD_RATE = parseFloat(process.env.DZD_USD_RATE ?? "0.0074");
+): { exw: number; fob: number; cfr: number; cif: number; ddp: number; currency: string; unit: string } {
   const destination = opts.destinationCountry ?? p.targetMarkets?.[0]?.slice(0, 2) ?? "FR";
   const port = FALLBACK_PORTS.find(x => x.country_code === "DZ") ?? FALLBACK_PORTS[0];
 
@@ -97,18 +98,25 @@ export function calculateFormulaPricing(
   const margin = 1 + (opts.vendorMarginPct ?? 15) / 100;
   const qdiaFee = 1.03;
 
-  calculateCustoms({
+  const customs = calculateCustoms({
     product_category: p.category,
-    destination_code: destination as "FR" | "AE" | "US" | "DZ",
-    cif_value_dzd: cifDzd,
+    destination_code: destination as "FR" | "AE" | "US" | "DZ" | "TN" | "MA",
+    cif_value_dzd: cifDzd * margin * qdiaFee,
     port_code: port.code,
   });
 
+  const exw = parseFloat((dzdToUsd(exwDzd) * margin * qdiaFee).toFixed(2));
+  const fob = parseFloat((dzdToUsd(fobDzd) * margin * qdiaFee).toFixed(2));
+  const cfr = parseFloat((dzdToUsd(cfrDzd) * margin * qdiaFee).toFixed(2));
+  const cif = parseFloat((dzdToUsd(cifDzd) * margin * qdiaFee).toFixed(2));
+  const ddp = calculateDdpUsdFromCif(cif, customs.total_customs_dzd);
+
   return {
-    exw: parseFloat((exwDzd * USD_RATE * margin * qdiaFee).toFixed(2)),
-    fob: parseFloat((fobDzd * USD_RATE * margin * qdiaFee).toFixed(2)),
-    cfr: parseFloat((cfrDzd * USD_RATE * margin * qdiaFee).toFixed(2)),
-    cif: parseFloat((cifDzd * USD_RATE * margin * qdiaFee).toFixed(2)),
+    exw,
+    fob,
+    cfr,
+    cif,
+    ddp,
     currency: "USD",
     unit: p.priceUnit || `per ${p.moqUnit}`,
   };
@@ -134,12 +142,14 @@ Réponds UNIQUEMENT en JSON:
     const data = JSON.parse(raw) as { fob_usd?: number; moq?: number; notes?: string };
     if (data.fob_usd && data.fob_usd > 0) {
       const ratio = data.fob_usd / base.fob;
+      const cif = parseFloat((base.cif * ratio).toFixed(2));
       return {
         ...base,
         exw: parseFloat((base.exw * ratio).toFixed(2)),
         fob: parseFloat(data.fob_usd.toFixed(2)),
         cfr: parseFloat((base.cfr * ratio).toFixed(2)),
-        cif: parseFloat((base.cif * ratio).toFixed(2)),
+        cif,
+        ddp: parseFloat((base.ddp * ratio).toFixed(2)),
       };
     }
   } catch (err) {
@@ -207,6 +217,7 @@ export async function enrichProductById(
     priceFob?: number;
     priceCfr?: number;
     priceCif?: number;
+    priceDdp?: number;
     priceCurrency?: string;
     priceUnit?: string;
     imageUrl?: string;
@@ -222,6 +233,7 @@ export async function enrichProductById(
     patch.priceFob = prices.fob;
     patch.priceCfr = prices.cfr;
     patch.priceCif = prices.cif;
+    patch.priceDdp = prices.ddp;
     patch.priceCurrency = prices.currency;
     patch.priceUnit = prices.unit;
     pricingUpdated = true;

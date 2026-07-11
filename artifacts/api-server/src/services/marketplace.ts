@@ -11,6 +11,9 @@ import { sendPushToUser } from "./fcm";
 import { orderEmailHtml, sendEmail } from "./email";
 import { createInvoiceFromTransaction } from "./billing";
 import { createTransactionFromOrder } from "./payments";
+import { calculateDdpUsdFromCif } from "../lib/incoterms-routing";
+import { usdToDzd } from "../lib/fx";
+import { calculateCustoms } from "./ports-customs";
 
 let nextId = 1000;
 const mem = {
@@ -36,7 +39,21 @@ function priceForIncoterm(p: typeof productsTable.$inferSelect, incoterm: string
     case "EXW": return p.priceExw;
     case "CFR": return p.priceCfr;
     case "CIF": return p.priceCif;
-    case "DDP": return p.priceDdp ?? p.priceCif * 1.18;
+    case "DDP": {
+      if (p.priceDdp && p.priceDdp > 0) return p.priceDdp;
+      const cif = p.priceCif ?? p.priceFob ?? 0;
+      if (cif <= 0) return 0;
+      try {
+        const customs = calculateCustoms({
+          product_category: p.category,
+          destination_code: "FR",
+          cif_value_dzd: usdToDzd(cif),
+        });
+        return calculateDdpUsdFromCif(cif, customs.total_customs_dzd);
+      } catch {
+        return cif * 1.12;
+      }
+    }
     default: return p.priceFob;
   }
 }

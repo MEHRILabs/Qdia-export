@@ -73,20 +73,23 @@ export async function searchProductImageUrls(productName: string): Promise<strin
   }
 }
 
-async function tryDownloadAndSave(productId: number, imageUrl: string): Promise<string | null> {
+async function tryDownloadAndSave(productId: number, imageUrl: string, productName?: string): Promise<string | null> {
   const { base64, mime } = await fetchImageAsBase64(imageUrl);
   const raw = Buffer.from(base64, "base64");
   if (raw.byteLength < MIN_BYTES) return null;
   if (!mime.startsWith("image/")) return null;
 
-  // Sur Render le disque est éphémère : on garde l'URL https source (durable).
-  const ephemeralDisk = process.env.RENDER === "true" || process.env.CATALOG_IMAGE_MODE === "remote";
+  const { processCatalogPhoto } = await import("./catalog-image-process");
+  const processed = await processCatalogPhoto(base64, productName);
+  const outB64 = processed?.base64 ?? base64.replace(/^data:image\/\w+;base64,/, "");
+
+  // Render : data URL durable (disque éphémère)
+  const ephemeralDisk = process.env.RENDER === "true" || process.env.CATALOG_IMAGE_MODE === "data";
   if (ephemeralDisk) {
-    return imageUrl;
+    return `data:image/jpeg;base64,${outB64}`;
   }
 
-  const ext = mime.includes("png") ? "png" : mime.includes("webp") ? "webp" : "jpg";
-  return saveCatalogImage(`product_${productId}`, base64, ext);
+  return saveCatalogImage(`product_${productId}`, outB64, "jpg");
 }
 
 export async function scrapeOneProductPhoto(
@@ -101,7 +104,7 @@ export async function scrapeOneProductPhoto(
   const candidates = await searchProductImageUrls(p.name);
   for (const candidate of candidates) {
     try {
-      const saved = await tryDownloadAndSave(p.id, candidate);
+      const saved = await tryDownloadAndSave(p.id, candidate, p.name);
       if (!saved) continue;
       await db
         .update(productsTable)

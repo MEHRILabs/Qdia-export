@@ -77,6 +77,18 @@ export default function AdminReview() {
   } | null>(null);
   const [enriching, setEnriching] = useState(false);
   const [scraping, setScraping] = useState(false);
+  const [scrapeJob, setScrapeJob] = useState<{
+    status: string;
+    total_products: number;
+    without_photo: number;
+    with_photo: number;
+    processed: number;
+    ok: number;
+    failed: number;
+    current_batch: number;
+    message: string;
+    last_product_name: string | null;
+  } | null>(null);
 
   const [activeTab, setActiveTab] = useState(() => tabFromSearch(searchParams.toString()));
   const [toolsOpen, setToolsOpen] = useState(false);
@@ -134,30 +146,104 @@ export default function AdminReview() {
     }
   };
 
-  const runScrapePhotos = async (limit: number) => {
+  const runScrapePhotos = async (_limit?: number) => {
     setScraping(true);
     try {
-      const result = await platformApi.scrapeCatalogPhotos(limit);
-      toast({
-        title: tr("admin.scrape_done"),
-        description: tr("admin.scrape_done_desc")
-          .replace("{ok}", String(result.ok))
-          .replace("{processed}", String(result.processed))
-          .replace("{skipped}", String(result.skipped)),
+      const state = await platformApi.startScrapeJob(50);
+      setScrapeJob({
+        status: state.status,
+        total_products: state.total_products,
+        without_photo: state.without_photo,
+        with_photo: state.with_photo,
+        processed: 0,
+        ok: 0,
+        failed: 0,
+        current_batch: 0,
+        message: state.message,
+        last_product_name: null,
       });
-      const status = await platformApi.getEnrichmentStatus();
-      setEnrichStatus(status);
-      loadStats();
+      toast({
+        title: tr("admin.scrape_started"),
+        description: tr("admin.scrape_started_desc").replace("{count}", String(state.without_photo)),
+      });
+    } catch (e) {
+      setScraping(false);
+      toast({
+        title: tr("common.error"),
+        description: String(e instanceof Error ? e.message : e),
+        variant: "destructive",
+      });
+    }
+  };
+
+  const stopScrapePhotos = async () => {
+    try {
+      await platformApi.stopScrapeJob();
+      toast({ title: tr("admin.scrape_stopping") });
     } catch (e) {
       toast({
         title: tr("common.error"),
         description: String(e instanceof Error ? e.message : e),
         variant: "destructive",
       });
-    } finally {
-      setScraping(false);
     }
   };
+
+  useEffect(() => {
+    if (!scraping && scrapeJob?.status !== "running" && scrapeJob?.status !== "stopping") return;
+    const id = window.setInterval(() => {
+      void platformApi.getScrapeJobStatus().then(s => {
+        setScrapeJob({
+          status: s.status,
+          total_products: s.total_products,
+          without_photo: s.without_photo,
+          with_photo: s.with_photo,
+          processed: s.processed,
+          ok: s.ok,
+          failed: s.failed,
+          current_batch: s.current_batch,
+          message: s.message,
+          last_product_name: s.last_product_name,
+        });
+        if (s.status === "running" || s.status === "stopping") {
+          setScraping(true);
+        } else {
+          setScraping(false);
+          if (s.status === "done") {
+            toast({
+              title: tr("admin.scrape_done"),
+              description: tr("admin.scrape_done_desc")
+                .replace("{ok}", String(s.ok))
+                .replace("{processed}", String(s.processed))
+                .replace("{skipped}", String(s.skipped)),
+            });
+            void loadStats();
+          }
+        }
+      }).catch(() => { /* ignore poll errors */ });
+    }, 2000);
+    return () => window.clearInterval(id);
+  }, [scraping, scrapeJob?.status, toast, tr, loadStats]);
+
+  useEffect(() => {
+    void platformApi.getScrapeJobStatus().then(s => {
+      if (s.status === "running" || s.status === "stopping") {
+        setScraping(true);
+        setScrapeJob({
+          status: s.status,
+          total_products: s.total_products,
+          without_photo: s.without_photo,
+          with_photo: s.with_photo,
+          processed: s.processed,
+          ok: s.ok,
+          failed: s.failed,
+          current_batch: s.current_batch,
+          message: s.message,
+          last_product_name: s.last_product_name,
+        });
+      }
+    }).catch(() => undefined);
+  }, []);
 
   useEffect(() => { void loadStats(); }, [loadStats]);
 
@@ -225,38 +311,68 @@ export default function AdminReview() {
           {activeTab === "products" && (
           <div className="mt-3 md:mt-4 space-y-3">
             <div className="rounded-xl border-2 border-[#F5C518]/50 bg-gradient-to-br from-[#FFF8E1] to-white p-4 shadow-sm">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-[#073B74] flex items-center gap-2 text-sm md:text-base">
-                    <Search className="h-4 w-4 text-[#0461A5] shrink-0" />
-                    {tr("admin.scrape_card_title")}
-                  </p>
-                  <p className="text-xs text-[#656566] mt-1 leading-relaxed">
-                    {tr("admin.scrape_card_desc")}
-                  </p>
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-[#073B74] flex items-center gap-2 text-sm md:text-base">
+                      <Search className="h-4 w-4 text-[#0461A5] shrink-0" />
+                      {tr("admin.scrape_card_title")}
+                    </p>
+                    <p className="text-xs text-[#656566] mt-1 leading-relaxed">
+                      {tr("admin.scrape_card_desc")}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2 shrink-0">
+                    <Button
+                      variant="gold"
+                      size="sm"
+                      className="gap-2 font-bold"
+                      disabled={scraping || enriching}
+                      onClick={() => void runScrapePhotos(50)}
+                    >
+                      {scraping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                      {scraping ? tr("admin.scrape_running") : tr("admin.scrape_btn_start")}
+                    </Button>
+                    {scraping && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2 font-bold border-red-300 text-red-700"
+                        onClick={() => void stopScrapePhotos()}
+                      >
+                        {tr("admin.scrape_btn_stop")}
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2 shrink-0">
-                  <Button
-                    variant="gold"
-                    size="sm"
-                    className="gap-2 font-bold"
-                    disabled={scraping || enriching}
-                    onClick={() => void runScrapePhotos(20)}
-                  >
-                    {scraping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                    {scraping ? tr("admin.scrape_running") : tr("admin.scrape_btn_20")}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-2 font-bold border-[#0461A5]/40"
-                    disabled={scraping || enriching}
-                    onClick={() => void runScrapePhotos(50)}
-                  >
-                    {scraping ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
-                    {tr("admin.scrape_btn_50")}
-                  </Button>
-                </div>
+                {scrapeJob && (scraping || scrapeJob.processed > 0) && (
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-[11px] text-[#656566]">
+                      <span>
+                        {tr("admin.scrape_progress")
+                          .replace("{done}", String(scrapeJob.with_photo))
+                          .replace("{total}", String(scrapeJob.total_products || 0))}
+                      </span>
+                      <span>
+                        {scrapeJob.ok} OK · {scrapeJob.failed} échecs · lot {scrapeJob.current_batch}
+                      </span>
+                    </div>
+                    <div className="h-2.5 rounded-full bg-[#E8EEF5] overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-[#0461A5] transition-all duration-500"
+                        style={{
+                          width: `${scrapeJob.total_products
+                            ? Math.min(100, Math.round((scrapeJob.with_photo / scrapeJob.total_products) * 100))
+                            : 0}%`,
+                        }}
+                      />
+                    </div>
+                    <p className="text-[11px] text-[#073B74] truncate">
+                      {scrapeJob.message}
+                      {scrapeJob.last_product_name ? ` — ${scrapeJob.last_product_name}` : ""}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 

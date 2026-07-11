@@ -62,17 +62,21 @@ export function defaultIncoterm(mode: IncotermMode): IncotermCode {
   return "ddp";
 }
 
-const DZD_USD = Number(process.env.DZD_USD_RATE ?? 135);
-
 export function calculateDdpUsdFromCif(
   cifUsd: number,
   customsTotalDzd: number,
   lastMilePct = 0.05,
 ): number {
-  const cifDzd = cifUsd * DZD_USD;
+  // Aligné sur lib/fx : DZD_USD_RATE = DZD pour 1 USD (ex. 135)
+  const rate = (() => {
+    const raw = Number(process.env.DZD_USD_RATE ?? 135);
+    if (!Number.isFinite(raw) || raw <= 0) return 135;
+    return raw < 1 ? 1 / raw : raw;
+  })();
+  const cifDzd = cifUsd * rate;
   const lastMileDzd = cifDzd * lastMilePct;
   const ddpDzd = cifDzd + customsTotalDzd + lastMileDzd;
-  return Math.round((ddpDzd / DZD_USD) * 100) / 100;
+  return Math.round((ddpDzd / rate) * 100) / 100;
 }
 
 export interface ResolvedPricing {

@@ -473,14 +473,36 @@ router.get("/admin/stats", requireAuth, requireRole("admin"), async (_req, res) 
   });
 });
 
-// ─── Admin : scraper photos catalogue (Bing) ─────────────────────────────────
+// ─── Admin : scraping photos (job async lots de 50 + reprise) ─────────────────
+router.get("/admin/scrape-photos/status", requireAuth, requireRole("admin"), async (_req, res) => {
+  const { getScrapeJobState, refreshScrapeStats } = await import("../services/catalog-scrape-job");
+  if (getScrapeJobState().status === "idle" || getScrapeJobState().status === "done") {
+    await refreshScrapeStats();
+  }
+  res.json(getScrapeJobState());
+});
+
+router.post("/admin/scrape-photos/start", requireAuth, requireRole("admin"), async (req, res) => {
+  try {
+    const batch = Number(req.body?.batch_size ?? 50);
+    const { startScrapeJob } = await import("../services/catalog-scrape-job");
+    const state = await startScrapeJob({ batch_size: batch });
+    res.json(state);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Démarrage scrape échoué" });
+  }
+});
+
+router.post("/admin/scrape-photos/stop", requireAuth, requireRole("admin"), async (_req, res) => {
+  const { stopScrapeJob } = await import("../services/catalog-scrape-job");
+  res.json(stopScrapeJob());
+});
+
+/** One-shot (petit lot) — évite les timeouts HTTP longs ; préférer /start */
 router.post("/admin/scrape-photos", requireAuth, requireRole("admin"), async (req, res) => {
   try {
-    const limitRaw = Number(req.body?.limit ?? 50);
-    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.floor(limitRaw), 1), 200) : 50;
-    const productIds = Array.isArray(req.body?.product_ids)
-      ? (req.body.product_ids as unknown[]).map(Number).filter(n => Number.isFinite(n))
-      : undefined;
+    const limitRaw = Number(req.body?.limit ?? 10);
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.floor(limitRaw), 1), 20) : 10;
     const { scrapeCatalogPhotosBatch, scrapeOneProductPhoto } = await import("../services/catalog-web-scrape");
 
     if (req.body?.product_id) {
@@ -490,7 +512,7 @@ router.post("/admin/scrape-photos", requireAuth, requireRole("admin"), async (re
       return;
     }
 
-    const result = await scrapeCatalogPhotosBatch(limit, { productIds });
+    const result = await scrapeCatalogPhotosBatch(limit);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "Scraping photos échoué" });
