@@ -8,6 +8,8 @@ import {
   isRelevantProductImage,
   scoreNameMatch,
   significantProductTokens,
+  extractBrandTokens,
+  extractProductTypeTokens,
 } from "./product-image-match";
 
 const SEARCH_TIMEOUT_MS = 12_000;
@@ -36,9 +38,14 @@ export const ALGERIA_FOOD_SITES = [
   },
 ] as const;
 
-function simplifyQuery(productName: string): string {
-  const tokens = significantProductTokens(productName);
-  return tokens.slice(0, 4).join(" ").slice(0, 60);
+/** Requête = marque + mots produit (pas la catégorie vague). */
+function buildBrandProductQuery(productName: string): { q: string; brand: string; typeWords: string } {
+  const brandTok = extractBrandTokens(productName);
+  const typeTok = extractProductTypeTokens(productName, brandTok);
+  const brand = brandTok.join(" ");
+  const typeWords = typeTok.slice(0, 3).join(" ");
+  const q = [brand, typeWords].filter(Boolean).join(" ").slice(0, 70);
+  return { q: q || significantProductTokens(productName).slice(0, 4).join(" "), brand, typeWords };
 }
 
 function hitsInText(text: string, tokens: string[]): number {
@@ -133,9 +140,9 @@ async function fetchBingImages(query: string, productName: string): Promise<stri
 }
 
 function extractMatchingProductPages(html: string, baseUrl: string, productName: string): string[] {
-  const tokens = significantProductTokens(productName);
-  if (!tokens.length) return [];
-  const need = Math.min(2, tokens.length);
+  const brand = extractBrandTokens(productName);
+  const typeTok = extractProductTypeTokens(productName, brand);
+  if (!brand.length) return [];
   const hrefRe = /<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
   const pages = new Set<string>();
   let m: RegExpExecArray | null;
@@ -143,7 +150,9 @@ function extractMatchingProductPages(html: string, baseUrl: string, productName:
     const href = m[1];
     const text = m[2].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
     if (!href || text.length < 3) continue;
-    if (hitsInText(text, tokens) < need) continue;
+    // Lien doit contenir la marque + un mot produit
+    if (hitsInText(text, brand) < 1) continue;
+    if (typeTok.length && hitsInText(text, typeTok) < 1) continue;
     try {
       const abs = new URL(href, baseUrl).href.split("#")[0]!;
       if (!/^https?:\/\//i.test(abs)) continue;
@@ -159,12 +168,15 @@ function extractMatchingProductPages(html: string, baseUrl: string, productName:
 async function scrapeProductPageImage(pageUrl: string, productName: string): Promise<string[]> {
   const html = await fetchHtml(pageUrl);
   if (!html) return [];
-  const tokens = significantProductTokens(productName);
+  const brand = extractBrandTokens(productName);
+  const typeTok = extractProductTypeTokens(productName, brand);
   const title =
     html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)?.[1]
     ?? html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]
     ?? "";
-  if (title && hitsInText(title, tokens) < 1) return [];
+  // Fiche produit : marque obligatoire dans le titre
+  if (title && hitsInText(title, brand) < 1) return [];
+  if (title && typeTok.length && hitsInText(title, typeTok) < 1) return [];
 
   const og = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)?.[1]
     ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i)?.[1];
@@ -210,17 +222,14 @@ async function scrapeSearchThenProductPages(pageUrl: string, productName: string
 }
 
 /**
- * Cherche une image vraiment liée au nom produit.
- * Refuse les images génériques (légumes bio pour un café, etc.).
+ * Cherche une image avec marque + mots du nom produit obligatoires.
  */
 export async function searchAlgerianProductImageUrls(
   productName: string,
   _category?: string | null,
 ): Promise<string[]> {
-  const q = simplifyQuery(productName);
+  const { q, brand, typeWords } = buildBrandProductQuery(productName);
   if (!q) return [];
-  const tokens = significantProductTokens(productName);
-  const brand = tokens[0] ?? q;
   const found = new Set<string>();
   const ordered: string[] = [];
 
@@ -241,16 +250,17 @@ export async function searchAlgerianProductImageUrls(
   }
 
   const exactQueries = [
-    `"${brand}" ${tokens.slice(1, 3).join(" ")} flacon OR bouteille OR packshot OR emballage`,
-    `${q} produit packshot flacon -legume -vegetable -bio -farmer -panier`,
-  ];
+    `"${brand}" ${typeWords} flacon OR bouteille OR packshot OR emballage`,
+    `"${brand}" ${typeWords} produit Algérie -legume -vegetable -farmer -panier`,
+  ].filter((x) => x.replace(/["\s]/g, "").length > 3);
+
   for (const query of exactQueries) {
     const urls = await fetchBingImages(query, productName);
     if (push(urls)) return ordered;
   }
 
   const siteFilter = ALGERIA_FOOD_SITES.map((s) => `site:${s.host}`).join(" OR ");
-  const bingDz = await fetchBingImages(`(${siteFilter}) ${q}`, productName);
+  const bingDz = await fetchBingImages(`(${siteFilter}) "${brand}" ${typeWords}`, productName);
   push(bingDz);
 
   return ordered.slice(0, MAX_CANDIDATES);

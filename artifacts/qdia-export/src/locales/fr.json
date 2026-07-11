@@ -619,7 +619,7 @@
     "tools_title": "Outils admin",
     "scrape_card_title": "Scraping Photos",
     "scrape_card_desc": "Lots de 50 : recherche web, fond clair, carré, filigrane QDIA, compression. Reprise auto si interrompu. Barre de progression en direct.",
-    "scrape_card_desc_short": "Photos depuis sites alimentaires algériens (Tidjaria, Elwajed, Batolis…). Puis fenêtre pour valider / modifier avant publication.",
+    "scrape_card_desc_short": "Photos depuis sites algériens : marque + nom produit obligatoires dans l’image. Puis fenêtre pour valider / modifier avant publication.",
     "purge_btn": "Purger photos +18",
     "purge_running": "Purge en cours…",
     "purge_done": "Photos incorrectes retirées",
