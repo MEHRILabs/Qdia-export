@@ -180,11 +180,11 @@ export async function scrapeOneProductPhoto(
 
   if (!savedList.length) return { ok: false, reason: "aucune_image" };
 
-  // En attente validation : marker + jusqu'à 3 candidats (1er = affiché)
+  // Visible tout de suite dans le catalogue + candidats pour validation admin
   await db
     .update(productsTable)
     .set({
-      imageUrl: null,
+      imageUrl: savedList[0]!,
       images: [PHOTO_REVIEW_MARKER, ...savedList],
       isFeatured: false,
     })
@@ -334,7 +334,7 @@ export async function nextPhotoReviewCandidate(productId: number): Promise<{
   const rotated = [...cands.slice(1), cands[0]!];
   await db
     .update(productsTable)
-    .set({ images: [PHOTO_REVIEW_MARKER, ...rotated], imageUrl: null, isFeatured: false })
+    .set({ images: [PHOTO_REVIEW_MARKER, ...rotated], imageUrl: rotated[0]!, isFeatured: false })
     .where(eq(productsTable.id, productId));
   const url = rotated[0]!;
   return {
@@ -343,6 +343,29 @@ export async function nextPhotoReviewCandidate(productId: number): Promise<{
     image_url: url.startsWith("data:") ? `/api/products/${productId}/image?review=1&t=${Date.now()}` : url,
     candidate_count: rotated.length,
   };
+}
+
+/** Publie dans le catalogue toutes les photos encore « pending » (imageUrl vide). */
+export async function syncPendingPhotosToCatalog(): Promise<{ synced: number }> {
+  const rows = await db
+    .select({ id: productsTable.id, images: productsTable.images, imageUrl: productsTable.imageUrl })
+    .from(productsTable)
+    .where(sql`${productsTable.images}[1] = ${PHOTO_REVIEW_MARKER}`)
+    .limit(500);
+
+  let synced = 0;
+  for (const row of rows) {
+    const pending = getPendingReviewImage(row.images);
+    if (!pending || isNsfwOrBlockedImageUrl(pending)) continue;
+    if (row.imageUrl === pending) continue;
+    await db
+      .update(productsTable)
+      .set({ imageUrl: pending })
+      .where(eq(productsTable.id, row.id));
+    synced++;
+  }
+  logger.info({ synced }, "sync photos pending → catalogue");
+  return { synced };
 }
 
 export async function rescrapeProductPhotoForReview(

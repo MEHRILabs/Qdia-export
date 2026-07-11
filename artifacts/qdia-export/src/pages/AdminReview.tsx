@@ -190,6 +190,11 @@ export default function AdminReview() {
 
   useEffect(() => { void loadStats(); }, [loadStats]);
 
+  // Au chargement admin : publie les photos pending déjà scrapées vers le catalogue
+  useEffect(() => {
+    void platformApi.syncPendingPhotosToCatalog().catch(() => null);
+  }, []);
+
   return (
     <div className="min-h-dvh bg-background flex flex-col md:flex-row">
       <SupplierSidebar

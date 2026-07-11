@@ -223,15 +223,20 @@ async function scrapeSearchThenProductPages(pageUrl: string, productName: string
 
 /**
  * Cherche une image avec marque + mots du nom produit obligatoires.
+ * Agro → sites alimentaires DZ en premier ; autres catégories → Bing packshot marque.
  */
 export async function searchAlgerianProductImageUrls(
   productName: string,
-  _category?: string | null,
+  category?: string | null,
 ): Promise<string[]> {
   const { q, brand, typeWords } = buildBrandProductQuery(productName);
   if (!q) return [];
   const found = new Set<string>();
   const ordered: string[] = [];
+  const cat = (category ?? "").toLowerCase();
+  const isFood =
+    /agro|aliment|food|epice|huile|datte|boisson|agriculture/i.test(cat) ||
+    /cafe|huile|datte|miel|epice|semoule|couscous|harissa/i.test(productName);
 
   const push = (urls: string[]) => {
     for (const u of urls) {
@@ -244,18 +249,19 @@ export async function searchAlgerianProductImageUrls(
     return false;
   };
 
-  for (const site of ALGERIA_FOOD_SITES) {
-    const urls = await scrapeSearchThenProductPages(site.search(q), productName);
-    if (push(urls)) return ordered;
+  if (isFood) {
+    for (const site of ALGERIA_FOOD_SITES) {
+      const urls = await scrapeSearchThenProductPages(site.search(q), productName);
+      if (push(urls)) return ordered;
+    }
   }
 
   const exactQueries = [
-    `"${brand}" ${typeWords} flacon OR bouteille OR packshot OR emballage`,
-    `"${brand}" ${typeWords} produit Algérie -legume -vegetable -farmer -panier -bio`,
-    // Marque seule entre guillemets + type (packshot)
+    `"${brand}" ${typeWords} packshot OR produit OR product -legume -vegetable -farmer -panier -nude -sexy`,
+    `"${brand}" ${typeWords} flacon OR bouteille OR emballage OR boite OR stylo OR marker`,
     brand.includes(" ")
       ? `"${brand}" ${typeWords.split(" ")[0] ?? ""} packshot`
-      : `"${brand}" ${typeWords} packshot flacon`,
+      : `"${brand}" ${typeWords} packshot`,
   ].filter((x) => x.replace(/["\s]/g, "").length > 4);
 
   for (const query of exactQueries) {
@@ -263,9 +269,11 @@ export async function searchAlgerianProductImageUrls(
     if (push(urls)) return ordered;
   }
 
-  const siteFilter = ALGERIA_FOOD_SITES.map((s) => `site:${s.host}`).join(" OR ");
-  const bingDz = await fetchBingImages(`(${siteFilter}) "${brand}" ${typeWords}`, productName);
-  push(bingDz);
+  if (isFood) {
+    const siteFilter = ALGERIA_FOOD_SITES.map((s) => `site:${s.host}`).join(" OR ");
+    const bingDz = await fetchBingImages(`(${siteFilter}) "${brand}" ${typeWords}`, productName);
+    push(bingDz);
+  }
 
   return ordered.slice(0, MAX_CANDIDATES);
 }

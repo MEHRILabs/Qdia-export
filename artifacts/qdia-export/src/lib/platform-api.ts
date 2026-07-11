@@ -387,6 +387,12 @@ export const platformApi = {
       }>;
     }>(`/api/admin/photo-reviews${ids?.length ? `?ids=${ids.join(",")}` : ""}`),
 
+  syncPendingPhotosToCatalog: () =>
+    api<{ synced: number }>("/api/admin/photo-reviews/sync-catalog", {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+
   approvePhotoReviews: (ids: number[]) =>
     api<{ approved: number }>("/api/admin/photo-reviews/approve", {
       method: "POST",

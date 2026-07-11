@@ -505,9 +505,11 @@ router.post("/admin/scrape-photos", requireAuth, requireRole("admin"), async (re
     const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.floor(limitRaw), 1), 5) : 5;
     const { scrapeCatalogPhotosBatch, scrapeOneProductPhoto, purgeUnsafeCatalogImages } = await import("../services/catalog-web-scrape");
 
-    // Purge une fois (les lots suivants envoient skip_purge)
+    // Purge NSFW + publie les photos pending déjà scrapées vers le catalogue
     if (req.body?.skip_purge !== true) {
       await purgeUnsafeCatalogImages();
+      const { syncPendingPhotosToCatalog } = await import("../services/catalog-web-scrape");
+      await syncPendingPhotosToCatalog();
     }
 
     if (req.body?.product_id) {
@@ -534,11 +536,22 @@ router.post("/admin/scrape-photos", requireAuth, requireRole("admin"), async (re
 /** Purge immédiate des photos web NSFW / non fiables du catalogue */
 router.post("/admin/purge-unsafe-photos", requireAuth, requireRole("admin"), async (_req, res) => {
   try {
-    const { purgeUnsafeCatalogImages } = await import("../services/catalog-web-scrape");
+    const { purgeUnsafeCatalogImages, syncPendingPhotosToCatalog } = await import("../services/catalog-web-scrape");
     const result = await purgeUnsafeCatalogImages();
-    res.json(result);
+    const sync = await syncPendingPhotosToCatalog();
+    res.json({ ...result, synced: sync.synced });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "Purge échouée" });
+  }
+});
+
+/** Force la publication catalogue des photos en attente de review */
+router.post("/admin/photo-reviews/sync-catalog", requireAuth, requireRole("admin"), async (_req, res) => {
+  try {
+    const { syncPendingPhotosToCatalog } = await import("../services/catalog-web-scrape");
+    res.json(await syncPendingPhotosToCatalog());
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Sync catalogue échouée" });
   }
 });
 
