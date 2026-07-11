@@ -72,10 +72,17 @@ async function tryDownloadAndSave(productId: number, imageUrl: string, productNa
   if (raw.byteLength < MIN_BYTES) return null;
   if (!mime.startsWith("image/")) return null;
 
-  // Heuristique peau seulement si l'URL n'a aucun signal « produit »
+  // Heuristique peau OU image non liée au nom → refuse
   const urlScore = scoreSafeProductCandidate(imageUrl, productName);
   if (urlScore < 4 && (await looksMostlySkinTone(raw))) {
     logger.warn({ productId, imageUrl: imageUrl.slice(0, 120) }, "image rejetée (heuristique peau)");
+    return null;
+  }
+
+  const { isRelevantProductImage } = await import("./product-image-match");
+  // data: URLs n'ont pas le nom — on a déjà filtré à la sélection; OK
+  if (!imageUrl.startsWith("data:") && productName && !isRelevantProductImage(imageUrl, productName)) {
+    logger.warn({ productId, imageUrl: imageUrl.slice(0, 120) }, "image rejetée (hors sujet nom)");
     return null;
   }
 
