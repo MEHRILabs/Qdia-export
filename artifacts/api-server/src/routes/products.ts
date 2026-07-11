@@ -312,17 +312,16 @@ router.get("/products", optionalAuth, async (req: AuthedRequest, res): Promise<v
   let listQuery = db.select().from(productsTable).$dynamic();
   if (conditions.length > 0) listQuery = listQuery.where(and(...conditions));
   if (isPublicCatalog) {
+    // Priorité stricte : vraie photo (http/data/api) → uploads → placeholder → vide
     listQuery = listQuery.orderBy(
       sql`CASE
-        WHEN ${productsTable.imageUrl} IS NULL OR trim(${productsTable.imageUrl}) = '' THEN 3
-        WHEN ${productsTable.imageUrl} LIKE '%qdia-photo-placeholder%' OR ${productsTable.imageUrl} LIKE '%.svg' THEN 2
-        ELSE 0
-      END`,
-      sql`CASE
-        WHEN length(coalesce(${productsTable.description}, '')) >= 60 THEN 0
-        WHEN length(coalesce(${productsTable.description}, '')) >= 20 THEN 1
+        WHEN ${productsTable.imageUrl} LIKE 'http%' OR ${productsTable.imageUrl} LIKE 'data:%' OR ${productsTable.imageUrl} LIKE '/api/products/%' THEN 0
+        WHEN ${productsTable.imageUrl} LIKE '/uploads/catalog/%' AND ${productsTable.imageUrl} NOT LIKE '%.svg' THEN 1
+        WHEN ${productsTable.imageUrl} LIKE '%qdia-photo-placeholder%' OR ${productsTable.imageUrl} LIKE '%.svg' THEN 3
+        WHEN ${productsTable.imageUrl} IS NULL OR trim(${productsTable.imageUrl}) = '' THEN 4
         ELSE 2
       END`,
+      sql`CASE WHEN length(coalesce(${productsTable.description}, '')) >= 40 THEN 0 ELSE 1 END`,
       desc(productsTable.id),
     );
   } else {

@@ -354,10 +354,11 @@ export const platformApi = {
       errors: string[];
     }>("/api/products/enrich", { method: "POST", body: JSON.stringify(opts ?? { limit: 50 }) }),
 
-  scrapeCatalogPhotos: (limit = 50) =>
+  /** Un lot court (max 5 côté serveur — timeout Render). Pour 20/30, enchaîner côté UI. */
+  scrapeCatalogPhotos: (limit = 5) =>
     api<{ processed: number; ok: number; skipped: number; errors: string[] }>(
       "/api/admin/scrape-photos",
-      { method: "POST", body: JSON.stringify({ limit }) },
+      { method: "POST", body: JSON.stringify({ limit: Math.min(Math.max(1, limit), 5) }) },
     ),
 
   getScrapeJobStatus: () =>

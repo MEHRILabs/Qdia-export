@@ -498,11 +498,11 @@ router.post("/admin/scrape-photos/stop", requireAuth, requireRole("admin"), asyn
   res.json(stopScrapeJob());
 });
 
-/** One-shot (petit lot) — évite les timeouts HTTP longs ; préférer /start */
+/** One-shot court (max 5) — Render coupe ~30s ; l’admin enchaîne des lots pour 20/30 */
 router.post("/admin/scrape-photos", requireAuth, requireRole("admin"), async (req, res) => {
   try {
-    const limitRaw = Number(req.body?.limit ?? 10);
-    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.floor(limitRaw), 1), 20) : 10;
+    const limitRaw = Number(req.body?.limit ?? 5);
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.floor(limitRaw), 1), 5) : 5;
     const { scrapeCatalogPhotosBatch, scrapeOneProductPhoto } = await import("../services/catalog-web-scrape");
 
     if (req.body?.product_id) {
