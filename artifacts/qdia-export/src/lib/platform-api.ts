@@ -374,9 +374,18 @@ export const platformApi = {
     }),
 
   listPhotoReviews: (ids?: number[]) =>
-    api<{ data: Array<{ id: number; name: string; category: string | null; image_url: string; pending: boolean }> }>(
-      `/api/admin/photo-reviews${ids?.length ? `?ids=${ids.join(",")}` : ""}`,
-    ),
+    api<{
+      data: Array<{
+        id: number;
+        name: string;
+        category: string | null;
+        brand: string;
+        image_url: string;
+        pending: boolean;
+        candidate_count: number;
+        candidate_index: number;
+      }>;
+    }>(`/api/admin/photo-reviews${ids?.length ? `?ids=${ids.join(",")}` : ""}`),
 
   approvePhotoReviews: (ids: number[]) =>
     api<{ approved: number }>("/api/admin/photo-reviews/approve", {
@@ -390,12 +399,43 @@ export const platformApi = {
       body: JSON.stringify({ ids }),
     }),
 
+  nextPhotoReviewCandidate: (id: number) =>
+    api<{
+      ok: boolean;
+      cycled: boolean;
+      image_url?: string;
+      candidate_count: number;
+      reason?: string;
+      item: {
+        id: number;
+        name: string;
+        category: string | null;
+        brand: string;
+        image_url: string;
+        pending: boolean;
+        candidate_count: number;
+        candidate_index: number;
+      } | null;
+    }>("/api/admin/photo-reviews/next-candidate", {
+      method: "POST",
+      body: JSON.stringify({ id }),
+    }),
+
   rescrapePhotoReview: (id: number) =>
     api<{
       ok: boolean;
       image_url?: string;
       reason?: string;
-      item: { id: number; name: string; category: string | null; image_url: string; pending: boolean } | null;
+      item: {
+        id: number;
+        name: string;
+        category: string | null;
+        brand: string;
+        image_url: string;
+        pending: boolean;
+        candidate_count: number;
+        candidate_index: number;
+      } | null;
     }>("/api/admin/photo-reviews/rescrape", {
       method: "POST",
       body: JSON.stringify({ id }),

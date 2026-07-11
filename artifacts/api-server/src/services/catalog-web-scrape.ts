@@ -18,6 +18,8 @@ import { searchAlgerianProductImageUrls } from "./algeria-product-images";
 const MIN_BYTES = 8_000;
 const MAX_CANDIDATES = 8;
 
+export const PHOTO_REVIEW_MARKER = "__qdia_photo_review__";
+
 export interface ScrapePhotosResult {
   processed: number;
   ok: number;
@@ -161,27 +163,33 @@ export async function scrapeOneProductPhoto(
   }
 
   const candidates = await searchProductImageUrls(p.name, p.category);
+  const savedList: string[] = [];
   for (const candidate of candidates) {
+    if (savedList.length >= 3) break;
     if (isNsfwOrBlockedImageUrl(candidate)) continue;
     try {
       const saved = await tryDownloadAndSave(p.id, candidate, p.name);
       if (!saved) continue;
       if (isNsfwOrBlockedImageUrl(saved)) continue;
-      // En attente de validation admin — pas visible dans le catalogue public
-      await db
-        .update(productsTable)
-        .set({
-          imageUrl: null,
-          images: ["__qdia_photo_review__", saved],
-          isFeatured: false,
-        })
-        .where(eq(productsTable.id, p.id));
-      return { ok: true, image_url: saved };
+      if (savedList.includes(saved)) continue;
+      savedList.push(saved);
     } catch (err) {
       logger.warn({ err, productId: p.id, candidate }, "candidat image rejeté");
     }
   }
-  return { ok: false, reason: "aucune_image" };
+
+  if (!savedList.length) return { ok: false, reason: "aucune_image" };
+
+  // En attente validation : marker + jusqu'à 3 candidats (1er = affiché)
+  await db
+    .update(productsTable)
+    .set({
+      imageUrl: null,
+      images: [PHOTO_REVIEW_MARKER, ...savedList],
+      isFeatured: false,
+    })
+    .where(eq(productsTable.id, p.id));
+  return { ok: true, image_url: savedList[0] };
 }
 
 /**
@@ -215,15 +223,19 @@ export async function purgeUnsafeCatalogImages(): Promise<PurgeUnsafeResult> {
   return { cleared: ids.length, ids: ids.slice(0, 200) };
 }
 
-export const PHOTO_REVIEW_MARKER = "__qdia_photo_review__";
-
 export function getPendingReviewImage(images?: string[] | null): string | null {
   if (!images?.length) return null;
   if (images[0] === PHOTO_REVIEW_MARKER && images[1]) return images[1];
   return null;
 }
 
+export function getPendingReviewCandidates(images?: string[] | null): string[] {
+  if (!images?.length || images[0] !== PHOTO_REVIEW_MARKER) return [];
+  return images.slice(1).filter(Boolean);
+}
+
 export async function listPhotoReviews(ids?: number[]) {
+  const { brandPhrase } = await import("./product-image-match");
   const rows = ids?.length
     ? await db
         .select({
@@ -249,23 +261,30 @@ export async function listPhotoReviews(ids?: number[]) {
 
   return rows
     .map((r) => {
-      const pending = getPendingReviewImage(r.images);
+      const candidates = getPendingReviewCandidates(r.images);
+      const pending = candidates[0] ?? null;
       const url = pending ?? (hasRealProductImage(r.imageUrl) ? r.imageUrl : null);
       if (!url) return null;
       return {
         id: r.id,
         name: r.name,
         category: r.category,
+        brand: brandPhrase(r.name),
         image_url: url.startsWith("data:") ? `/api/products/${r.id}/image?review=1` : url,
-        pending: Boolean(pending),
+        pending: candidates.length > 0,
+        candidate_count: candidates.length,
+        candidate_index: 0,
       };
     })
     .filter(Boolean) as Array<{
     id: number;
     name: string;
     category: string | null;
+    brand: string;
     image_url: string;
     pending: boolean;
+    candidate_count: number;
+    candidate_index: number;
   }>;
 }
 
@@ -297,10 +316,38 @@ export async function rejectPhotoReviews(ids: number[]): Promise<{ rejected: num
   return { rejected };
 }
 
+/** Passe au candidat suivant sans re-scrape. Retourne null si plus de candidats. */
+export async function nextPhotoReviewCandidate(productId: number): Promise<{
+  ok: boolean;
+  cycled: boolean;
+  image_url?: string;
+  candidate_count: number;
+  reason?: string;
+}> {
+  const [p] = await db.select().from(productsTable).where(eq(productsTable.id, productId)).limit(1);
+  if (!p) return { ok: false, cycled: false, candidate_count: 0, reason: "introuvable" };
+  const cands = getPendingReviewCandidates(p.images);
+  if (cands.length <= 1) {
+    return { ok: false, cycled: false, candidate_count: cands.length, reason: "plus_de_candidats" };
+  }
+  // Rotation : [a,b,c] → [b,c,a]
+  const rotated = [...cands.slice(1), cands[0]!];
+  await db
+    .update(productsTable)
+    .set({ images: [PHOTO_REVIEW_MARKER, ...rotated], imageUrl: null, isFeatured: false })
+    .where(eq(productsTable.id, productId));
+  const url = rotated[0]!;
+  return {
+    ok: true,
+    cycled: true,
+    image_url: url.startsWith("data:") ? `/api/products/${productId}/image?review=1&t=${Date.now()}` : url,
+    candidate_count: rotated.length,
+  };
+}
+
 export async function rescrapeProductPhotoForReview(
   productId: number,
 ): Promise<{ ok: boolean; image_url?: string; reason?: string }> {
-  // Force re-scrape même si pending
   await db
     .update(productsTable)
     .set({ imageUrl: null, images: [], isFeatured: false })

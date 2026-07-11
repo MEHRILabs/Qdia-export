@@ -150,8 +150,8 @@ function extractMatchingProductPages(html: string, baseUrl: string, productName:
     const href = m[1];
     const text = m[2].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
     if (!href || text.length < 3) continue;
-    // Lien doit contenir la marque + un mot produit
-    if (hitsInText(text, brand) < 1) continue;
+    // Titre lien : phrase marque (tous tokens) + type
+    if (hitsInText(text, brand) < brand.length) continue;
     if (typeTok.length && hitsInText(text, typeTok) < 1) continue;
     try {
       const abs = new URL(href, baseUrl).href.split("#")[0]!;
@@ -174,8 +174,8 @@ async function scrapeProductPageImage(pageUrl: string, productName: string): Pro
     html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)?.[1]
     ?? html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]
     ?? "";
-  // Fiche produit : marque obligatoire dans le titre
-  if (title && hitsInText(title, brand) < 1) return [];
+  // Fiche produit : marque complète + type dans le titre
+  if (title && hitsInText(title, brand) < brand.length) return [];
   if (title && typeTok.length && hitsInText(title, typeTok) < 1) return [];
 
   const og = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)?.[1]
@@ -251,8 +251,12 @@ export async function searchAlgerianProductImageUrls(
 
   const exactQueries = [
     `"${brand}" ${typeWords} flacon OR bouteille OR packshot OR emballage`,
-    `"${brand}" ${typeWords} produit Algérie -legume -vegetable -farmer -panier`,
-  ].filter((x) => x.replace(/["\s]/g, "").length > 3);
+    `"${brand}" ${typeWords} produit Algérie -legume -vegetable -farmer -panier -bio`,
+    // Marque seule entre guillemets + type (packshot)
+    brand.includes(" ")
+      ? `"${brand}" ${typeWords.split(" ")[0] ?? ""} packshot`
+      : `"${brand}" ${typeWords} packshot flacon`,
+  ].filter((x) => x.replace(/["\s]/g, "").length > 4);
 
   for (const query of exactQueries) {
     const urls = await fetchBingImages(query, productName);

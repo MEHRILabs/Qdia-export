@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, Loader2, RefreshCw, Trash2, X } from "lucide-react";
+import { Check, Loader2, RefreshCw, Trash2, X, ChevronRight } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { platformApi } from "@/lib/platform-api";
@@ -11,8 +11,11 @@ export type PhotoReviewItem = {
   id: number;
   name: string;
   category: string | null;
+  brand: string;
   image_url: string;
   pending: boolean;
+  candidate_count: number;
+  candidate_index: number;
 };
 
 type Props = {
@@ -47,7 +50,7 @@ export function ScrapePhotoReviewDialog({ open, ids, onClose }: Props) {
     platformApi
       .listPhotoReviews(ids)
       .then((r) => {
-        if (!cancelled) setItems(r.data);
+        if (!cancelled) setItems(r.data as PhotoReviewItem[]);
       })
       .catch((e) => {
         if (!cancelled) {
@@ -103,12 +106,62 @@ export function ScrapePhotoReviewDialog({ open, ids, onClose }: Props) {
     }
   };
 
-  const rescrapeOne = async (id: number) => {
+  /** Image suivante parmi les candidats ; sinon re-scrape. */
+  const nextOrRescrape = async (item: PhotoReviewItem) => {
+    setBusyId(item.id);
+    try {
+      if (item.candidate_count > 1) {
+        const r = await platformApi.nextPhotoReviewCandidate(item.id);
+        if (r.ok && r.item) {
+          setItems((prev) =>
+            prev.map((x) =>
+              x.id === item.id
+                ? { ...r.item!, image_url: `${r.item!.image_url}${r.item!.image_url.includes("?") ? "&" : "?"}t=${Date.now()}` }
+                : x,
+            ),
+          );
+          return;
+        }
+      }
+      const r = await platformApi.rescrapePhotoReview(item.id);
+      if (r.ok && r.item) {
+        setItems((prev) =>
+          prev.map((x) =>
+            x.id === item.id
+              ? { ...r.item!, image_url: `${r.item!.image_url}${r.item!.image_url.includes("?") ? "&" : "?"}t=${Date.now()}` }
+              : x,
+          ),
+        );
+      } else {
+        toast({
+          title: tr("common.error"),
+          description: r.reason ?? tr("admin.review_rescrape_fail"),
+          variant: "destructive",
+        });
+      }
+    } catch (e) {
+      toast({
+        title: tr("common.error"),
+        description: String(e instanceof Error ? e.message : e),
+        variant: "destructive",
+      });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const forceRescrape = async (id: number) => {
     setBusyId(id);
     try {
       const r = await platformApi.rescrapePhotoReview(id);
       if (r.ok && r.item) {
-        setItems((prev) => prev.map((x) => (x.id === id ? { ...r.item!, image_url: `${r.item!.image_url}?t=${Date.now()}` } : x)));
+        setItems((prev) =>
+          prev.map((x) =>
+            x.id === id
+              ? { ...r.item!, image_url: `${r.item!.image_url}${r.item!.image_url.includes("?") ? "&" : "?"}t=${Date.now()}` }
+              : x,
+          ),
+        );
       } else {
         toast({
           title: tr("common.error"),
@@ -153,31 +206,60 @@ export function ScrapePhotoReviewDialog({ open, ids, onClose }: Props) {
                       alt={item.name}
                       className="w-full h-full object-contain"
                     />
+                    {item.candidate_count > 1 && (
+                      <span className="absolute top-2 end-2 text-[10px] font-bold bg-white/90 border rounded px-1.5 py-0.5">
+                        1/{item.candidate_count}
+                      </span>
+                    )}
                   </div>
-                  <div className="p-2.5 flex-1 flex flex-col gap-2">
+                  <div className="p-2.5 flex-1 flex flex-col gap-1.5">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#0461A5]">
+                      {tr("admin.review_brand")}: {item.brand || "—"}
+                    </p>
                     <p className="text-xs font-semibold line-clamp-2 leading-snug">{item.name}</p>
                     <p className="text-[10px] text-muted-foreground">{item.category}</p>
-                    <div className="mt-auto flex gap-1.5">
+                    <div className="mt-auto flex flex-col gap-1.5 pt-1">
                       <Button
                         size="sm"
                         variant="outline"
-                        className="flex-1 gap-1 text-xs h-8"
+                        className="w-full gap-1 text-xs h-8"
                         disabled={busyId === item.id || saving}
-                        onClick={() => void rescrapeOne(item.id)}
+                        onClick={() => void nextOrRescrape(item)}
                       >
-                        {busyId === item.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-                        {tr("admin.review_modify")}
+                        {busyId === item.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : item.candidate_count > 1 ? (
+                          <ChevronRight className="h-3 w-3" />
+                        ) : (
+                          <RefreshCw className="h-3 w-3" />
+                        )}
+                        {item.candidate_count > 1
+                          ? tr("admin.review_next")
+                          : tr("admin.review_modify")}
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        className="h-8 w-8 p-0"
-                        disabled={busyId === item.id || saving}
-                        onClick={() => void rejectOne(item.id)}
-                        title={tr("admin.review_reject")}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      <div className="flex gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 gap-1 text-xs h-8"
+                          disabled={busyId === item.id || saving}
+                          onClick={() => void forceRescrape(item.id)}
+                          title={tr("admin.review_rescrape")}
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                          {tr("admin.review_rescrape")}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="h-8 w-8 p-0"
+                          disabled={busyId === item.id || saving}
+                          onClick={() => void rejectOne(item.id)}
+                          title={tr("admin.review_reject")}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>

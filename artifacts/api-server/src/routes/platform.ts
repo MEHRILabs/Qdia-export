@@ -598,4 +598,21 @@ router.post("/admin/photo-reviews/rescrape", requireAuth, requireRole("admin"), 
   }
 });
 
+/** Passe au candidat image suivant (sans re-scrape) */
+router.post("/admin/photo-reviews/next-candidate", requireAuth, requireRole("admin"), async (req, res) => {
+  try {
+    const id = Number(req.body?.id);
+    if (!Number.isFinite(id) || id <= 0) {
+      res.status(400).json({ error: "id requis" });
+      return;
+    }
+    const { nextPhotoReviewCandidate, listPhotoReviews } = await import("../services/catalog-web-scrape");
+    const one = await nextPhotoReviewCandidate(id);
+    const [item] = one.ok ? await listPhotoReviews([id]) : [null];
+    res.json({ ...one, item: item ?? null });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Candidat suivant échoué" });
+  }
+});
+
 export default router;
