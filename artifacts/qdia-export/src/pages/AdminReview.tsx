@@ -138,46 +138,49 @@ export default function AdminReview() {
     }
   };
 
-  /** 1 produit par requête (timeout Render ~30s). Boucle jusqu'à target. */
+  /** Job async (évite timeout Render) — poll jusqu'à cible ou fin. */
   const runScrapePhotos = async (target = 20) => {
-    const CHUNK = 1;
-    const maxRounds = target + 5;
     setScraping(true);
     setScrapeProgress(tr("admin.scrape_progress").replace("{done}", "0").replace("{total}", String(target)));
-    let ok = 0;
-    let processed = 0;
-    let skipped = 0;
-    const idsOk: number[] = [];
-    const errors: string[] = [];
     try {
-      for (let round = 0; round < maxRounds && ok < target; round++) {
+      await platformApi.startScrapeJob({ batch_size: 10, max_ok: target });
+      const started = Date.now();
+      const maxWaitMs = Math.max(target * 25_000, 120_000);
+      let last: Awaited<ReturnType<typeof platformApi.getScrapeJobStatus>> | null = null;
+
+      while (Date.now() - started < maxWaitMs) {
+        await new Promise((r) => setTimeout(r, 2000));
+        last = await platformApi.getScrapeJobStatus();
         setScrapeProgress(
-          tr("admin.scrape_progress").replace("{done}", String(ok)).replace("{total}", String(target)),
+          tr("admin.scrape_progress")
+            .replace("{done}", String(last.ok ?? 0))
+            .replace("{total}", String(target)) +
+            (last.message ? ` · ${last.message}` : ""),
         );
-        const result = await platformApi.scrapeCatalogPhotos(CHUNK, { skip_purge: true });
-        ok += result.ok ?? 0;
-        processed += result.processed ?? 0;
-        skipped += result.skipped ?? 0;
-        if (result.ids_ok?.length) idsOk.push(...result.ids_ok);
-        if (result.errors?.length) errors.push(...result.errors.slice(0, 3));
-        // Plus rien à traiter
-        if ((result.processed ?? 0) === 0 && (result.ok ?? 0) === 0) break;
-        // Évite de spammer si tout échoue
-        if ((result.ok ?? 0) === 0 && (result.processed ?? 0) > 0 && ok === 0 && round >= 4) break;
+        if (last.status !== "running" && last.status !== "stopping") break;
+        if ((last.ok ?? 0) >= target) {
+          await platformApi.stopScrapeJob();
+          break;
+        }
       }
+
       setScrapeProgress(null);
-      const errHint = errors.length ? ` · ${errors[0]}` : "";
+      const ok = last?.ok ?? 0;
+      const processed = last?.processed ?? 0;
+      const failed = last?.failed ?? 0;
+      const errHint = last?.errors?.[0] ? ` · ${last.errors[0]}` : "";
       toast({
         title: tr("admin.scrape_done"),
         description: tr("admin.scrape_done_desc")
           .replace("{ok}", String(ok))
           .replace("{processed}", String(processed))
-          .replace("{skipped}", String(skipped)) + errHint,
+          .replace("{skipped}", String(failed)) + errHint,
         variant: ok === 0 ? "destructive" : "default",
       });
       const status = await platformApi.getEnrichmentStatus();
       setEnrichStatus(status);
       void loadStats();
+      const idsOk = last?.ids_ok ?? [];
       if (idsOk.length) {
         setReviewIds([...new Set(idsOk)]);
         setReviewOpen(true);

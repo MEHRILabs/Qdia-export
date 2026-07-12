@@ -19,6 +19,7 @@ const MIN_BYTES = 3_000;
 const MAX_CANDIDATES = 8;
 
 export const PHOTO_REVIEW_MARKER = "__qdia_photo_review__";
+export const PHOTO_MISS_MARKER = "__qdia_scrape_miss__";
 
 export interface ScrapePhotosResult {
   processed: number;
@@ -175,10 +176,14 @@ export async function scrapeOneProductPhoto(
   const candidates = await searchProductImageUrls(p.name, p.category);
   if (!candidates.length) {
     logger.warn({ productId: p.id, name: p.name }, "scrape: 0 candidats");
+    await db
+      .update(productsTable)
+      .set({ images: [PHOTO_MISS_MARKER, String(Date.now())] })
+      .where(eq(productsTable.id, p.id));
     return { ok: false, reason: "aucune_candidat" };
   }
   const savedList: string[] = [];
-  for (const candidate of candidates.slice(0, 5)) {
+  for (const candidate of candidates.slice(0, 3)) {
     if (savedList.length >= 1) break; // 1 image = fiable sous 30s Render
     if (isNsfwOrBlockedImageUrl(candidate)) continue;
     try {
@@ -193,6 +198,10 @@ export async function scrapeOneProductPhoto(
 
   if (!savedList.length) {
     logger.warn({ productId: p.id, tried: candidates.length }, "scrape: download échoué");
+    await db
+      .update(productsTable)
+      .set({ images: [PHOTO_MISS_MARKER, String(Date.now())] })
+      .where(eq(productsTable.id, p.id));
     return { ok: false, reason: "download_echec" };
   }
 
@@ -407,25 +416,29 @@ export async function scrapeCatalogPhotosBatch(
       .from(productsTable)
       .where(sql`${productsTable.id} IN (${sql.join(opts.productIds.map((id) => sql`${id}`), sql`, `)})`);
   } else {
-    // Prendre un peu plus large : filtrage needsPhoto / purge ensuite
+    // Exactement `limit` lignes candidates (pas 8×) — timeout Render ~30s
     rows = await db
       .select()
       .from(productsTable)
       .where(
-        or(
-          isNull(productsTable.imageUrl),
-          eq(productsTable.imageUrl, ""),
-          sql`${productsTable.imageUrl} LIKE '%qdia-photo-placeholder%'`,
-          sql`${productsTable.imageUrl} LIKE '%.svg'`,
-          sql`${productsTable.imageUrl} LIKE 'http%'`,
+        and(
+          or(
+            isNull(productsTable.imageUrl),
+            eq(productsTable.imageUrl, ""),
+            sql`${productsTable.imageUrl} LIKE '%qdia-photo-placeholder%'`,
+            sql`${productsTable.imageUrl} LIKE '%.svg'`,
+            sql`${productsTable.imageUrl} LIKE 'http%'`,
+          ),
+          sql`NOT (COALESCE(${productsTable.images}::text, '') LIKE ${"%" + PHOTO_MISS_MARKER + "%"})`,
         ),
       )
       .orderBy(sql`${productsTable.id} ASC`)
-      .limit(Math.max(limit * 8, 16));
+      .limit(Math.max(limit * 3, limit));
   }
 
   for (const p of rows) {
-    if (result.ok >= limit) break;
+    // Stop après N tentatives (succès OU échec) — ne pas boucler jusqu'à N succès
+    if (result.processed >= limit) break;
     const mustReplace = shouldPurgeCatalogImage(p.imageUrl);
     if (!mustReplace && (!needsPhoto(p) || hasRealProductImage(p.imageUrl))) {
       result.skipped++;

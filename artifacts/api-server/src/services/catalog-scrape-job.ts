@@ -1,28 +1,20 @@
 /**
- * Job de scraping photos catalogue — lots de 50, progression, reprise.
- * Les produits déjà avec vraie photo sont ignorés (reprise naturelle).
+ * Job de scraping photos catalogue — lots courts, progression, reprise.
+ * Réponse HTTP immédiate (évite timeout Render ~30s).
  */
-import { eq, or, isNull, sql, asc } from "drizzle-orm";
+import { eq, or, isNull, sql, asc, and } from "drizzle-orm";
 import { db, productsTable } from "@workspace/db";
 import { logger } from "../lib/logger";
-import { fetchImageAsBase64 } from "./image-scraper";
-import { saveCatalogImage } from "./catalog-image-store";
-import { processCatalogPhoto } from "./catalog-image-process";
-import { hasRealProductImage, needsPhoto } from "./product-enrichment";
-import { promoteProductToFeatured } from "./featured-products";
-import {
-  extractBingImageUrls,
-  searchProductImageUrls,
-} from "./catalog-web-scrape";
+import { PHOTO_MISS_MARKER } from "./catalog-web-scrape";
 
-const BATCH_SIZE = 50;
-const MIN_BYTES = 8_000;
+const BATCH_SIZE = 10;
 
 export type ScrapeJobStatus = "idle" | "running" | "stopping" | "done" | "error";
 
 export interface ScrapeJobState {
   status: ScrapeJobStatus;
   batch_size: number;
+  max_ok: number | null;
   total_products: number;
   without_photo: number;
   with_photo: number;
@@ -35,6 +27,7 @@ export interface ScrapeJobState {
   last_product_name: string | null;
   message: string;
   errors: string[];
+  ids_ok: number[];
   started_at: string | null;
   updated_at: string | null;
 }
@@ -42,6 +35,7 @@ export interface ScrapeJobState {
 const state: ScrapeJobState = {
   status: "idle",
   batch_size: BATCH_SIZE,
+  max_ok: null,
   total_products: 0,
   without_photo: 0,
   with_photo: 0,
@@ -54,6 +48,7 @@ const state: ScrapeJobState = {
   last_product_name: null,
   message: "",
   errors: [],
+  ids_ok: [],
   started_at: null,
   updated_at: null,
 };
@@ -68,7 +63,6 @@ function touch(msg?: string) {
 async function countStats() {
   const [totalRow] = await db.select({ c: sql<number>`count(*)::int` }).from(productsTable);
   const total = totalRow?.c ?? 0;
-  // Approximation : sans image / placeholder / svg
   const [noPhotoRow] = await db
     .select({ c: sql<number>`count(*)::int` })
     .from(productsTable)
@@ -78,7 +72,6 @@ async function countStats() {
         eq(productsTable.imageUrl, ""),
         sql`${productsTable.imageUrl} LIKE '%qdia-photo-placeholder%'`,
         sql`${productsTable.imageUrl} LIKE '%.svg'`,
-        sql`${productsTable.imageUrl} LIKE '/uploads/catalog/%' AND ${productsTable.imageUrl} NOT LIKE 'http%'`,
       ),
     );
   const without = noPhotoRow?.c ?? 0;
@@ -92,35 +85,26 @@ async function nextBatch(limit: number) {
     .select()
     .from(productsTable)
     .where(
-      or(
-        isNull(productsTable.imageUrl),
-        eq(productsTable.imageUrl, ""),
-        sql`${productsTable.imageUrl} LIKE '%qdia-photo-placeholder%'`,
-        sql`${productsTable.imageUrl} LIKE '%.svg'`,
+      and(
+        or(
+          isNull(productsTable.imageUrl),
+          eq(productsTable.imageUrl, ""),
+          sql`${productsTable.imageUrl} LIKE '%qdia-photo-placeholder%'`,
+          sql`${productsTable.imageUrl} LIKE '%.svg'`,
+        ),
+        sql`NOT (COALESCE(${productsTable.images}::text, '') LIKE ${"%" + PHOTO_MISS_MARKER + "%"})`,
       ),
     )
     .orderBy(asc(productsTable.id))
     .limit(limit);
 }
 
-async function persistProcessedImage(productId: number, sku: string | null | undefined, base64: string, sourceUrl?: string): Promise<string> {
-  const ephemeral = process.env.RENDER === "true" || process.env.CATALOG_IMAGE_MODE === "remote";
-  if (ephemeral && sourceUrl?.startsWith("http")) {
-    return sourceUrl;
-  }
-  if (ephemeral) {
-    return `data:image/jpeg;base64,${base64}`;
-  }
-  const masterId = sku?.trim() || `product_${productId}`;
-  return saveCatalogImage(masterId, base64, "jpg");
-}
-
-async function scrapeOne(product: { id: number; name: string; imageUrl: string | null; sku?: string | null }) {
+async function scrapeOne(product: { id: number; name: string }) {
   const { scrapeOneProductPhoto } = await import("./catalog-web-scrape");
   const one = await scrapeOneProductPhoto(product.id);
   if (one.reason === "deja_ok") return { ok: false, skipped: true as const };
-  if (one.ok) return { ok: true as const, skipped: false as const, image_url: one.image_url };
-  return { ok: false as const, skipped: false as const };
+  if (one.ok) return { ok: true as const, skipped: false as const };
+  return { ok: false as const, skipped: false as const, reason: one.reason };
 }
 
 async function runLoop() {
@@ -131,6 +115,13 @@ async function runLoop() {
 
   try {
     while (state.status === "running") {
+      if (state.max_ok != null && state.ok >= state.max_ok) {
+        state.status = "done";
+        touch(`Objectif atteint — ${state.ok} photos.`);
+        await countStats();
+        break;
+      }
+
       const batch = await nextBatch(state.batch_size);
       if (!batch.length) {
         state.status = "done";
@@ -144,6 +135,7 @@ async function runLoop() {
 
       for (const p of batch) {
         if (state.status === "stopping") break;
+        if (state.max_ok != null && state.ok >= state.max_ok) break;
 
         state.last_product_id = p.id;
         state.last_product_name = p.name;
@@ -152,10 +144,14 @@ async function runLoop() {
         try {
           const one = await scrapeOne(p);
           if (one.skipped) state.skipped += 1;
-          else if (one.ok) state.ok += 1;
-          else {
+          else if (one.ok) {
+            state.ok += 1;
+            state.ids_ok.push(p.id);
+          } else {
             state.failed += 1;
-            if (state.errors.length < 40) state.errors.push(`${p.id}: aucune image`);
+            if (state.errors.length < 40) {
+              state.errors.push(`${p.id}: ${one.reason ?? "aucune image"}`);
+            }
           }
         } catch (e) {
           state.failed += 1;
@@ -164,11 +160,11 @@ async function runLoop() {
         }
 
         touch(
-          `Lot ${state.current_batch} — ${state.ok} OK / ${state.processed} traités · reste ~${Math.max(0, state.without_photo - state.ok)}`,
+          `${state.ok} OK / ${state.processed} traités` +
+            (state.max_ok != null ? ` (cible ${state.max_ok})` : ""),
         );
 
-        // Petite pause anti rate-limit
-        await new Promise(r => setTimeout(r, 350));
+        await new Promise((r) => setTimeout(r, 200));
       }
 
       await countStats();
@@ -193,25 +189,32 @@ async function runLoop() {
 }
 
 export function getScrapeJobState(): ScrapeJobState {
-  return { ...state, errors: [...state.errors] };
+  return { ...state, errors: [...state.errors], ids_ok: [...state.ids_ok] };
 }
 
-export async function startScrapeJob(opts?: { batch_size?: number }): Promise<ScrapeJobState> {
+export async function startScrapeJob(opts?: {
+  batch_size?: number;
+  max_ok?: number;
+}): Promise<ScrapeJobState> {
   if (state.status === "running") return getScrapeJobState();
 
-  state.batch_size = Math.min(Math.max(opts?.batch_size ?? BATCH_SIZE, 10), 50);
+  state.batch_size = Math.min(Math.max(opts?.batch_size ?? BATCH_SIZE, 5), 20);
+  state.max_ok =
+    opts?.max_ok != null && Number.isFinite(opts.max_ok)
+      ? Math.min(Math.max(Math.floor(opts.max_ok), 1), 100)
+      : null;
   state.processed = 0;
   state.ok = 0;
   state.failed = 0;
   state.skipped = 0;
   state.current_batch = 0;
   state.errors = [];
+  state.ids_ok = [];
   state.started_at = new Date().toISOString();
   state.status = "running";
-  touch("Job démarré");
+  touch(state.max_ok ? `Job démarré (cible ${state.max_ok})` : "Job démarré");
 
   runner = runLoop();
-  // Ne pas await — réponse HTTP immédiate
   void runner;
 
   return getScrapeJobState();
@@ -230,6 +233,3 @@ export async function refreshScrapeStats(): Promise<ScrapeJobState> {
   touch();
   return getScrapeJobState();
 }
-
-// Réexport pour routes one-shot
-export { extractBingImageUrls, searchProductImageUrls };

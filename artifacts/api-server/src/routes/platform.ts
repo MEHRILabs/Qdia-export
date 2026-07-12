@@ -485,9 +485,14 @@ router.get("/admin/scrape-photos/status", requireAuth, requireRole("admin"), asy
 
 router.post("/admin/scrape-photos/start", requireAuth, requireRole("admin"), async (req, res) => {
   try {
-    const batch = Number(req.body?.batch_size ?? 50);
+    const batch = Number(req.body?.batch_size ?? 10);
+    const maxOkRaw = req.body?.max_ok ?? req.body?.target;
+    const max_ok = maxOkRaw != null ? Number(maxOkRaw) : undefined;
     const { startScrapeJob } = await import("../services/catalog-scrape-job");
-    const state = await startScrapeJob({ batch_size: batch });
+    const state = await startScrapeJob({
+      batch_size: batch,
+      max_ok: Number.isFinite(max_ok) ? max_ok : undefined,
+    });
     res.json(state);
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "Démarrage scrape échoué" });

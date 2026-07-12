@@ -451,6 +451,7 @@ export const platformApi = {
     api<{
       status: "idle" | "running" | "stopping" | "done" | "error";
       batch_size: number;
+      max_ok: number | null;
       total_products: number;
       without_photo: number;
       with_photo: number;
@@ -463,13 +464,27 @@ export const platformApi = {
       last_product_name: string | null;
       message: string;
       errors: string[];
+      ids_ok: number[];
     }>("/api/admin/scrape-photos/status"),
 
-  startScrapeJob: (batch_size = 50) =>
-    api<{ status: string; message: string; without_photo: number; with_photo: number; total_products: number }>(
-      "/api/admin/scrape-photos/start",
-      { method: "POST", body: JSON.stringify({ batch_size }) },
-    ),
+  startScrapeJob: (opts?: { batch_size?: number; max_ok?: number } | number) => {
+    const body =
+      typeof opts === "number"
+        ? { batch_size: opts }
+        : { batch_size: opts?.batch_size ?? 10, max_ok: opts?.max_ok };
+    return api<{
+      status: string;
+      message: string;
+      without_photo: number;
+      with_photo: number;
+      total_products: number;
+      ok: number;
+      max_ok: number | null;
+    }>("/api/admin/scrape-photos/start", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
 
   stopScrapeJob: () =>
     api<{ status: string; message: string }>("/api/admin/scrape-photos/stop", { method: "POST", body: "{}" }),
