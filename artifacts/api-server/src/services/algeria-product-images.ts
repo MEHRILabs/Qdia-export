@@ -1,5 +1,6 @@
 /**
- * Recherche images produit — rapide (Bing only) pour tenir dans le timeout Render.
+ * Recherche images produit — Bing uniquement, matching strict marque+type.
+ * Jamais de fallback « n’importe quelle image SafeSearch ».
  */
 import { logger } from "../lib/logger";
 import { isNsfwOrBlockedImageUrl } from "./catalog-image-safety";
@@ -9,19 +10,25 @@ import {
   significantProductTokens,
   extractBrandTokens,
   extractProductTypeTokens,
-  hasBrandMatch,
 } from "./product-image-match";
 
 const SEARCH_TIMEOUT_MS = 8_000;
 const MAX_CANDIDATES = 6;
 
-function buildQuery(productName: string): { brand: string; q: string } {
+function buildQueries(productName: string): { brand: string; queries: string[] } {
   const brandTok = extractBrandTokens(productName);
   const typeTok = extractProductTypeTokens(productName, brandTok);
   const brand = brandTok.join(" ") || significantProductTokens(productName)[0] || productName.slice(0, 40);
-  const typeWords = typeTok.slice(0, 2).join(" ");
-  const q = [brand, typeWords].filter(Boolean).join(" ").slice(0, 70);
-  return { brand, q };
+  const typeWords = typeTok.slice(0, 3).join(" ");
+  const quoted = brand.includes(" ") ? `"${brand}"` : brand;
+
+  const queries = [
+    `${quoted} ${typeWords} packshot OR emballage OR flacon OR bocal OR sachet`.trim(),
+    `${quoted} ${typeWords} produit`.trim(),
+    `${quoted} ${typeWords}`.trim(),
+  ].filter((q, i, arr) => q.length >= 4 && arr.indexOf(q) === i);
+
+  return { brand, queries };
 }
 
 async function fetchHtml(url: string): Promise<string | null> {
@@ -64,6 +71,8 @@ function extractBingMurls(html: string): Array<{ url: string; alt: string }> {
     try {
       const u = decodeURIComponent(raw.replace(/\\u0026/g, "&").replace(/\\\//g, "/"));
       if (!/^https?:\/\//i.test(u) || isNsfwOrBlockedImageUrl(u) || seen.has(u)) return;
+      // Miniatures Bing th?id= sans titre → souvent hors sujet
+      if (/bing\.net\/th/i.test(u) && !alt.trim()) return;
       seen.add(u);
       out.push({ url: u, alt });
     } catch {
@@ -71,7 +80,6 @@ function extractBingMurls(html: string): Array<{ url: string; alt: string }> {
     }
   };
 
-  // Images source (murl) — priorité
   const murlRe = /murl&quot;:&quot;(https?:\/\/[^&]+?)&quot;/gi;
   let idx = 0;
   let m: RegExpExecArray | null;
@@ -80,7 +88,6 @@ function extractBingMurls(html: string): Array<{ url: string; alt: string }> {
     idx++;
   }
 
-  // Miniatures Bing CDN — fiables à télécharger si hotlink murl échoue
   const turlRe = /turl&quot;:&quot;(https?:\/\/[^&]+?)&quot;/gi;
   let tIdx = 0;
   while ((m = turlRe.exec(html)) !== null) {
@@ -96,23 +103,15 @@ function rank(
   productName: string,
 ): string[] {
   const seen = new Set<string>();
-  const brand = extractBrandTokens(productName);
-  const scored = items
-    .map((img) => {
-      const blob = `${img.url} ${img.alt}`;
-      let s = isRelevantProductImage(img.url, productName, img.alt)
+  return items
+    .map((img) => ({
+      u: img.url,
+      s: isRelevantProductImage(img.url, productName, img.alt)
         ? scoreNameMatch(img.url, productName, img.alt)
-        : -1;
-      // Assouplir : marque seule dans alt/url = candidat faible mais utilisable
-      if (s < 0 && brand.length && hasBrandMatch(blob, brand)) {
-        s = 2;
-      }
-      return { u: img.url, s };
-    })
-    .filter((x) => x.s > 0)
-    .sort((a, b) => b.s - a.s);
-
-  return scored
+        : -1,
+    }))
+    .filter((x) => x.s >= 8) // seuil : marque + type (+ bonus éventuel)
+    .sort((a, b) => b.s - a.s)
     .map((x) => x.u)
     .filter((u) => {
       if (seen.has(u)) return false;
@@ -123,44 +122,29 @@ function rank(
 }
 
 /**
- * 1 requête Bing max — priorise pertinence, sinon top images SafeSearch (validation admin ensuite).
+ * Jusqu’à 2 requêtes Bing ciblées. Zéro candidat si hors marque/produit.
  */
 export async function searchAlgerianProductImageUrls(
   productName: string,
   _category?: string | null,
 ): Promise<string[]> {
-  const { brand, q } = buildQuery(productName);
-  if (!q.trim()) return [];
+  const { brand, queries } = buildQueries(productName);
+  if (!queries.length) return [];
 
-  const query = q || brand;
-  const url =
-    `https://www.bing.com/images/async?q=${encodeURIComponent(query)}` +
-    `&async=1&first=1&count=35&adlt=strict&safesearch=strict`;
-  const html = await fetchHtml(url);
-  if (!html) {
-    logger.warn({ productName: productName.slice(0, 60) }, "bing fetch vide");
-    return [];
+  for (const query of queries.slice(0, 2)) {
+    const url =
+      `https://www.bing.com/images/async?q=${encodeURIComponent(query)}` +
+      `&async=1&first=1&count=40&adlt=strict&safesearch=strict`;
+    const html = await fetchHtml(url);
+    if (!html) continue;
+    const ranked = rank(extractBingMurls(html), productName);
+    if (ranked.length) {
+      logger.info({ productName: productName.slice(0, 40), n: ranked.length, brand, query }, "bing images ok");
+      return ranked;
+    }
   }
 
-  const items = extractBingMurls(html);
-  const ranked = rank(items, productName);
-  if (ranked.length) {
-    logger.info({ productName: productName.slice(0, 40), n: ranked.length, brand }, "bing images ok");
-    return ranked;
-  }
-
-  // Fallback : images SafeSearch sans filtre marque (mieux qu’un échec total)
-  const safe = items
-    .filter((i) => !isNsfwOrBlockedImageUrl(i.url))
-    .map((i) => i.url)
-    .filter((u, i, arr) => arr.indexOf(u) === i)
-    .slice(0, MAX_CANDIDATES);
-  if (safe.length) {
-    logger.info({ productName: productName.slice(0, 40), n: safe.length, brand }, "bing fallback safe");
-    return safe;
-  }
-
-  logger.warn({ productName: productName.slice(0, 60), brand }, "aucune image candidate");
+  logger.warn({ productName: productName.slice(0, 60), brand }, "aucune image pertinente (marque+type)");
   return [];
 }
 

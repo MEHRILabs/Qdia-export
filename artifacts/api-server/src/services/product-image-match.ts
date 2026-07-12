@@ -1,5 +1,5 @@
 /**
- * Matching : marque détectée intelligemment + mots du produit dans URL/alt.
+ * Matching strict : marque + type produit dans URL/alt. Refuse lifestyle / hors-sujet.
  */
 
 const UNIT_STOP =
@@ -9,25 +9,32 @@ const GENERIC_STOP = new Set([
   "ar", "the", "and", "pour", "avec", "sans", "des", "les", "une", "aux",
   "produit", "product", "alimentaire", "food", "agriculture", "export",
   "liquide", "liquid", "nature", "classic", "original", "new", "extra",
+  "ganul", "granule", "granules", "bocal", "same",
 ]);
 
 /** Mots descriptifs (pas une marque) — souvent en tête du nom catalogue. */
 const WEAK_NAME_WORDS = new Set([
   "support", "bloc", "note", "ruban", "adhesif", "adhesive", "surligneur",
-  "stylo", "cahier",   "papier", "carton", "boite", "lot", "set",
+  "stylo", "cahier", "papier", "carton", "boite", "lot", "set",
   "pack", "huile", "cafe", "datte", "epice", "miel", "sucre", "farine",
   "lait", "eau", "jus", "sauce", "pates", "riz", "confiture", "vinaigre",
   "semoule", "couscous", "harissa", "tomate", "fromage", "yaourt", "beurre",
-  "chocolat", "biscuit", "neon", "promot", "promotion",
+  "chocolat", "biscuit", "neon", "promot", "promotion", "ail", "artichaut",
+  "artichauts", "arome", "fond", "cur", "assila",
 ]);
 
 const PRODUCT_TYPE_WORDS =
-  /^(cafe|caf[eé]|huile|datte|epice|miel|sucre|farine|lait|eau|jus|sauce|pates?|riz|confiture|vinaigre|semoule|couscous|harissa|tomate|fromage|yaourt|beurre|chocolat|biscuit|the|thé|surligneur|ruban|stylo|cahier|support|bloc|note)$/i;
+  /^(cafe|caf[eé]|huile|datte|epice|miel|sucre|farine|lait|eau|jus|sauce|pates?|riz|confiture|vinaigre|semoule|couscous|harissa|tomate|fromage|yaourt|beurre|chocolat|biscuit|the|thé|surligneur|ruban|stylo|cahier|support|bloc|note|ail|artichauts?|arome|arom[ae]|fond)$/i;
+
+/** Images clairement hors produit B2B / packshot */
+const OFFTOPIC_RE =
+  /\b(snoopy|peanuts|piggy|ahorrando|surf(er|ing)?|wave|ocean|beach|plage|cartoon|comic|meme|wallpaper|stock.?photo|shutterstock|getty|unsplash|portrait|selfie|fashion|model|wedding|mariage|car\b|auto\b|moto|football|soccer|nba|celebrity)\b/i;
 
 const LIFESTYLE_RE =
-  /\b(legume|l[eé]gumes?|vegetable|fruit|farmer|fermier|panier|basket|bio[_\-]?logo|organic.?farm|portrait|person|people|woman|man|girl|boy|smil|jardin|garden|harvest|r[eé]colte|carrots?|radish|salade)\b/i;
+  /\b(legume|l[eé]gumes?|vegetable|fruit|farmer|fermier|panier|basket|bio[_\-]?logo|organic.?farm|portrait|person|people|woman|man|girl|boy|smil|jardin|garden|harvest|r[eé]colte|carrots?|radish|salade|ferme|farmer)\b/i;
 
-const PACKSHOT_RE = /packshot|emballage|flacon|bouteille|bottle|jar|sachet|boite|boîte|canette|tube|product|produit|marker|highlighter|tape/i;
+const PACKSHOT_RE =
+  /packshot|emballage|flacon|bouteille|bottle|jar|sachet|boite|bo[iî]te|canette|tube|bocal|pot\b|product|produit|marker|highlighter|tape|packaging|etiquette/i;
 
 function normalize(s: string): string {
   return s
@@ -55,8 +62,6 @@ export function significantProductTokens(productName: string): string[] {
 
 /**
  * Marque : premier mot « fort », ou dernier token si le début est descriptif.
- * Ex. "GLOBAL AROME … CAFE" → global arome
- * Ex. "SUPPORT BLOC NOTE … TECHNO" → techno
  */
 export function extractBrandTokens(productName: string, explicitBrand?: string | null): string[] {
   if (explicitBrand?.trim()) {
@@ -66,7 +71,6 @@ export function extractBrandTokens(productName: string, explicitBrand?: string |
   if (!tokens.length) return [];
 
   const strong = tokens.filter((t) => !WEAK_NAME_WORDS.has(t) && !PRODUCT_TYPE_WORDS.test(t));
-  // Cas catalogue DZ : marque souvent en fin (TECHNO, SOUMMAM…)
   if (strong.length && WEAK_NAME_WORDS.has(tokens[0]!)) {
     const last = strong[strong.length - 1]!;
     return [last];
@@ -78,7 +82,6 @@ export function extractBrandTokens(productName: string, explicitBrand?: string |
       brand.push(tokens[1]);
     }
   }
-  // Si 1er token faible, préférer strong[0]
   if (WEAK_NAME_WORDS.has(brand[0]!) && strong[0]) {
     return [strong[0]];
   }
@@ -120,16 +123,24 @@ export function hasBrandMatch(blob: string, brand: string[]): boolean {
   const b = normalize(blob);
   const phrase = brand.join(" ");
   if (phrase && b.includes(phrase)) return true;
-  // Au moins le token marque principal (le plus discriminant)
-  const primary = [...brand].sort((a, b) => b.length - a.length)[0]!;
+  const primary = [...brand].sort((a, c) => c.length - a.length)[0]!;
   if (primary.length >= 4 && b.includes(primary)) return true;
   if (brand.length === 1) return b.includes(brand[0]!);
   return hasAllTokens(blob, brand);
 }
 
+function isOfftopicBlob(blob: string, productName: string): boolean {
+  if (OFFTOPIC_RE.test(blob)) return true;
+  if (LIFESTYLE_RE.test(blob)) {
+    const productOkLifestyle = /bio|legume|l[eé]gume|fruit|salade|jardin|vegetable/i.test(productName);
+    if (!productOkLifestyle) return true;
+  }
+  return false;
+}
+
 /**
- * Image OK si marque (token principal) + au moins 1 autre mot du nom.
- * Moins strict que « phrase entière » pour que le scrape trouve des résultats.
+ * Strict : marque obligatoire + au moins 1 mot produit (type).
+ * Refuse cartoons / lifestyle / surf / stock hors sujet.
  */
 export function isRelevantProductImage(
   url: string,
@@ -142,21 +153,13 @@ export function isRelevantProductImage(
   if (!brand.length) return false;
 
   const blob = `${url} ${alt}`;
-
-  if (LIFESTYLE_RE.test(blob)) {
-    const productOkLifestyle = /bio|legume|l[eé]gume|fruit|salade|jardin|vegetable/i.test(productName);
-    if (!productOkLifestyle) return false;
-  }
-
+  if (isOfftopicBlob(blob, productName)) return false;
   if (!hasBrandMatch(blob, brand)) return false;
 
-  // Autre mot du nom (hors marque) OU 2 tokens du nom au total
   const others = allTokens.filter((t) => !brand.includes(t));
+  // Exiger un mot produit (ail, cafe, artichaut…) — pas la marque seule
   if (others.length > 0) {
-    if (!hasAnyToken(blob, others)) {
-      // Fallback : au moins 2 tokens quelconques du nom
-      if (countTokenHits(blob, allTokens) < 2) return false;
-    }
+    if (!hasAnyToken(blob, others)) return false;
   } else if (countTokenHits(blob, allTokens) < 1) {
     return false;
   }
@@ -178,9 +181,9 @@ export function scoreNameMatch(
   const phrase = brand.join(" ");
   if (normalize(blob).includes(phrase)) s += 15;
   s += countTokenHits(blob, brand) * 8;
-  s += countTokenHits(blob, typeTokens) * 5;
-  if (PACKSHOT_RE.test(blob)) s += 8;
-  if (hasAllTokens(blob, brand) && countTokenHits(blob, typeTokens) >= 2) s += 10;
-  if (LIFESTYLE_RE.test(blob)) s -= 20;
+  s += countTokenHits(blob, typeTokens) * 6;
+  if (PACKSHOT_RE.test(blob)) s += 12;
+  if (hasAllTokens(blob, brand) && countTokenHits(blob, typeTokens) >= 1) s += 10;
+  if (LIFESTYLE_RE.test(blob) || OFFTOPIC_RE.test(blob)) s -= 40;
   return s;
 }

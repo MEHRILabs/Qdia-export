@@ -11,7 +11,7 @@ const NSFW_HOST_RE =
 
 /** Mots UI / hors produit */
 const JUNK_URL_RE =
-  /logo|favicon|sprite|avatar|1x1|pixel|spacer|banner-ad|advert|tracking|emoji|sticker/i;
+  /logo|favicon|sprite|avatar|1x1|pixel|spacer|banner-ad|advert|tracking|emoji|sticker|snoopy|peanuts|wallpaper|shutterstock|gettyimages|unsplash|surfing|surfboard|piggy.?bank/i;
 
 /** Hôtes autorisés pour conserver une image distante (sinon purge des scrapes web). */
 const TRUSTED_HOST_RE =
