@@ -53,12 +53,21 @@ export function isPlaceholderCatalogImage(imageUrl?: string | null): boolean {
     || (u.startsWith("/uploads/catalog/") && u.endsWith(".svg") && u.includes("QDIA Photo"));
 }
 
+/** Sur Render le disque /uploads est éphémère — chemins locaux = photos mortes. */
+export function isEphemeralUploadsHost(): boolean {
+  return process.env.RENDER === "true" || process.env.CATALOG_IMAGE_MODE === "remote";
+}
+
 export function hasRealProductImage(imageUrl?: string | null): boolean {
   if (!imageUrl?.trim()) return false;
   const u = imageUrl.trim();
   if (isPlaceholderCatalogImage(u)) return false;
   if (u.startsWith("data:") || u.startsWith("http") || u.startsWith("/api/products/")) return true;
-  if (u.startsWith("/uploads/catalog/")) return true;
+  if (u.startsWith("/uploads/")) {
+    // Fichiers absents après redéploiement Render
+    if (isEphemeralUploadsHost()) return false;
+    return true;
+  }
   if (u.startsWith("/") && !u.endsWith(".svg")) return true;
   return false;
 }

@@ -24,7 +24,8 @@ export function hasRealProductImage(imageUrl?: string | null): boolean {
   if (u.includes("Photo IA à générer")) return false;
   if (u.startsWith("/uploads/catalog/") && u.endsWith(".svg") && u.includes("QDIA Photo")) return false;
   if (u.startsWith("data:") || u.startsWith("http") || u.startsWith("/api/products/")) return true;
-  if (u.startsWith("/uploads/catalog/")) return true;
+  // Chemins /uploads souvent absents en prod Render — ne pas les compter comme photo réelle
+  if (u.startsWith("/uploads/")) return false;
   if (u.startsWith("/images/")) return true;
   if (u.endsWith(".svg")) return !u.includes("qdia-photo-placeholder");
   return false;

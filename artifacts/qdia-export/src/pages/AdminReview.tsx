@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
-import { Clock, Loader2, Sparkles, ImageIcon, DollarSign, Package, MessageSquare, Factory, ChevronDown, Search } from "lucide-react";
+import { Clock, Loader2, Sparkles, ImageIcon, DollarSign, Package, MessageSquare, Factory, ChevronDown, Search, CheckCircle2 } from "lucide-react";
 import { platformApi } from "@/lib/platform-api";
 import { useI18n } from "@/contexts/I18nContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -139,13 +139,38 @@ export default function AdminReview() {
   };
 
   /** Job async (évite timeout Render) — poll jusqu'à cible ou fin. */
+  const openPhotoReview = useCallback(async (preferredIds?: number[]) => {
+    try {
+      let ids = preferredIds?.length ? [...preferredIds] : [];
+      if (!ids.length) {
+        const pending = await platformApi.listPhotoReviews();
+        ids = (pending.data ?? []).map((x) => x.id);
+      }
+      if (!ids.length) {
+        toast({
+          title: tr("admin.scrape_done"),
+          description: tr("admin.review_none") || "Aucune photo à valider.",
+        });
+        return;
+      }
+      setReviewIds([...new Set(ids)]);
+      setReviewOpen(true);
+    } catch (e) {
+      toast({
+        title: tr("common.error"),
+        description: String(e instanceof Error ? e.message : e),
+        variant: "destructive",
+      });
+    }
+  }, [toast, tr]);
+
   const runScrapePhotos = async (target = 20) => {
     setScraping(true);
     setScrapeProgress(tr("admin.scrape_progress").replace("{done}", "0").replace("{total}", String(target)));
     try {
       await platformApi.startScrapeJob({ batch_size: 10, max_ok: target });
       const started = Date.now();
-      const maxWaitMs = Math.max(target * 25_000, 120_000);
+      const maxWaitMs = Math.max(target * 25_000, 180_000);
       let last: Awaited<ReturnType<typeof platformApi.getScrapeJobStatus>> | null = null;
 
       while (Date.now() - started < maxWaitMs) {
@@ -180,11 +205,8 @@ export default function AdminReview() {
       const status = await platformApi.getEnrichmentStatus();
       setEnrichStatus(status);
       void loadStats();
-      const idsOk = last?.ids_ok ?? [];
-      if (idsOk.length) {
-        setReviewIds([...new Set(idsOk)]);
-        setReviewOpen(true);
-      }
+      // Toujours tenter d'ouvrir la fenêtre (ids job OU pending API)
+      await openPhotoReview(last?.ids_ok ?? []);
     } catch (e) {
       setScrapeProgress(null);
       toast({
@@ -308,6 +330,16 @@ export default function AdminReview() {
                   >
                     {scraping ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
                     {tr("admin.scrape_btn_30")}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="gap-2 font-bold"
+                    disabled={scraping || enriching}
+                    onClick={() => void openPhotoReview()}
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    {tr("admin.review_photos_btn") || "Valider photos"}
                   </Button>
                 </div>
               </div>

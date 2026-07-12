@@ -634,6 +634,8 @@
     "review_approved": "Photos publiées",
     "review_approved_desc": "{n} photo(s) visibles dans le catalogue.",
     "review_rescrape_fail": "Impossible de trouver une autre image.",
+    "review_photos_btn": "Valider photos",
+    "review_none": "Aucune photo en attente de validation.",
     "scrape_btn_20": "Scraper 20 photos",
     "scrape_btn_30": "Scraper 30 photos",
     "scrape_btn_start": "Lancer Scraping Photos",

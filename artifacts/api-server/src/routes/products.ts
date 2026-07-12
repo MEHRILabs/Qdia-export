@@ -116,6 +116,13 @@ function compactImageUrl(productId: number, url?: string | null): string | null 
 
 function safeCatalogImageUrl(productId: number, url?: string | null, compact = true): string | null | undefined {
   if (!url) return url;
+  // /uploads morts sur Render → ne pas exposer (placeholder côté client)
+  if (
+    url.startsWith("/uploads/") &&
+    (process.env.RENDER === "true" || process.env.CATALOG_IMAGE_MODE === "remote")
+  ) {
+    return null;
+  }
   if (shouldPurgeCatalogImage(url)) return null;
   return compact ? compactImageUrl(productId, url) : url;
 }
@@ -326,16 +333,17 @@ router.get("/products", optionalAuth, async (req: AuthedRequest, res): Promise<v
   let listQuery = db.select().from(productsTable).$dynamic();
   if (conditions.length > 0) listQuery = listQuery.where(and(...conditions));
   if (isPublicCatalog) {
-    // Priorité : vraie photo (data/uploads/api) → http → placeholder → vide
+    // Priorité : data URL / api proxy / review → http → reste → uploads morts → vide
     listQuery = listQuery.orderBy(
       sql`CASE
-        WHEN ${productsTable.imageUrl} LIKE 'data:%' OR ${productsTable.imageUrl} LIKE '/api/products/%' THEN 0
-        WHEN ${productsTable.imageUrl} LIKE '/uploads/catalog/%' AND ${productsTable.imageUrl} NOT LIKE '%.svg' THEN 0
+        WHEN ${productsTable.imageUrl} LIKE 'data:%' THEN 0
+        WHEN ${productsTable.imageUrl} LIKE '/api/products/%' THEN 0
         WHEN ${productsTable.images}[1] = '__qdia_photo_review__' AND ${productsTable.images}[2] IS NOT NULL THEN 0
         WHEN ${productsTable.imageUrl} LIKE 'http%' THEN 1
-        WHEN ${productsTable.imageUrl} LIKE '%qdia-photo-placeholder%' OR ${productsTable.imageUrl} LIKE '%.svg' THEN 3
-        WHEN ${productsTable.imageUrl} IS NULL OR trim(${productsTable.imageUrl}) = '' THEN 4
-        ELSE 2
+        WHEN ${productsTable.imageUrl} LIKE '/uploads/%' THEN 5
+        WHEN ${productsTable.imageUrl} LIKE '%qdia-photo-placeholder%' OR ${productsTable.imageUrl} LIKE '%.svg' THEN 4
+        WHEN ${productsTable.imageUrl} IS NULL OR trim(${productsTable.imageUrl}) = '' THEN 5
+        ELSE 3
       END`,
       sql`CASE WHEN length(coalesce(${productsTable.description}, '')) >= 40 THEN 0 ELSE 1 END`,
       desc(productsTable.id),

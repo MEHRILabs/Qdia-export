@@ -427,6 +427,7 @@ export async function scrapeCatalogPhotosBatch(
             eq(productsTable.imageUrl, ""),
             sql`${productsTable.imageUrl} LIKE '%qdia-photo-placeholder%'`,
             sql`${productsTable.imageUrl} LIKE '%.svg'`,
+            sql`${productsTable.imageUrl} LIKE '/uploads/%'`,
             sql`${productsTable.imageUrl} LIKE 'http%'`,
           ),
           sql`NOT (COALESCE(${productsTable.images}::text, '') LIKE ${"%" + PHOTO_MISS_MARKER + "%"})`,

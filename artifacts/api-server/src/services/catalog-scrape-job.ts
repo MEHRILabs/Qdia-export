@@ -91,6 +91,9 @@ async function nextBatch(limit: number) {
           eq(productsTable.imageUrl, ""),
           sql`${productsTable.imageUrl} LIKE '%qdia-photo-placeholder%'`,
           sql`${productsTable.imageUrl} LIKE '%.svg'`,
+          // Chemins /uploads morts sur Render — à re-scraper
+          sql`${productsTable.imageUrl} LIKE '/uploads/%'`,
+          sql`${productsTable.imageUrl} LIKE 'http%'`,
         ),
         sql`NOT (COALESCE(${productsTable.images}::text, '') LIKE ${"%" + PHOTO_MISS_MARKER + "%"})`,
       ),
