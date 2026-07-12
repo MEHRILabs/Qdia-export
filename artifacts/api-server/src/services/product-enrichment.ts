@@ -68,10 +68,13 @@ export function needsPricing(p: Product): boolean {
 }
 
 export function needsPhoto(p: Product): boolean {
-  // Photo en attente de validation admin : ne pas re-scraper
+  if (hasRealProductImage(p.imageUrl)) return false;
   const imgs = p.images ?? [];
-  if (imgs[0] === "__qdia_photo_review__" && imgs[1]) return false;
-  return !hasRealProductImage(p.imageUrl);
+  // Pending review avec vraie image → pas besoin de re-scraper
+  if (imgs[0] === "__qdia_photo_review__" && imgs[1] && (imgs[1].startsWith("data:") || imgs[1].startsWith("http") || imgs[1].startsWith("/"))) {
+    return false;
+  }
+  return true;
 }
 
 function estimateCostDzd(p: Product): number {

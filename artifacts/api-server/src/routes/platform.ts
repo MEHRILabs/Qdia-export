@@ -6,6 +6,7 @@ import { requireAuth, requireRole, type AuthedRequest } from "../middleware/auth
 import { aiCompleteMini } from "../services/ai/engine";
 import { sendPushToUser } from "../services/fcm";
 import { broadcastMessage } from "../services/websocket";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -498,18 +499,13 @@ router.post("/admin/scrape-photos/stop", requireAuth, requireRole("admin"), asyn
   res.json(stopScrapeJob());
 });
 
-/** One-shot court (max 5) — purge NSFW d'abord, puis scrape SafeSearch */
+/** One-shot court (max 2) — Render timeout ~30s ; 1 produit = ~10–15s */
 router.post("/admin/scrape-photos", requireAuth, requireRole("admin"), async (req, res) => {
   try {
-    const limitRaw = Number(req.body?.limit ?? 5);
-    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.floor(limitRaw), 1), 5) : 5;
+    const limitRaw = Number(req.body?.limit ?? 1);
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.floor(limitRaw), 1), 2) : 1;
     const { scrapeCatalogPhotosBatch, scrapeOneProductPhoto, purgeUnsafeCatalogImages } = await import("../services/catalog-web-scrape");
 
-    // Sync pending → catalogue (rapide). Purge NSFW optionnelle (lente sur 19k).
-    if (req.body?.skip_purge !== true) {
-      const { syncPendingPhotosToCatalog } = await import("../services/catalog-web-scrape");
-      await syncPendingPhotosToCatalog();
-    }
     if (req.body?.purge === true) {
       await purgeUnsafeCatalogImages();
     }
@@ -531,6 +527,7 @@ router.post("/admin/scrape-photos", requireAuth, requireRole("admin"), async (re
     const result = await scrapeCatalogPhotosBatch(limit);
     res.json(result);
   } catch (err) {
+    logger.error({ err }, "scrape-photos failed");
     res.status(500).json({ error: err instanceof Error ? err.message : "Scraping photos échoué" });
   }
 });

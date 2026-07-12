@@ -138,36 +138,42 @@ export default function AdminReview() {
     }
   };
 
-  /** Lots de 5 — images depuis sites alimentaires algériens, puis validation. */
+  /** 1 produit par requête (timeout Render ~30s). Boucle jusqu'à target. */
   const runScrapePhotos = async (target = 20) => {
-    const CHUNK = 5;
-    const maxRounds = Math.ceil(target / CHUNK) + 4;
+    const CHUNK = 1;
+    const maxRounds = target + 5;
     setScraping(true);
     setScrapeProgress(tr("admin.scrape_progress").replace("{done}", "0").replace("{total}", String(target)));
     let ok = 0;
     let processed = 0;
     let skipped = 0;
     const idsOk: number[] = [];
+    const errors: string[] = [];
     try {
       for (let round = 0; round < maxRounds && ok < target; round++) {
-        const chunk = Math.min(CHUNK, target - ok);
         setScrapeProgress(
           tr("admin.scrape_progress").replace("{done}", String(ok)).replace("{total}", String(target)),
         );
-        const result = await platformApi.scrapeCatalogPhotos(chunk, { skip_purge: true });
+        const result = await platformApi.scrapeCatalogPhotos(CHUNK, { skip_purge: true });
         ok += result.ok ?? 0;
         processed += result.processed ?? 0;
         skipped += result.skipped ?? 0;
         if (result.ids_ok?.length) idsOk.push(...result.ids_ok);
+        if (result.errors?.length) errors.push(...result.errors.slice(0, 3));
+        // Plus rien à traiter
         if ((result.processed ?? 0) === 0 && (result.ok ?? 0) === 0) break;
+        // Évite de spammer si tout échoue
+        if ((result.ok ?? 0) === 0 && (result.processed ?? 0) > 0 && ok === 0 && round >= 4) break;
       }
       setScrapeProgress(null);
+      const errHint = errors.length ? ` · ${errors[0]}` : "";
       toast({
         title: tr("admin.scrape_done"),
         description: tr("admin.scrape_done_desc")
           .replace("{ok}", String(ok))
           .replace("{processed}", String(processed))
-          .replace("{skipped}", String(skipped)),
+          .replace("{skipped}", String(skipped)) + errHint,
+        variant: ok === 0 ? "destructive" : "default",
       });
       const status = await platformApi.getEnrichmentStatus();
       setEnrichStatus(status);

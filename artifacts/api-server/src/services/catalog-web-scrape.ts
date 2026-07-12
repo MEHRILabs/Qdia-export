@@ -15,7 +15,7 @@ import {
 } from "./catalog-image-safety";
 import { searchAlgerianProductImageUrls } from "./algeria-product-images";
 
-const MIN_BYTES = 8_000;
+const MIN_BYTES = 3_000;
 const MAX_CANDIDATES = 8;
 
 export const PHOTO_REVIEW_MARKER = "__qdia_photo_review__";
@@ -74,15 +74,11 @@ async function tryDownloadAndSave(productId: number, imageUrl: string, productNa
   if (raw.byteLength < MIN_BYTES) return null;
   if (!mime.startsWith("image/")) return null;
 
+  // Pertinence déjà filtrée à la recherche (URL + alt Bing). Ne pas re-filtrer sur l'URL seule
+  // (les CDN n'ont souvent pas le nom produit dans le path → faux négatifs).
   const urlScore = scoreSafeProductCandidate(imageUrl, productName);
   if (urlScore < 4 && (await looksMostlySkinTone(raw))) {
     logger.warn({ productId, imageUrl: imageUrl.slice(0, 120) }, "image rejetée (heuristique peau)");
-    return null;
-  }
-
-  const { isRelevantProductImage } = await import("./product-image-match");
-  if (!imageUrl.startsWith("data:") && productName && !isRelevantProductImage(imageUrl, productName)) {
-    logger.warn({ productId, imageUrl: imageUrl.slice(0, 120) }, "image rejetée (hors sujet nom)");
     return null;
   }
 
@@ -177,13 +173,17 @@ export async function scrapeOneProductPhoto(
   }
 
   const candidates = await searchProductImageUrls(p.name, p.category);
+  if (!candidates.length) {
+    logger.warn({ productId: p.id, name: p.name }, "scrape: 0 candidats");
+    return { ok: false, reason: "aucune_candidat" };
+  }
   const savedList: string[] = [];
-  for (const candidate of candidates.slice(0, 8)) {
-    if (savedList.length >= 2) break; // max 2 pour rester sous timeout Render
+  for (const candidate of candidates.slice(0, 5)) {
+    if (savedList.length >= 1) break; // 1 image = fiable sous 30s Render
     if (isNsfwOrBlockedImageUrl(candidate)) continue;
     try {
       const saved = await tryDownloadAndSave(p.id, candidate, p.name);
-      if (!saved || savedList.includes(saved)) continue;
+      if (!saved) continue;
       if (isNsfwOrBlockedImageUrl(saved)) continue;
       savedList.push(saved);
     } catch (err) {
@@ -191,7 +191,10 @@ export async function scrapeOneProductPhoto(
     }
   }
 
-  if (!savedList.length) return { ok: false, reason: "aucune_image" };
+  if (!savedList.length) {
+    logger.warn({ productId: p.id, tried: candidates.length }, "scrape: download échoué");
+    return { ok: false, reason: "download_echec" };
+  }
 
   // Visible tout de suite dans le catalogue + candidats pour validation admin
   await db
@@ -404,6 +407,7 @@ export async function scrapeCatalogPhotosBatch(
       .from(productsTable)
       .where(sql`${productsTable.id} IN (${sql.join(opts.productIds.map((id) => sql`${id}`), sql`, `)})`);
   } else {
+    // Prendre un peu plus large : filtrage needsPhoto / purge ensuite
     rows = await db
       .select()
       .from(productsTable)
@@ -413,14 +417,17 @@ export async function scrapeCatalogPhotosBatch(
           eq(productsTable.imageUrl, ""),
           sql`${productsTable.imageUrl} LIKE '%qdia-photo-placeholder%'`,
           sql`${productsTable.imageUrl} LIKE '%.svg'`,
+          sql`${productsTable.imageUrl} LIKE 'http%'`,
         ),
       )
-      .limit(limit);
+      .orderBy(sql`${productsTable.id} ASC`)
+      .limit(Math.max(limit * 8, 16));
   }
 
   for (const p of rows) {
     if (result.ok >= limit) break;
-    if (!needsPhoto(p) || (hasRealProductImage(p.imageUrl) && !shouldPurgeCatalogImage(p.imageUrl))) {
+    const mustReplace = shouldPurgeCatalogImage(p.imageUrl);
+    if (!mustReplace && (!needsPhoto(p) || hasRealProductImage(p.imageUrl))) {
       result.skipped++;
       continue;
     }

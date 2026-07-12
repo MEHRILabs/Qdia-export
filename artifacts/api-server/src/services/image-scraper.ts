@@ -126,7 +126,13 @@ export async function fetchImageAsBase64(imageUrl: string): Promise<{ base64: st
   try {
     const resp = await fetch(imageUrl, {
       signal: controller.signal,
-      headers: { "User-Agent": "QDIA-Export-Bot/1.0" },
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+        Referer: "https://www.bing.com/",
+      },
+      redirect: "follow",
     });
     if (!resp.ok) throw new Error(`Image HTTP ${resp.status}`);
 
@@ -136,9 +142,12 @@ export async function fetchImageAsBase64(imageUrl: string): Promise<{ base64: st
     }
 
     const mime = resp.headers.get("content-type")?.split(";")[0]?.trim() || "image/jpeg";
-    if (!mime.startsWith("image/")) throw new Error("Le fichier n'est pas une image");
+    // Certains CDN renvoient application/octet-stream
+    if (!mime.startsWith("image/") && mime !== "application/octet-stream") {
+      throw new Error("Le fichier n'est pas une image");
+    }
 
-    return { base64: buf.toString("base64"), mime };
+    return { base64: buf.toString("base64"), mime: mime.startsWith("image/") ? mime : "image/jpeg" };
   } finally {
     clearTimeout(timer);
   }

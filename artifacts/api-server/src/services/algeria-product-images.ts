@@ -1,8 +1,7 @@
 /**
- * Sources images produits : sites algériens + matching strict nom ↔ image.
+ * Recherche images produit — rapide (Bing only) pour tenir dans le timeout Render.
  */
 import { logger } from "../lib/logger";
-import { extractImageUrlsFromHtml } from "./image-scraper";
 import { isNsfwOrBlockedImageUrl } from "./catalog-image-safety";
 import {
   isRelevantProductImage,
@@ -10,107 +9,48 @@ import {
   significantProductTokens,
   extractBrandTokens,
   extractProductTypeTokens,
+  brandPhrase,
+  hasBrandMatch,
 } from "./product-image-match";
 
-const SEARCH_TIMEOUT_MS = 12_000;
+const SEARCH_TIMEOUT_MS = 10_000;
 const MAX_CANDIDATES = 8;
 
-export const ALGERIA_FOOD_SITES = [
-  {
-    host: "aliments.tidjaria.com",
-    search: (q: string) =>
-      `https://aliments.tidjaria.com/recherche?controller=search&s=${encodeURIComponent(q)}`,
-  },
-  {
-    host: "www.tidjaria.com",
-    search: (q: string) =>
-      `https://www.tidjaria.com/recherche?controller=search&s=${encodeURIComponent(q)}`,
-  },
-  {
-    host: "elwajed.com",
-    search: (q: string) =>
-      `https://elwajed.com/?s=${encodeURIComponent(q)}&post_type=product`,
-  },
-  {
-    host: "www.batolis.com",
-    search: (q: string) =>
-      `https://www.batolis.com/catalogsearch/result/?q=${encodeURIComponent(q)}`,
-  },
-] as const;
-
-/** Requête = marque + mots produit (pas la catégorie vague). */
-function buildBrandProductQuery(productName: string): { q: string; brand: string; typeWords: string } {
+function buildQuery(productName: string): { brand: string; q: string } {
   const brandTok = extractBrandTokens(productName);
   const typeTok = extractProductTypeTokens(productName, brandTok);
-  const brand = brandTok.join(" ");
-  const typeWords = typeTok.slice(0, 3).join(" ");
-  const q = [brand, typeWords].filter(Boolean).join(" ").slice(0, 70);
-  return { q: q || significantProductTokens(productName).slice(0, 4).join(" "), brand, typeWords };
+  const brand = brandTok.join(" ") || significantProductTokens(productName)[0] || productName.slice(0, 40);
+  const typeWords = typeTok.slice(0, 2).join(" ");
+  const q = [brand, typeWords, "product", "packshot"].filter(Boolean).join(" ").slice(0, 80);
+  return { brand, q };
 }
 
-function hitsInText(text: string, tokens: string[]): number {
-  const t = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  return tokens.filter((x) => t.includes(x)).length;
-}
-
-function scoreCandidate(url: string, productName: string, alt = ""): number {
-  if (isNsfwOrBlockedImageUrl(url)) return -100;
-  if (!isRelevantProductImage(url, productName, alt)) return -100;
-  let s = scoreNameMatch(url, productName, alt);
-  const blob = `${url} ${alt}`.toLowerCase();
-  if (/tidjaria|elwajed|batolis/.test(blob)) s += 3;
-  if (/packshot|emballage|flacon|bouteille|bottle|jar|sachet|product/.test(blob)) s += 4;
-  if (/\.(jpe?g|png|webp)(\?|$)/i.test(url)) s += 1;
-  return s;
-}
-
-function rankUrls(
-  items: Array<{ url: string; alt?: string }>,
-  productName: string,
-): string[] {
-  return items
-    .map((img) => ({
-      u: img.url,
-      s: scoreCandidate(img.url, productName, img.alt ?? ""),
-    }))
-    .filter((x) => x.s > 0)
-    .sort((a, b) => b.s - a.s)
-    .map((x) => x.u);
-}
-
-async function fetchHtml(pageUrl: string): Promise<string | null> {
+async function fetchHtml(url: string): Promise<string | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), SEARCH_TIMEOUT_MS);
   try {
-    const resp = await fetch(pageUrl, {
+    const resp = await fetch(url, {
       signal: controller.signal,
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         Accept: "text/html,application/xhtml+xml",
-        "Accept-Language": "fr-DZ,fr;q=0.9,ar;q=0.8",
+        "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
       },
     });
     if (!resp.ok) return null;
     return await resp.text();
   } catch (err) {
-    logger.warn({ err, pageUrl }, "fetch page failed");
+    logger.warn({ err, url: url.slice(0, 120) }, "fetch search failed");
     return null;
   } finally {
     clearTimeout(timer);
   }
 }
 
-async function fetchBingImages(query: string, productName: string): Promise<string[]> {
-  const url =
-    `https://www.bing.com/images/async?q=${encodeURIComponent(query)}` +
-    `&async=1&first=1&count=35&adlt=strict&safesearch=strict`;
-  const html = await fetchHtml(url);
-  if (!html) return [];
-  const urls: Array<{ url: string; alt: string }> = [];
-  const murlRe = /murl&quot;:&quot;(https?:\/\/[^&]+?)&quot;/gi;
-  const titleRe = /t&quot;:&quot;([^&]+?)&quot;/gi;
+function extractBingMurls(html: string): Array<{ url: string; alt: string }> {
   const titles: string[] = [];
+  const titleRe = /t&quot;:&quot;([^&]+?)&quot;/gi;
   let tm: RegExpExecArray | null;
   while ((tm = titleRe.exec(html)) !== null) {
     try {
@@ -119,161 +59,155 @@ async function fetchBingImages(query: string, productName: string): Promise<stri
       titles.push(tm[1]);
     }
   }
+  const out: Array<{ url: string; alt: string }> = [];
+  const seen = new Set<string>();
+  const push = (raw: string, alt: string) => {
+    try {
+      const u = decodeURIComponent(raw.replace(/\\u0026/g, "&").replace(/\\\//g, "/"));
+      if (!/^https?:\/\//i.test(u) || isNsfwOrBlockedImageUrl(u) || seen.has(u)) return;
+      seen.add(u);
+      out.push({ url: u, alt });
+    } catch {
+      /* ignore */
+    }
+  };
+
+  // Images source (murl) — priorité
+  const murlRe = /murl&quot;:&quot;(https?:\/\/[^&]+?)&quot;/gi;
   let idx = 0;
   let m: RegExpExecArray | null;
   while ((m = murlRe.exec(html)) !== null) {
-    try {
-      const u = decodeURIComponent(m[1].replace(/\\u0026/g, "&").replace(/\\\//g, "/"));
-      if (!/^https?:\/\//i.test(u) || isNsfwOrBlockedImageUrl(u)) {
-        idx++;
-        continue;
-      }
-      const alt = titles[idx] ?? "";
-      idx++;
-      if (!isRelevantProductImage(u, productName, alt)) continue;
-      urls.push({ url: u, alt });
-    } catch {
-      /* ignore */
-    }
+    push(m[1], titles[idx] ?? "");
+    idx++;
   }
-  return rankUrls(urls, productName);
+
+  // Miniatures Bing CDN — fiables à télécharger si hotlink murl échoue
+  const turlRe = /turl&quot;:&quot;(https?:\/\/[^&]+?)&quot;/gi;
+  let tIdx = 0;
+  while ((m = turlRe.exec(html)) !== null) {
+    push(m[1], titles[tIdx] ?? "");
+    tIdx++;
+  }
+
+  return out;
 }
 
-function extractMatchingProductPages(html: string, baseUrl: string, productName: string): string[] {
-  const brand = extractBrandTokens(productName);
-  const typeTok = extractProductTypeTokens(productName, brand);
-  if (!brand.length) return [];
-  const hrefRe = /<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
-  const pages = new Set<string>();
+/** DuckDuckGo images (fallback si Bing vide). */
+function extractDdgImages(html: string): Array<{ url: string; alt: string }> {
+  const out: Array<{ url: string; alt: string }> = [];
+  // vqd results often embed "image":"https://..."
+  const re = /"image"\s*:\s*"(https?:\\\/\\\/[^"]+)"/gi;
   let m: RegExpExecArray | null;
-  while ((m = hrefRe.exec(html)) !== null) {
-    const href = m[1];
-    const text = m[2].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-    if (!href || text.length < 3) continue;
-    // Titre lien : phrase marque (tous tokens) + type
-    if (hitsInText(text, brand) < brand.length) continue;
-    if (typeTok.length && hitsInText(text, typeTok) < 1) continue;
+  while ((m = re.exec(html)) !== null) {
     try {
-      const abs = new URL(href, baseUrl).href.split("#")[0]!;
-      if (!/^https?:\/\//i.test(abs)) continue;
-      pages.add(abs);
-      if (pages.size >= 5) break;
+      const u = m[1].replace(/\\\//g, "/");
+      if (/^https?:\/\//i.test(u) && !isNsfwOrBlockedImageUrl(u)) {
+        out.push({ url: u, alt: "" });
+      }
     } catch {
       /* ignore */
     }
   }
-  return [...pages];
-}
-
-async function scrapeProductPageImage(pageUrl: string, productName: string): Promise<string[]> {
-  const html = await fetchHtml(pageUrl);
-  if (!html) return [];
-  const brand = extractBrandTokens(productName);
-  const typeTok = extractProductTypeTokens(productName, brand);
-  const title =
-    html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)?.[1]
-    ?? html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]
-    ?? "";
-  // Fiche produit : marque complète + type dans le titre
-  if (title && hitsInText(title, brand) < brand.length) return [];
-  if (title && typeTok.length && hitsInText(title, typeTok) < 1) return [];
-
-  const og = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)?.[1]
-    ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i)?.[1];
-
-  const imgs = extractImageUrlsFromHtml(html, pageUrl);
-  const withAlt = imgs.map((i) => ({ url: i.url, alt: `${i.alt ?? ""} ${title}` }));
-  if (og) {
-    try {
-      withAlt.unshift({ url: new URL(og, pageUrl).href, alt: title });
-    } catch {
-      /* ignore */
-    }
-  }
-  return rankUrls(withAlt, productName);
-}
-
-async function scrapeSearchThenProductPages(pageUrl: string, productName: string): Promise<string[]> {
-  const html = await fetchHtml(pageUrl);
-  if (!html) return [];
-
-  const imgs = extractImageUrlsFromHtml(html, pageUrl);
-  let ranked = rankUrls(
-    imgs.map((i) => ({ url: i.url, alt: i.alt ?? "" })),
-    productName,
-  );
-
-  const pages = extractMatchingProductPages(html, pageUrl, productName);
-  for (const p of pages) {
-    const fromProduct = await scrapeProductPageImage(p, productName);
-    ranked = [...fromProduct, ...ranked];
-    if (ranked.length >= MAX_CANDIDATES) break;
-  }
-
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const u of ranked) {
-    if (seen.has(u)) continue;
-    seen.add(u);
-    out.push(u);
-    if (out.length >= MAX_CANDIDATES) break;
+  // Also plain https in thumbnail links
+  const re2 = /https?:\/\/[^"'\s]+\.(?:jpe?g|png|webp)/gi;
+  for (const u of html.match(re2) ?? []) {
+    if (!isNsfwOrBlockedImageUrl(u)) out.push({ url: u, alt: "" });
   }
   return out;
 }
 
+function rank(
+  items: Array<{ url: string; alt: string }>,
+  productName: string,
+): string[] {
+  const seen = new Set<string>();
+  const brand = extractBrandTokens(productName);
+  const scored = items
+    .map((img) => {
+      const blob = `${img.url} ${img.alt}`;
+      let s = isRelevantProductImage(img.url, productName, img.alt)
+        ? scoreNameMatch(img.url, productName, img.alt)
+        : -1;
+      // Assouplir : marque seule dans alt/url = candidat faible mais utilisable
+      if (s < 0 && brand.length && hasBrandMatch(blob, brand)) {
+        s = 2;
+      }
+      return { u: img.url, s };
+    })
+    .filter((x) => x.s > 0)
+    .sort((a, b) => b.s - a.s);
+
+  return scored
+    .map((x) => x.u)
+    .filter((u) => {
+      if (seen.has(u)) return false;
+      seen.add(u);
+      return true;
+    })
+    .slice(0, MAX_CANDIDATES);
+}
+
 /**
- * Cherche une image avec marque + mots du nom produit obligatoires.
- * Agro → sites alimentaires DZ en premier ; autres catégories → Bing packshot marque.
+ * 1–2 requêtes Bing max (+ DDG fallback). Pas de crawl multi-sites (trop lent sur Render).
  */
 export async function searchAlgerianProductImageUrls(
   productName: string,
-  category?: string | null,
+  _category?: string | null,
 ): Promise<string[]> {
-  const { q, brand, typeWords } = buildBrandProductQuery(productName);
-  if (!q) return [];
-  const found = new Set<string>();
-  const ordered: string[] = [];
-  const cat = (category ?? "").toLowerCase();
-  const isFood =
-    /agro|aliment|food|epice|huile|datte|boisson|agriculture/i.test(cat) ||
-    /cafe|huile|datte|miel|epice|semoule|couscous|harissa/i.test(productName);
+  const { brand, q } = buildQuery(productName);
+  if (!q.trim()) return [];
 
-  const push = (urls: string[]) => {
-    for (const u of urls) {
-      if (found.has(u) || isNsfwOrBlockedImageUrl(u)) continue;
-      if (!isRelevantProductImage(u, productName)) continue;
-      found.add(u);
-      ordered.push(u);
-      if (ordered.length >= MAX_CANDIDATES) return true;
-    }
-    return false;
-  };
+  const queries = [
+    `${brand} ${significantProductTokens(productName).slice(0, 3).join(" ")}`,
+    `${q}`,
+    `${brand} product packaging`,
+  ];
 
-  if (isFood) {
-    for (const site of ALGERIA_FOOD_SITES) {
-      const urls = await scrapeSearchThenProductPages(site.search(q), productName);
-      if (push(urls)) return ordered;
+  for (const query of queries) {
+    const url =
+      `https://www.bing.com/images/async?q=${encodeURIComponent(query)}` +
+      `&async=1&first=1&count=40&adlt=strict&safesearch=strict`;
+    const html = await fetchHtml(url);
+    if (!html) continue;
+    const ranked = rank(extractBingMurls(html), productName);
+    if (ranked.length) {
+      logger.info({ productName: productName.slice(0, 40), n: ranked.length, brand }, "bing images ok");
+      return ranked;
     }
   }
 
-  const exactQueries = [
-    `"${brand}" ${typeWords} packshot OR produit OR product -legume -vegetable -farmer -panier -nude -sexy`,
-    `"${brand}" ${typeWords} flacon OR bouteille OR emballage OR boite OR stylo OR marker`,
-    brand.includes(" ")
-      ? `"${brand}" ${typeWords.split(" ")[0] ?? ""} packshot`
-      : `"${brand}" ${typeWords} packshot`,
-  ].filter((x) => x.replace(/["\s]/g, "").length > 4);
-
-  for (const query of exactQueries) {
-    const urls = await fetchBingImages(query, productName);
-    if (push(urls)) return ordered;
+  // Fallback DuckDuckGo
+  const ddgUrl = `https://duckduckgo.com/?q=${encodeURIComponent(q + " product")}&iax=images&ia=images`;
+  const ddgHtml = await fetchHtml(ddgUrl);
+  if (ddgHtml) {
+    const ranked = rank(extractDdgImages(ddgHtml), productName);
+    if (ranked.length) {
+      logger.info({ productName: productName.slice(0, 40), n: ranked.length }, "ddg images ok");
+      return ranked;
+    }
   }
 
-  if (isFood) {
-    const siteFilter = ALGERIA_FOOD_SITES.map((s) => `site:${s.host}`).join(" OR ");
-    const bingDz = await fetchBingImages(`(${siteFilter}) "${brand}" ${typeWords}`, productName);
-    push(bingDz);
+  // Dernier recours : Bing sans filtre pertinence stricte (marque seule)
+  const looseUrl =
+    `https://www.bing.com/images/async?q=${encodeURIComponent(brand + " product packaging")}` +
+    `&async=1&first=1&count=25&adlt=strict`;
+  const looseHtml = await fetchHtml(looseUrl);
+  if (looseHtml) {
+    const items = extractBingMurls(looseHtml).filter(
+      (i) => !isNsfwOrBlockedImageUrl(i.url) && brandPhrase(productName).split(" ").some((t) =>
+        `${i.url} ${i.alt}`.toLowerCase().includes(t),
+      ),
+    );
+    const urls = items.map((i) => i.url).slice(0, MAX_CANDIDATES);
+    if (urls.length) {
+      logger.info({ productName: productName.slice(0, 40), n: urls.length }, "bing loose ok");
+      return urls;
+    }
   }
 
-  return ordered.slice(0, MAX_CANDIDATES);
+  logger.warn({ productName: productName.slice(0, 60), brand }, "aucune image candidate");
+  return [];
 }
+
+/** Conservé pour imports éventuels */
+export const ALGERIA_FOOD_SITES = [] as const;
