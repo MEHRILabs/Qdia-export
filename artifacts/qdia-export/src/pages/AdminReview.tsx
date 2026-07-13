@@ -5,18 +5,20 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
-import { Clock, Loader2, Sparkles, ImageIcon, DollarSign, Package, MessageSquare, Factory, ChevronDown, Search, CheckCircle2 } from "lucide-react";
+import { Clock, Loader2, Sparkles, ImageIcon, DollarSign, Package, MessageSquare, Factory, ChevronDown, Search, CheckCircle2, LayoutGrid } from "lucide-react";
 import { platformApi } from "@/lib/platform-api";
 import { useI18n } from "@/contexts/I18nContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AdminOrdersPanel } from "@/components/AdminOrdersPanel";
 import { AdminExportAuthPanel } from "@/components/AdminExportAuthPanel";
 import { AdminProductsPanel } from "@/components/AdminProductsPanel";
+import { AdminCategoriesPanel } from "@/components/AdminCategoriesPanel";
 import { MessagesPanel } from "@/components/MessagesPanel";
 import { ScrapePhotoReviewDialog } from "@/components/ScrapePhotoReviewDialog";
 
 const ADMIN_TABS = [
   { value: "products", icon: Clock, labelKey: "admin.tab_products" },
+  { value: "categories", icon: LayoutGrid, labelKey: "admin.tab_categories" },
   { value: "orders", icon: Package, labelKey: "admin.tab_orders" },
   { value: "export", icon: Factory, labelKey: "admin.tab_export" },
   { value: "messages", icon: MessageSquare, labelKey: "admin.tab_messages" },
@@ -40,7 +42,7 @@ function AdminMobileNav({
 }) {
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 border-t bg-card shadow-[0_-4px_20px_rgba(0,0,0,0.08)] pb-[env(safe-area-inset-bottom)]">
-      <div className="grid grid-cols-4">
+      <div className="grid grid-cols-5">
         {ADMIN_TABS.map(({ value, icon: Icon, labelKey }) => (
           <button
             key={value}
@@ -456,6 +458,10 @@ export default function AdminReview() {
 
           <TabsContent value="products">
             <AdminProductsPanel />
+          </TabsContent>
+
+          <TabsContent value="categories">
+            <AdminCategoriesPanel />
           </TabsContent>
 
           <TabsContent value="orders">

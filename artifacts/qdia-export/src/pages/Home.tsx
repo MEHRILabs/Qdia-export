@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { motion, useInView } from "framer-motion";
-import { useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { BuyerHeader, BuyerFooter } from "@/components/BuyerHeader";
 import { PortsCustomsPanel } from "@/components/PortsCustomsPanel";
 import { PremiumProductsSection } from "@/components/PremiumProductsSection";
@@ -10,6 +10,7 @@ import { AppDownloadSection } from "@/components/AppDownloadSection";
 import { HOME_CATEGORIES } from "@/lib/nav";
 import { ShieldCheck, Award, Ship, Camera, ArrowRight } from "lucide-react";
 import { useI18n } from "@/contexts/I18nContext";
+import { apiUrl } from "@/lib/api-base";
 
 const TRUST_ITEMS = [
   { icon: ShieldCheck, titleKey: "home.trust_verified", descKey: "home.trust_verified_desc" },
@@ -37,6 +38,29 @@ function AnimatedSection({ children, className = "", id }: { children: ReactNode
 
 export default function Home() {
   const { tr, rtl } = useI18n();
+  const [categoryImages, setCategoryImages] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(apiUrl("/api/categories"));
+        if (!res.ok) return;
+        const data = (await res.json()) as Array<{ name: string; image_url?: string | null }>;
+        if (cancelled) return;
+        const map: Record<string, string> = {};
+        for (const c of data) {
+          if (c.image_url) map[c.name] = c.image_url.startsWith("http") ? c.image_url : apiUrl(c.image_url);
+        }
+        setCategoryImages(map);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="min-h-screen qdia-buyer-page flex flex-col">
@@ -83,7 +107,9 @@ export default function Home() {
             </Link>
           </div>
           <div className="flex w-full gap-3 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap sm:overflow-visible justify-start [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-            {HOME_CATEGORIES.map(({ nameKey, slug, emoji }, i) => (
+            {HOME_CATEGORIES.map(({ nameKey, slug, emoji }, i) => {
+              const img = categoryImages[slug];
+              return (
               <motion.div
                 key={slug}
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -97,11 +123,16 @@ export default function Home() {
                   href={`/products?category=${encodeURIComponent(slug)}`}
                   className="inline-flex items-center gap-2 px-4 sm:px-5 py-3 bg-white border border-[#E5E7EB] rounded-2xl text-sm font-semibold text-[#334257] hover:border-[#0461A5] hover:text-[#0461A5] hover:shadow-md transition-all duration-200 whitespace-nowrap"
                 >
-                  <span className="text-lg shrink-0">{emoji}</span>
+                  {img ? (
+                    <img src={img} alt="" className="h-8 w-8 rounded-lg object-cover shrink-0" />
+                  ) : (
+                    <span className="text-lg shrink-0">{emoji}</span>
+                  )}
                   <span>{tr(nameKey)}</span>
                 </Link>
               </motion.div>
-            ))}
+              );
+            })}
           </div>
         </AnimatedSection>
 
@@ -128,3 +159,4 @@ export default function Home() {
     </div>
   );
 }
+

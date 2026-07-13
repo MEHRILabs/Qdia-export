@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS categories (
   name text NOT NULL,
   slug text NOT NULL UNIQUE,
   icon text NOT NULL DEFAULT 'Package',
+  image_url text,
   product_count integer NOT NULL DEFAULT 0
 );
 
@@ -382,6 +383,8 @@ CREATE INDEX IF NOT EXISTS idx_product_views_product ON product_views(product_id
 CREATE INDEX IF NOT EXISTS idx_messages_rfq ON messages(rfq_id);
 CREATE INDEX IF NOT EXISTS idx_cart_items_user ON cart_items(user_id);
 CREATE INDEX IF NOT EXISTS idx_orders_buyer ON orders(buyer_id);
+
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS image_url text;
 `;
 
 const pool = createDbPool();

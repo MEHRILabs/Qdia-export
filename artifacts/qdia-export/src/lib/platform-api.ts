@@ -49,7 +49,27 @@ export interface CartItem {
   currency?: string;
 }
 
+export interface AdminCategory {
+  id: number;
+  name: string;
+  slug: string;
+  icon: string;
+  image_url?: string | null;
+  product_count?: number | null;
+}
+
 export const platformApi = {
+  listAdminCategories: () => api<AdminCategory[]>("/api/categories"),
+
+  uploadCategoryImage: (id: number, file_base64: string) =>
+    api<AdminCategory>(`/api/categories/${id}/image`, {
+      method: "POST",
+      body: JSON.stringify({ file_base64 }),
+    }),
+
+  deleteCategoryImage: (id: number) =>
+    api<AdminCategory>(`/api/categories/${id}/image`, { method: "DELETE" }),
+
   quoteRfq: (id: number, data: { quote_price: number; quote_message?: string; quote_incoterm?: string }) =>
     api(`/api/rfq/${id}`, { method: "PATCH", body: JSON.stringify({ action: "quote", ...data }) }),
 

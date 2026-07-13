@@ -7,6 +7,8 @@ export const categoriesTable = pgTable("categories", {
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
   icon: text("icon").notNull().default("Package"),
+  /** Photo catégorie (data URL ou /uploads/category/…) */
+  imageUrl: text("image_url"),
   productCount: integer("product_count").notNull().default(0),
 });
 
