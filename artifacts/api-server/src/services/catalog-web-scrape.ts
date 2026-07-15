@@ -63,8 +63,9 @@ export function extractBingImageUrls(html: string, productName = ""): string[] {
 export async function searchProductImageUrls(
   productName: string,
   category?: string | null,
+  description?: string | null,
 ): Promise<string[]> {
-  return searchAlgerianProductImageUrls(productName, category);
+  return searchAlgerianProductImageUrls(productName, category, description);
 }
 
 async function tryDownloadAndSave(productId: number, imageUrl: string, productName?: string): Promise<string | null> {
@@ -173,7 +174,7 @@ export async function scrapeOneProductPhoto(
     return { ok: true, image_url: p.imageUrl ?? undefined, reason: "deja_ok" };
   }
 
-  const candidates = await searchProductImageUrls(p.name, p.category);
+  const candidates = await searchProductImageUrls(p.name, p.category, p.description);
   if (!candidates.length) {
     logger.warn({ productId: p.id, name: p.name }, "scrape: 0 candidats");
     await db
@@ -183,13 +184,14 @@ export async function scrapeOneProductPhoto(
     return { ok: false, reason: "aucune_candidat" };
   }
   const savedList: string[] = [];
-  for (const candidate of candidates.slice(0, 3)) {
-    if (savedList.length >= 1) break; // 1 image = fiable sous 30s Render
+  for (const candidate of candidates.slice(0, 6)) {
+    if (savedList.length >= 3) break; // jusqu'à 3 candidats pour « Image suivante »
     if (isNsfwOrBlockedImageUrl(candidate)) continue;
     try {
       const saved = await tryDownloadAndSave(p.id, candidate, p.name);
       if (!saved) continue;
       if (isNsfwOrBlockedImageUrl(saved)) continue;
+      if (savedList.includes(saved)) continue;
       savedList.push(saved);
     } catch (err) {
       logger.warn({ err, productId: p.id, candidate }, "candidat image rejeté");

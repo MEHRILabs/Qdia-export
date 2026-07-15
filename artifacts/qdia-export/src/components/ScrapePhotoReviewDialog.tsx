@@ -90,6 +90,31 @@ export function ScrapePhotoReviewDialog({ open, ids, onClose }: Props) {
     }
   };
 
+  const discardAndClose = async () => {
+    if (!items.length) {
+      onClose();
+      return;
+    }
+    setSaving(true);
+    try {
+      // Ne pas publier : supprimer les candidatures restantes
+      await platformApi.rejectPhotoReviews(items.map((i) => i.id));
+      toast({
+        title: tr("admin.review_discarded") || "Non publiées",
+        description: tr("admin.review_discarded_desc") || "Les photos n’ont pas été mises dans le catalogue.",
+      });
+      onClose();
+    } catch (e) {
+      toast({
+        title: tr("common.error"),
+        description: String(e instanceof Error ? e.message : e),
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const rejectOne = async (id: number) => {
     setBusyId(id);
     try {
@@ -181,7 +206,7 @@ export function ScrapePhotoReviewDialog({ open, ids, onClose }: Props) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+    <Dialog open={open} onOpenChange={(v) => !v && void discardAndClose()}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>{tr("admin.review_title")}</DialogTitle>
@@ -269,9 +294,9 @@ export function ScrapePhotoReviewDialog({ open, ids, onClose }: Props) {
         </div>
 
         <div className="flex flex-wrap gap-2 justify-end border-t pt-3">
-          <Button variant="outline" onClick={onClose} disabled={saving}>
+          <Button variant="outline" onClick={() => void discardAndClose()} disabled={saving}>
             <X className="h-4 w-4 me-1" />
-            {tr("admin.review_later")}
+            {tr("admin.review_discard") || "Ne pas publier"}
           </Button>
           <Button
             variant="gold"

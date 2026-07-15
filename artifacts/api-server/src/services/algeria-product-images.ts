@@ -15,16 +15,23 @@ import {
 const SEARCH_TIMEOUT_MS = 8_000;
 const MAX_CANDIDATES = 6;
 
-function buildQueries(productName: string): { brand: string; queries: string[] } {
+function buildQueries(productName: string, description?: string | null): { brand: string; queries: string[] } {
   const brandTok = extractBrandTokens(productName);
   const typeTok = extractProductTypeTokens(productName, brandTok);
   const brand = brandTok.join(" ") || significantProductTokens(productName)[0] || productName.slice(0, 40);
   const typeWords = typeTok.slice(0, 3).join(" ");
   const quoted = brand.includes(" ") ? `"${brand}"` : brand;
+  // Mots utiles de la description (hors bruit)
+  const descTok = description
+    ? significantProductTokens(description)
+        .filter((t) => !brandTok.includes(t) && !typeTok.includes(t))
+        .slice(0, 2)
+        .join(" ")
+    : "";
 
   const queries = [
-    `${quoted} ${typeWords} packshot OR emballage OR flacon OR bocal OR sachet`.trim(),
-    `${quoted} ${typeWords} produit`.trim(),
+    `${quoted} ${typeWords} ${descTok} packshot OR emballage OR flacon OR bocal OR sachet`.trim(),
+    `${quoted} ${typeWords} produit Algerie OR Algeria`.trim(),
     `${quoted} ${typeWords}`.trim(),
   ].filter((q, i, arr) => q.length >= 4 && arr.indexOf(q) === i);
 
@@ -122,13 +129,14 @@ function rank(
 }
 
 /**
- * Jusqu’à 2 requêtes Bing ciblées. Zéro candidat si hors marque/produit.
+ * Jusqu’à 2 requêtes Bing ciblées (nom + description). Zéro candidat si hors marque/produit.
  */
 export async function searchAlgerianProductImageUrls(
   productName: string,
   _category?: string | null,
+  description?: string | null,
 ): Promise<string[]> {
-  const { brand, queries } = buildQueries(productName);
+  const { brand, queries } = buildQueries(productName, description);
   if (!queries.length) return [];
 
   for (const query of queries.slice(0, 2)) {
