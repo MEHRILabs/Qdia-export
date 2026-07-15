@@ -134,15 +134,11 @@ function toProductShape(p: typeof productsTable.$inferSelect, opts?: { compactIm
   const compact = opts?.compactImages !== false;
   const imageUrl = safeCatalogImageUrl(p.id, p.imageUrl, compact);
   const images = (p.images ?? [])
-    .filter((img) => img && img !== "__qdia_photo_review__")
+    .filter((img) => img && img !== "__qdia_photo_review__" && img !== "__qdia_scrape_miss__")
     .map(img => safeCatalogImageUrl(p.id, img, compact))
     .filter((x): x is string => Boolean(x));
-  // Si imageUrl vide mais candidat review présent → afficher quand même (catalogue)
-  const reviewPending =
-    p.images?.[0] === "__qdia_photo_review__" ? p.images[1] : null;
-  const resolvedImage =
-    imageUrl
-    ?? (reviewPending ? safeCatalogImageUrl(p.id, reviewPending, compact) : null);
+  // Catalogue public : uniquement imageUrl validée — pas de candidat scrape non approuvé
+  const resolvedImage = imageUrl ?? null;
   return {
     id: p.id,
     name: p.name,
@@ -903,9 +899,10 @@ router.get("/products/:id/image", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Image introuvable" });
     return;
   }
-  // Photo en attente de validation (images[0]=marker, images[1]=data/url)
+  // Photo en attente : uniquement si ?review=1 (dialog admin), jamais en catalogue public
+  const allowPending = String(req.query.review ?? "") === "1";
   const pending =
-    product.images?.[0] === "__qdia_photo_review__" ? product.images[1] : null;
+    allowPending && product.images?.[0] === "__qdia_photo_review__" ? product.images[1] : null;
   const url = product.imageUrl || pending;
   if (!url) {
     res.status(404).json({ error: "Image introuvable" });

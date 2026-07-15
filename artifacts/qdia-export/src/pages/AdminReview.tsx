@@ -223,18 +223,6 @@ export default function AdminReview() {
 
   useEffect(() => { void loadStats(); }, [loadStats]);
 
-  // Au chargement admin : publie les photos pending déjà scrapées vers le catalogue
-  useEffect(() => {
-    void (async () => {
-      try {
-        const r = await platformApi.syncPendingPhotosToCatalog();
-        if (r.synced > 0) void loadStats();
-      } catch {
-        /* ignore */
-      }
-    })();
-  }, [loadStats]);
-
   return (
     <div className="min-h-dvh bg-background flex flex-col md:flex-row">
       <SupplierSidebar
@@ -342,6 +330,60 @@ export default function AdminReview() {
                   >
                     <CheckCircle2 className="h-4 w-4" />
                     {tr("admin.review_photos_btn") || "Valider photos"}
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="gap-2 font-bold"
+                    disabled={scraping || enriching}
+                    onClick={() => void (async () => {
+                      setEnriching(true);
+                      try {
+                        const r = await platformApi.purgeUnsafePhotos({ scraped: true });
+                        toast({
+                          title: tr("admin.purge_done") || "Purge OK",
+                          description: (tr("admin.purge_done_desc") || "{cleared} photo(s) retirée(s)")
+                            .replace("{cleared}", String(r.cleared ?? 0)),
+                        });
+                        void loadStats();
+                      } catch (e) {
+                        toast({
+                          title: tr("common.error"),
+                          description: String(e instanceof Error ? e.message : e),
+                          variant: "destructive",
+                        });
+                      } finally {
+                        setEnriching(false);
+                      }
+                    })()}
+                  >
+                    {tr("admin.purge_scraped_btn") || "Retirer images scrapées"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    disabled={scraping || enriching}
+                    onClick={() => void (async () => {
+                      setEnriching(true);
+                      try {
+                        const r = await platformApi.fixProductCategories();
+                        toast({
+                          title: tr("admin.fix_categories_done") || "Catégories corrigées",
+                          description: `Mises à jour : ${r.updated ?? "OK"}`,
+                        });
+                      } catch (e) {
+                        toast({
+                          title: tr("common.error"),
+                          description: String(e instanceof Error ? e.message : e),
+                          variant: "destructive",
+                        });
+                      } finally {
+                        setEnriching(false);
+                      }
+                    })()}
+                  >
+                    {tr("admin.fix_categories_btn") || "Corriger catégories"}
                   </Button>
                 </div>
               </div>

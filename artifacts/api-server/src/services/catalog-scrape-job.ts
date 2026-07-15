@@ -201,6 +201,14 @@ export async function startScrapeJob(opts?: {
 }): Promise<ScrapeJobState> {
   if (state.status === "running") return getScrapeJobState();
 
+  // Nettoyer d'abord les scrapes junk publiés par erreur
+  try {
+    const { purgeUnsafeCatalogImages } = await import("./catalog-web-scrape");
+    await purgeUnsafeCatalogImages();
+  } catch (err) {
+    logger.warn({ err }, "purge avant scrape ignorée");
+  }
+
   state.batch_size = Math.min(Math.max(opts?.batch_size ?? BATCH_SIZE, 5), 20);
   state.max_ok =
     opts?.max_ok != null && Number.isFinite(opts.max_ok)

@@ -537,15 +537,64 @@ router.post("/admin/scrape-photos", requireAuth, requireRole("admin"), async (re
   }
 });
 
-/** Purge immédiate des photos web NSFW / non fiables du catalogue */
-router.post("/admin/purge-unsafe-photos", requireAuth, requireRole("admin"), async (_req, res) => {
+/** Purge images non fiables + scrapes non validés (ne republie PAS les pending) */
+router.post("/admin/purge-unsafe-photos", requireAuth, requireRole("admin"), async (req, res) => {
   try {
-    const { purgeUnsafeCatalogImages, syncPendingPhotosToCatalog } = await import("../services/catalog-web-scrape");
-    const result = await purgeUnsafeCatalogImages();
-    const sync = await syncPendingPhotosToCatalog();
-    res.json({ ...result, synced: sync.synced });
+    const { purgeUnsafeCatalogImages, purgePublishedScrapeDataUrls } = await import("../services/catalog-web-scrape");
+    const aggressive = req.body?.scraped === true || req.body?.aggressive === true;
+    const result = aggressive
+      ? await purgePublishedScrapeDataUrls()
+      : await purgeUnsafeCatalogImages();
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "Purge échouée" });
+  }
+});
+
+/** Remap categories products vers les 5 secteurs (depuis SKU DZ-XXX) */
+router.post("/admin/fix-categories", requireAuth, requireRole("admin"), async (_req, res) => {
+  try {
+    const result = await db.execute(sql`
+      WITH mapped AS (
+        SELECT id,
+          CASE UPPER(split_part(sku, '-', 2))
+            WHEN 'EPI' THEN 'Agriculture & Food'
+            WHEN 'CDM' THEN 'Agriculture & Food'
+            WHEN 'BOI' THEN 'Agriculture & Food'
+            WHEN 'LAI' THEN 'Agriculture & Food'
+            WHEN 'FRL' THEN 'Agriculture & Food'
+            WHEN 'CHA' THEN 'Agriculture & Food'
+            WHEN 'BVO' THEN 'Agriculture & Food'
+            WHEN 'BOU' THEN 'Agriculture & Food'
+            WHEN 'POI' THEN 'Agriculture & Food'
+            WHEN 'ALI' THEN 'Agriculture & Food'
+            WHEN 'AGR' THEN 'Agriculture & Food'
+            WHEN 'PHA' THEN 'Agriculture & Food'
+            WHEN 'HYG' THEN 'Energy & Chemicals'
+            WHEN 'DRO' THEN 'Energy & Chemicals'
+            WHEN 'ENE' THEN 'Energy & Chemicals'
+            WHEN 'CHI' THEN 'Energy & Chemicals'
+            WHEN 'TEX' THEN 'Textiles & Apparel'
+            WHEN 'TXT' THEN 'Textiles & Apparel'
+            WHEN 'BTP' THEN 'Construction Materials'
+            WHEN 'CON' THEN 'Construction Materials'
+            WHEN 'ART' THEN 'Handicrafts & Decor'
+            WHEN 'PAP' THEN 'Handicrafts & Decor'
+            WHEN 'CMH' THEN 'Handicrafts & Decor'
+            ELSE NULL
+          END AS marketplace
+        FROM products
+        WHERE sku IS NOT NULL AND sku LIKE 'DZ-%'
+      )
+      UPDATE products p
+      SET category = m.marketplace
+      FROM mapped m
+      WHERE p.id = m.id AND m.marketplace IS NOT NULL
+        AND p.category IS DISTINCT FROM m.marketplace
+    `);
+    res.json({ ok: true, updated: (result as { rowCount?: number }).rowCount ?? null });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Correction catégories échouée" });
   }
 });
 

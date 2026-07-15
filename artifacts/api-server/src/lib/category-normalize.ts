@@ -157,7 +157,11 @@ export function resolveMarketplaceCategory(opts: {
   const fuzzy = fuzzyRayonFromName(rayon ?? categoryName ?? sheetName ?? "");
   if (fuzzy && RAYON_TO_MARKETPLACE[fuzzy]) return RAYON_TO_MARKETPLACE[fuzzy];
 
-  return "Agriculture & Food";
+  // Ne plus fourrer tout dans Agriculture — laisser le rayon d'origine si connu
+  if (categoryName && categoryName.trim() && categoryName.trim() !== "NON_CLASSE") {
+    return categoryName.trim();
+  }
+  return "NON_CLASSE";
 }
 
 /** Valeurs `products.category` à matcher pour un filtre marketplace ou rayon FR. */

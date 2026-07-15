@@ -387,8 +387,14 @@ export const platformApi = {
       },
     ),
 
-  purgeUnsafePhotos: () =>
+  purgeUnsafePhotos: (opts?: { scraped?: boolean }) =>
     api<{ cleared: number; ids: number[] }>("/api/admin/purge-unsafe-photos", {
+      method: "POST",
+      body: JSON.stringify({ scraped: opts?.scraped === true, aggressive: opts?.scraped === true }),
+    }),
+
+  fixProductCategories: () =>
+    api<{ ok: boolean; updated: number | null }>("/api/admin/fix-categories", {
       method: "POST",
       body: JSON.stringify({}),
     }),

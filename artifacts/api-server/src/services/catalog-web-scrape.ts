@@ -205,11 +205,12 @@ export async function scrapeOneProductPhoto(
     return { ok: false, reason: "download_echec" };
   }
 
-  // Visible tout de suite dans le catalogue + candidats pour validation admin
+  // Ne PAS publier dans imageUrl tant que l'admin n'a pas validé
+  // (évite Snoopy / surf / panier BIO dans le catalogue)
   await db
     .update(productsTable)
     .set({
-      imageUrl: savedList[0]!,
+      imageUrl: null,
       images: [PHOTO_REVIEW_MARKER, ...savedList],
       isFeatured: false,
     })
@@ -218,25 +219,33 @@ export async function scrapeOneProductPhoto(
 }
 
 /**
- * Retire du catalogue toutes les images web non fiables / NSFW
- * (URLs https scrapées Bing, domaines adult, etc.).
+ * Retire du catalogue les images web non fiables / NSFW
+ * + photos scrapées non validées (marker review) + data: issue de scrape pending.
  */
 export async function purgeUnsafeCatalogImages(): Promise<PurgeUnsafeResult> {
   const rows = await db
     .select({ id: productsTable.id, imageUrl: productsTable.imageUrl, images: productsTable.images })
     .from(productsTable)
     .where(
-      and(
-        sql`${productsTable.imageUrl} IS NOT NULL`,
-        sql`trim(${productsTable.imageUrl}) <> ''`,
+      or(
+        and(
+          sql`${productsTable.imageUrl} IS NOT NULL`,
+          sql`trim(${productsTable.imageUrl}) <> ''`,
+        ),
+        sql`${productsTable.images}[1] = ${PHOTO_REVIEW_MARKER}`,
+        sql`COALESCE(${productsTable.images}::text, '') LIKE ${"%" + PHOTO_MISS_MARKER + "%"}`,
       ),
     );
 
   const ids: number[] = [];
   for (const row of rows) {
+    const pendingReview = row.images?.[0] === PHOTO_REVIEW_MARKER;
     const badMain = shouldPurgeCatalogImage(row.imageUrl);
-    const badGallery = (row.images ?? []).some((u) => shouldPurgeCatalogImage(u));
-    if (!badMain && !badGallery) continue;
+    const badGallery = (row.images ?? []).some(
+      (u) => u !== PHOTO_REVIEW_MARKER && u !== PHOTO_MISS_MARKER && shouldPurgeCatalogImage(u),
+    );
+    // Photos scrapées jamais validées : sortir du catalogue public
+    if (!pendingReview && !badMain && !badGallery) continue;
     await db
       .update(productsTable)
       .set({ imageUrl: null, images: [], isFeatured: false })
@@ -244,7 +253,35 @@ export async function purgeUnsafeCatalogImages(): Promise<PurgeUnsafeResult> {
     ids.push(row.id);
   }
 
-  logger.info({ cleared: ids.length }, "purge images catalogue non sûres");
+  logger.info({ cleared: ids.length }, "purge images catalogue non sûres / pending scrape");
+  return { cleared: ids.length, ids: ids.slice(0, 200) };
+}
+
+/**
+ * Purge agressive des photos scrapées (data:) déjà publiées sans validation.
+ * À lancer une fois pour nettoyer le catalogue après le bug fallback Bing.
+ */
+export async function purgePublishedScrapeDataUrls(): Promise<PurgeUnsafeResult> {
+  const rows = await db
+    .select({ id: productsTable.id, imageUrl: productsTable.imageUrl, images: productsTable.images })
+    .from(productsTable)
+    .where(
+      or(
+        sql`${productsTable.imageUrl} LIKE 'data:%'`,
+        sql`${productsTable.images}[1] = ${PHOTO_REVIEW_MARKER}`,
+      ),
+    );
+
+  const ids: number[] = [];
+  for (const row of rows) {
+    // Garder les uploads locaux /api ou /uploads non-éphémères hors data:
+    await db
+      .update(productsTable)
+      .set({ imageUrl: null, images: [], isFeatured: false })
+      .where(eq(productsTable.id, row.id));
+    ids.push(row.id);
+  }
+  logger.info({ cleared: ids.length }, "purge data-URL scrapées publiées");
   return { cleared: ids.length, ids: ids.slice(0, 200) };
 }
 
@@ -359,7 +396,7 @@ export async function nextPhotoReviewCandidate(productId: number): Promise<{
   const rotated = [...cands.slice(1), cands[0]!];
   await db
     .update(productsTable)
-    .set({ images: [PHOTO_REVIEW_MARKER, ...rotated], imageUrl: rotated[0]!, isFeatured: false })
+    .set({ images: [PHOTO_REVIEW_MARKER, ...rotated], imageUrl: null, isFeatured: false })
     .where(eq(productsTable.id, productId));
   const url = rotated[0]!;
   return {
