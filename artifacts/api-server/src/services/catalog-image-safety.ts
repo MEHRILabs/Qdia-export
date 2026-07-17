@@ -11,11 +11,7 @@ const NSFW_HOST_RE =
 
 /** Mots UI / hors produit */
 const JUNK_URL_RE =
-  /logo|favicon|sprite|avatar|1x1|pixel|spacer|banner-ad|advert|tracking|emoji|sticker|snoopy|peanuts|wallpaper|shutterstock|gettyimages|unsplash|surfing|surfboard|piggy.?bank/i;
-
-/** Hôtes autorisés pour conserver une image distante (sinon purge des scrapes web). */
-const TRUSTED_HOST_RE =
-  /(?:^|\.)(?:onrender\.com|qdiadz\.com|qdia-export|cloudinary\.com|imgur\.com|googleusercontent\.com|ggpht\.com|alicdn\.com|alibaba\.com|alibaba-inc\.com|slatic\.net|shopify\.com|amazonaws\.com|cloudfront\.net|tidjaria\.com|elwajed\.com|batolis\.com|yassir\.com)$/i;
+  /logo|favicon|sprite|avatar|1x1|pixel|spacer|banner-ad|advert|tracking|emoji|sticker|snoopy|peanuts|wallpaper|shutterstock|gettyimages|unsplash|surfing|surfboard|piggy.?bank|google\.com\/images|gstatic\.com|ggpht\.com|googleusercontent|bing\.com\/th|tse\d*\.mm\.bing|bible|scripture|verse|church|sunset|pier|landscape|inspirational|quote/i;
 
 export function isNsfwOrBlockedImageUrl(url: string | null | undefined): boolean {
   if (!url?.trim()) return false;
@@ -31,22 +27,12 @@ export function isNsfwOrBlockedImageUrl(url: string | null | undefined): boolean
   return false;
 }
 
-/** Image distante http(s) hors hôtes de confiance = typiquement scrape Bing non contrôlé. */
+/** Toute image http(s) distante = scrape non contrôlé (ne pas afficher dans le catalogue). */
 export function isUntrustedRemoteCatalogImage(url: string | null | undefined): boolean {
   if (!url?.trim()) return false;
   const u = url.trim();
   if (u.startsWith("data:") || u.startsWith("/") || u.startsWith("blob:")) return false;
-  if (!/^https?:\/\//i.test(u)) return false;
-  if (isNsfwOrBlockedImageUrl(u)) return true;
-  try {
-    const host = new URL(u).hostname.toLowerCase();
-    // Autoriser uniquement quelques CDN B2B / notre hébergeur
-    if (TRUSTED_HOST_RE.test(host)) return false;
-    // Tout le reste (imgur random, adult CDNs, blogs…) = non fiable pour le catalogue
-    return true;
-  } catch {
-    return true;
-  }
+  return /^https?:\/\//i.test(u);
 }
 
 export function shouldPurgeCatalogImage(url: string | null | undefined): boolean {

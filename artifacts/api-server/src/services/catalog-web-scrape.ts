@@ -260,8 +260,8 @@ export async function purgeUnsafeCatalogImages(): Promise<PurgeUnsafeResult> {
 }
 
 /**
- * Purge agressive des photos scrapées (data:) déjà publiées sans validation.
- * À lancer une fois pour nettoyer le catalogue après le bug fallback Bing.
+ * Purge agressive : data: scrapées, pending review, et images http distantes
+ * (Google/Bing/paysages) — garde uniquement uploads manuels /api ou /uploads.
  */
 export async function purgePublishedScrapeDataUrls(): Promise<PurgeUnsafeResult> {
   const rows = await db
@@ -270,20 +270,22 @@ export async function purgePublishedScrapeDataUrls(): Promise<PurgeUnsafeResult>
     .where(
       or(
         sql`${productsTable.imageUrl} LIKE 'data:%'`,
+        sql`${productsTable.imageUrl} LIKE 'http%'`,
         sql`${productsTable.images}[1] = ${PHOTO_REVIEW_MARKER}`,
+        sql`COALESCE(${productsTable.images}::text, '') LIKE '%http%'`,
+        sql`COALESCE(${productsTable.images}::text, '') LIKE '%data:%'`,
       ),
     );
 
   const ids: number[] = [];
   for (const row of rows) {
-    // Garder les uploads locaux /api ou /uploads non-éphémères hors data:
     await db
       .update(productsTable)
       .set({ imageUrl: null, images: [], isFeatured: false })
       .where(eq(productsTable.id, row.id));
     ids.push(row.id);
   }
-  logger.info({ cleared: ids.length }, "purge data-URL scrapées publiées");
+  logger.info({ cleared: ids.length }, "purge scrapes data/http publiés");
   return { cleared: ids.length, ids: ids.slice(0, 200) };
 }
 

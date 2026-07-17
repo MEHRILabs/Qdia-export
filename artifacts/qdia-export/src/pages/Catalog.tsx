@@ -1,6 +1,6 @@
-import { useState, useDeferredValue } from "react";
+import { useState, useDeferredValue, useMemo } from "react";
 import { Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { BuyerHeader, BuyerFooter } from "@/components/BuyerHeader";
 import { AdvancedCatalogFilters, DEFAULT_CATALOG_FILTERS, type CatalogFilters } from "@/components/AdvancedCatalogFilters";
 import { CategoryFilter } from "@/components/CategoryFilter";
@@ -21,10 +21,12 @@ export default function Catalog() {
   const deferredSearch = useDeferredValue(search);
   const [filters, setFilters] = useState<CatalogFilters>(DEFAULT_CATALOG_FILTERS);
   const [showFilters, setShowFilters] = useState(false);
+  const [imageOverrides, setImageOverrides] = useState<Record<number, string | null>>({});
 
   const { categoryName, setCategory, categoryId, options } = useCatalogCategory();
   const { tr } = useI18n();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const { data: productList, isLoading, isError } = useQuery({
     queryKey: ["catalog-products", deferredSearch, categoryName, filters],
@@ -43,7 +45,15 @@ export default function Catalog() {
     }),
   });
 
-  const products: Product[] = (productList?.data as Product[] | undefined) ?? [];
+  const products: Product[] = useMemo(() => {
+    const base = (productList?.data as Product[] | undefined) ?? [];
+    if (!Object.keys(imageOverrides).length) return base;
+    return base.map((p) =>
+      Object.prototype.hasOwnProperty.call(imageOverrides, p.id)
+        ? { ...p, image_url: imageOverrides[p.id] }
+        : p,
+    );
+  }, [productList, imageOverrides]);
 
   return (
     <div className="min-h-screen qdia-buyer-page flex flex-col">
@@ -110,6 +120,18 @@ export default function Catalog() {
           isLoading={isLoading}
           isError={isError}
           showPublishCta={isExporterOnly(user)}
+          onProductsChange={(updater) => {
+            const next = updater(products);
+            const overrides: Record<number, string | null> = { ...imageOverrides };
+            for (const p of next) {
+              const prev = products.find((x) => x.id === p.id);
+              if (prev && prev.image_url !== p.image_url) {
+                overrides[p.id] = p.image_url ?? null;
+              }
+            }
+            setImageOverrides(overrides);
+            void queryClient.invalidateQueries({ queryKey: ["catalog-products"] });
+          }}
         />
       </main>
 
