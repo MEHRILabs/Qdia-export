@@ -10,6 +10,7 @@ import { apiUrl } from "@/lib/api-base";
 export type PhotoReviewItem = {
   id: number;
   name: string;
+  description?: string | null;
   category: string | null;
   brand: string;
   image_url: string;
@@ -112,6 +113,28 @@ export function ScrapePhotoReviewDialog({ open, ids, onClose }: Props) {
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const approveOne = async (id: number) => {
+    setBusyId(id);
+    try {
+      const r = await platformApi.approvePhotoReviews([id]);
+      if (r.approved > 0) {
+        setItems((prev) => prev.filter((x) => x.id !== id));
+        toast({
+          title: tr("admin.review_approved_one") || "Photo publiée",
+          description: tr("admin.review_approved_one_desc") || "Visible dans le catalogue.",
+        });
+      }
+    } catch (e) {
+      toast({
+        title: tr("common.error"),
+        description: String(e instanceof Error ? e.message : e),
+        variant: "destructive",
+      });
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -242,8 +265,25 @@ export function ScrapePhotoReviewDialog({ open, ids, onClose }: Props) {
                       {tr("admin.review_brand")}: {item.brand || "—"}
                     </p>
                     <p className="text-xs font-semibold line-clamp-2 leading-snug">{item.name}</p>
+                    {item.description && (
+                      <p className="text-[10px] text-muted-foreground line-clamp-2">{item.description}</p>
+                    )}
                     <p className="text-[10px] text-muted-foreground">{item.category}</p>
                     <div className="mt-auto flex flex-col gap-1.5 pt-1">
+                      <Button
+                        size="sm"
+                        variant="gold"
+                        className="w-full gap-1 text-xs h-8 font-bold"
+                        disabled={busyId === item.id || saving}
+                        onClick={() => void approveOne(item.id)}
+                      >
+                        {busyId === item.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Check className="h-3 w-3" />
+                        )}
+                        {tr("admin.review_confirm_one") || "Confirmer cette photo"}
+                      </Button>
                       <Button
                         size="sm"
                         variant="outline"

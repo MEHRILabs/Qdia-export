@@ -404,6 +404,7 @@ export const platformApi = {
       data: Array<{
         id: number;
         name: string;
+        description?: string | null;
         category: string | null;
         brand: string;
         image_url: string;

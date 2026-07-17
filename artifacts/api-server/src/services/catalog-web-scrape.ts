@@ -305,6 +305,7 @@ export async function listPhotoReviews(ids?: number[]) {
         .select({
           id: productsTable.id,
           name: productsTable.name,
+          description: productsTable.description,
           category: productsTable.category,
           images: productsTable.images,
           imageUrl: productsTable.imageUrl,
@@ -315,6 +316,7 @@ export async function listPhotoReviews(ids?: number[]) {
         .select({
           id: productsTable.id,
           name: productsTable.name,
+          description: productsTable.description,
           category: productsTable.category,
           images: productsTable.images,
           imageUrl: productsTable.imageUrl,
@@ -332,6 +334,7 @@ export async function listPhotoReviews(ids?: number[]) {
       return {
         id: r.id,
         name: r.name,
+        description: r.description?.slice(0, 200) ?? null,
         category: r.category,
         brand: brandPhrase(r.name),
         image_url: url.startsWith("data:") ? `/api/products/${r.id}/image?review=1` : url,
