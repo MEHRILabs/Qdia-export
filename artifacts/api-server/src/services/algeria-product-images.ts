@@ -117,7 +117,7 @@ function rank(
         ? scoreNameMatch(img.url, productName, img.alt)
         : -1,
     }))
-    .filter((x) => x.s >= 8) // seuil : marque + type (+ bonus éventuel)
+    .filter((x) => x.s >= 6) // seuil : marque (+ type ou packshot)
     .sort((a, b) => b.s - a.s)
     .map((x) => x.u)
     .filter((u) => {

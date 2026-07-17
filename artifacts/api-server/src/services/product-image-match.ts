@@ -157,10 +157,10 @@ export function isRelevantProductImage(
   if (!hasBrandMatch(blob, brand)) return false;
 
   const others = allTokens.filter((t) => !brand.includes(t));
-  // Exiger un mot produit (ail, cafe, artichaut…) — pas la marque seule
+  // Marque + (mot produit OU indice packshot dans alt/url)
   if (others.length > 0) {
-    if (!hasAnyToken(blob, others)) return false;
-  } else if (countTokenHits(blob, allTokens) < 1) {
+    if (!hasAnyToken(blob, others) && !PACKSHOT_RE.test(blob)) return false;
+  } else if (countTokenHits(blob, allTokens) < 1 && !PACKSHOT_RE.test(blob)) {
     return false;
   }
 

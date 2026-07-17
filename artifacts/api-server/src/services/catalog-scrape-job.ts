@@ -201,10 +201,15 @@ export async function startScrapeJob(opts?: {
 }): Promise<ScrapeJobState> {
   if (state.status === "running") return getScrapeJobState();
 
-  // Nettoyer d'abord les scrapes junk publiés par erreur
+  // Nettoyer junk publiés — sans toucher aux pending review
   try {
-    const { purgeUnsafeCatalogImages } = await import("./catalog-web-scrape");
+    const { purgeUnsafeCatalogImages, PHOTO_MISS_MARKER } = await import("./catalog-web-scrape");
     await purgeUnsafeCatalogImages();
+    // Réautoriser les produits précédemment « miss » pour un nouvel essai
+    await db
+      .update(productsTable)
+      .set({ images: [] })
+      .where(sql`COALESCE(${productsTable.images}::text, '') LIKE ${"%" + PHOTO_MISS_MARKER + "%"}`);
   } catch (err) {
     logger.warn({ err }, "purge avant scrape ignorée");
   }

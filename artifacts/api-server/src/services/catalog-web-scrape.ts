@@ -221,8 +221,8 @@ export async function scrapeOneProductPhoto(
 }
 
 /**
- * Retire du catalogue les images web non fiables / NSFW
- * + photos scrapées non validées (marker review) + data: issue de scrape pending.
+ * Retire du catalogue les images web non fiables / NSFW.
+ * Ne touche PAS aux candidatures en attente de validation admin (PHOTO_REVIEW_MARKER).
  */
 export async function purgeUnsafeCatalogImages(): Promise<PurgeUnsafeResult> {
   const rows = await db
@@ -234,28 +234,32 @@ export async function purgeUnsafeCatalogImages(): Promise<PurgeUnsafeResult> {
           sql`${productsTable.imageUrl} IS NOT NULL`,
           sql`trim(${productsTable.imageUrl}) <> ''`,
         ),
-        sql`${productsTable.images}[1] = ${PHOTO_REVIEW_MARKER}`,
         sql`COALESCE(${productsTable.images}::text, '') LIKE ${"%" + PHOTO_MISS_MARKER + "%"}`,
       ),
     );
 
   const ids: number[] = [];
   for (const row of rows) {
-    const pendingReview = row.images?.[0] === PHOTO_REVIEW_MARKER;
+    // Garder les photos en attente de validation
+    if (row.images?.[0] === PHOTO_REVIEW_MARKER) continue;
     const badMain = shouldPurgeCatalogImage(row.imageUrl);
+    const hasMiss = (row.images ?? []).includes(PHOTO_MISS_MARKER);
     const badGallery = (row.images ?? []).some(
-      (u) => u !== PHOTO_REVIEW_MARKER && u !== PHOTO_MISS_MARKER && shouldPurgeCatalogImage(u),
+      (u) => u !== PHOTO_MISS_MARKER && shouldPurgeCatalogImage(u),
     );
-    // Photos scrapées jamais validées : sortir du catalogue public
-    if (!pendingReview && !badMain && !badGallery) continue;
+    if (!badMain && !badGallery && !hasMiss) continue;
     await db
       .update(productsTable)
-      .set({ imageUrl: null, images: [], isFeatured: false })
+      .set({
+        imageUrl: badMain || hasMiss ? null : row.imageUrl,
+        images: [],
+        isFeatured: false,
+      })
       .where(eq(productsTable.id, row.id));
     ids.push(row.id);
   }
 
-  logger.info({ cleared: ids.length }, "purge images catalogue non sûres / pending scrape");
+  logger.info({ cleared: ids.length }, "purge images catalogue non sûres (hors pending review)");
   return { cleared: ids.length, ids: ids.slice(0, 200) };
 }
 
