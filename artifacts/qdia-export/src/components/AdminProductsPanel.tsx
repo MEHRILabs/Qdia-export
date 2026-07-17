@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ProductImage } from "@/components/ProductImage";
+import { AdminEditPhotoDialog } from "@/components/AdminEditPhotoDialog";
 import { platformApi } from "@/lib/platform-api";
 import { useToast } from "@/hooks/use-toast";
 import { useI18n } from "@/contexts/I18nContext";
@@ -27,10 +28,10 @@ import { HOME_CATEGORIES } from "@/lib/nav";
 import { ALL_CATEGORIES } from "@/lib/catalog-categories";
 import {
   CheckCircle2,
+  ImageIcon,
   Loader2,
   Pencil,
   Search,
-  Sparkles,
   Trash2,
   XCircle,
 } from "lucide-react";
@@ -66,7 +67,7 @@ export function AdminProductsPanel() {
   const [categoryFilter, setCategoryFilter] = useState(ALL_CATEGORIES);
   const [statusFilter, setStatusFilter] = useState("all");
   const [updating, setUpdating] = useState<number | null>(null);
-  const [photoUpdating, setPhotoUpdating] = useState<number | null>(null);
+  const [photoEditProduct, setPhotoEditProduct] = useState<Product | null>(null);
 
   const statusLabel = (status: string) => {
     const map: Record<string, string> = {
@@ -141,26 +142,6 @@ export function AdminProductsPanel() {
       toast({ title: tr("common.error"), description: String(e instanceof Error ? e.message : e), variant: "destructive" });
     } finally {
       setUpdating(null);
-    }
-  };
-
-  const generatePhoto = async (productId: number) => {
-    setPhotoUpdating(productId);
-    try {
-      const result = await platformApi.enrichProduct(productId, { generate_photos: true, skip_pricing: true });
-      if (!result.ok || !result.photo_updated) {
-        throw new Error(tr("product_edit.photo_ai_failed"));
-      }
-      toast({ title: tr("admin.photo_generated"), description: `#${productId}` });
-      void load();
-    } catch (e) {
-      toast({
-        title: tr("common.error"),
-        description: String(e instanceof Error ? e.message : e),
-        variant: "destructive",
-      });
-    } finally {
-      setPhotoUpdating(null);
     }
   };
 
@@ -294,13 +275,10 @@ export function AdminProductsPanel() {
                               variant="outline"
                               size="sm"
                               className="h-8 gap-1"
-                              disabled={photoUpdating === product.id}
-                              onClick={() => void generatePhoto(product.id)}
+                              onClick={() => setPhotoEditProduct(product)}
                             >
-                              {photoUpdating === product.id
-                                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                : <Sparkles className="h-3.5 w-3.5" />}
-                              {tr("admin.ai_photo")}
+                              <ImageIcon className="h-3.5 w-3.5" />
+                              {tr("admin.edit_photo")}
                             </Button>
                             {st !== "published" && (
                               <Button
@@ -346,6 +324,20 @@ export function AdminProductsPanel() {
           </Table>
         </div>
       </div>
+
+      <AdminEditPhotoDialog
+        open={!!photoEditProduct}
+        product={photoEditProduct}
+        onClose={() => setPhotoEditProduct(null)}
+        onSaved={(imageUrl) => {
+          if (!photoEditProduct) return;
+          const id = photoEditProduct.id;
+          setProducts((prev) =>
+            prev.map((p) => (p.id === id ? { ...p, image_url: imageUrl } : p)),
+          );
+          setPhotoEditProduct((prev) => (prev ? { ...prev, image_url: imageUrl } : null));
+        }}
+      />
     </div>
   );
 }
