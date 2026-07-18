@@ -14,6 +14,7 @@ import {
   shouldPurgeCatalogImage,
 } from "./catalog-image-safety";
 import { searchAlgerianProductImageUrls } from "./algeria-product-images";
+import { verifyProductPhoto } from "./photo-vision-check";
 
 const MIN_BYTES = 3_000;
 const MAX_CANDIDATES = 8;
@@ -184,6 +185,9 @@ export async function scrapeOneProductPhoto(
     return { ok: false, reason: "aucune_candidat" };
   }
   const savedList: string[] = [];
+  let visionCalls = 0;
+  let visionRejects = 0;
+  const MAX_VISION_CALLS = 4;
   for (const candidate of candidates.slice(0, 6)) {
     if (savedList.length >= 3) break; // jusqu'à 3 candidats pour « Image suivante »
     if (isNsfwOrBlockedImageUrl(candidate)) continue;
@@ -192,6 +196,19 @@ export async function scrapeOneProductPhoto(
       if (!saved) continue;
       if (isNsfwOrBlockedImageUrl(saved)) continue;
       if (savedList.includes(saved)) continue;
+      // Vérification IA vision : l'image montre-t-elle bien CE produit ?
+      if (saved.startsWith("data:") && visionCalls < MAX_VISION_CALLS) {
+        visionCalls++;
+        const check = await verifyProductPhoto(saved, p.name, p.description);
+        if (check.checked && !check.match) {
+          visionRejects++;
+          logger.info(
+            { productId: p.id, reason: check.reason?.slice(0, 80) },
+            "candidat rejeté par vision IA",
+          );
+          continue;
+        }
+      }
       savedList.push(saved);
     } catch (err) {
       logger.warn({ err, productId: p.id, candidate }, "candidat image rejeté");
@@ -199,12 +216,15 @@ export async function scrapeOneProductPhoto(
   }
 
   if (!savedList.length) {
-    logger.warn({ productId: p.id, tried: candidates.length }, "scrape: download échoué");
+    logger.warn(
+      { productId: p.id, tried: candidates.length, visionRejects },
+      "scrape: aucun candidat retenu",
+    );
     await db
       .update(productsTable)
       .set({ images: [PHOTO_MISS_MARKER, String(Date.now())] })
       .where(eq(productsTable.id, p.id));
-    return { ok: false, reason: "download_echec" };
+    return { ok: false, reason: visionRejects > 0 ? "rejete_par_ia" : "download_echec" };
   }
 
   // Ne PAS publier dans imageUrl tant que l'admin n'a pas validé
