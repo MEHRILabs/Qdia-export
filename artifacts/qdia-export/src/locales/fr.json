@@ -628,7 +628,7 @@
     "tools_title": "Outils admin",
     "scrape_card_title": "Scraping Photos",
     "scrape_card_desc": "Lots de 50 : recherche web, fond clair, carré, filigrane QDIA, compression. Reprise auto si interrompu. Barre de progression en direct.",
-    "scrape_card_desc_short": "Scrape Bing → photos en attente. Cliquez Valider photos pour publier. Sans validation = invisible au catalogue.",
+    "scrape_card_desc_short": "Recherche marque + sites algériens (Tidjaria…). Validation admin obligatoire avant catalogue.",
     "scrape_done_desc": "{ok} photo(s) prêtes à valider · {processed} traité(s) · {skipped} échecs. Ouvrez « Valider photos ».",
     "purge_scraped_btn": "Retirer images scrapées",
     "fix_categories_btn": "Corriger catégories",

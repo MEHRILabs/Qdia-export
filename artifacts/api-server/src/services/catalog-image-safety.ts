@@ -45,7 +45,7 @@ export function scoreSafeProductCandidate(url: string, productName = ""): number
   if (isNsfwOrBlockedImageUrl(u)) return -100;
   if (/\.(jpe?g|png|webp)(\?|$)/i.test(u)) s += 3;
   if (/product|pack|packshot|catalog|produit|emballage|bottle|jar|box|sachet|epice|huile|datte|agro/i.test(u)) s += 4;
-  if (/tidjaria|elwajed|batolis|yassir|cevital|soummam/i.test(u)) s += 8;
+  if (/tidjaria|elwajed|batolis|yassir|cevital|soummam|jumia\.dz/i.test(u)) s += 8;
   if (/white.?background|isolated|studio/i.test(u)) s += 2;
   const tokens = productName
     .toLowerCase()

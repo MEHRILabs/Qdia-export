@@ -20,7 +20,7 @@ const WEAK_NAME_WORDS = new Set([
   "lait", "eau", "jus", "sauce", "pates", "riz", "confiture", "vinaigre",
   "semoule", "couscous", "harissa", "tomate", "fromage", "yaourt", "beurre",
   "chocolat", "biscuit", "neon", "promot", "promotion", "ail", "artichaut",
-  "artichauts", "arome", "fond", "cur", "assila",
+  "artichauts", "arome", "fond", "cur",
 ]);
 
 const PRODUCT_TYPE_WORDS =
@@ -157,10 +157,15 @@ export function isRelevantProductImage(
   if (!hasBrandMatch(blob, brand)) return false;
 
   const others = allTokens.filter((t) => !brand.includes(t));
-  // Marque + (mot produit OU indice packshot dans alt/url)
+  const brandInAlt = hasBrandMatch(alt, brand);
+  const dzHost = /tidjaria|elwajed|batolis|yassir|jumia\.dz|cevital|soummam/i.test(url);
+
+  // Marque + (mot produit OU packshot OU (marque claire dans alt + site DZ))
   if (others.length > 0) {
-    if (!hasAnyToken(blob, others) && !PACKSHOT_RE.test(blob)) return false;
-  } else if (countTokenHits(blob, allTokens) < 1 && !PACKSHOT_RE.test(blob)) {
+    if (!hasAnyToken(blob, others) && !PACKSHOT_RE.test(blob) && !(brandInAlt && dzHost)) {
+      return false;
+    }
+  } else if (countTokenHits(blob, allTokens) < 1 && !PACKSHOT_RE.test(blob) && !(brandInAlt && dzHost)) {
     return false;
   }
 

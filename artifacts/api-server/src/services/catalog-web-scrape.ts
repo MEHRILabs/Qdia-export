@@ -3,7 +3,7 @@
  * Filtre NSFW strict — refuse les URLs adult / hors produit.
  */
 import { eq, or, isNull, sql, and } from "drizzle-orm";
-import { db, productsTable } from "@workspace/db";
+import { db, productsTable, catalogVariantsTable } from "@workspace/db";
 import { logger } from "../lib/logger";
 import { fetchImageAsBase64 } from "./image-scraper";
 import { saveCatalogImage } from "./catalog-image-store";
@@ -15,6 +15,7 @@ import {
 } from "./catalog-image-safety";
 import { searchAlgerianProductImageUrls } from "./algeria-product-images";
 import { verifyProductPhoto } from "./photo-vision-check";
+import { brandPhrase } from "./product-image-match";
 
 const MIN_BYTES = 3_000;
 const MAX_CANDIDATES = 8;
@@ -65,8 +66,70 @@ export async function searchProductImageUrls(
   productName: string,
   category?: string | null,
   description?: string | null,
+  opts?: { explicitBrand?: string | null; packaging?: string | null; ean?: string | null },
 ): Promise<string[]> {
-  return searchAlgerianProductImageUrls(productName, category, description);
+  return searchAlgerianProductImageUrls(productName, category, description, opts);
+}
+
+/** Certifs ISO / labels ≠ marque commerciale. */
+function looksLikeBrandNotCert(value: string): boolean {
+  const v = value.trim();
+  if (v.length < 2 || v.length > 40) return false;
+  if (/^(iso|haccp|halal|organic|bio|gmp|brc|ifs|ce|fda|kosher)\b/i.test(v)) return false;
+  if (/\d{3,}/.test(v) && /iso|norme|standard/i.test(v)) return false;
+  return true;
+}
+
+async function resolveScrapeContext(p: typeof productsTable.$inferSelect): Promise<{
+  brand: string | null;
+  ean: string | null;
+  packaging: string | null;
+  masterImageUrl: string | null;
+}> {
+  let brand: string | null = null;
+  let ean: string | null = null;
+  let packaging = p.packaging ?? null;
+  let masterImageUrl: string | null = null;
+
+  // Marque Excel souvent stockée en certifications[0]
+  const certBrand = (p.certifications ?? []).find(looksLikeBrandNotCert);
+  if (certBrand) brand = certBrand.trim();
+
+  try {
+    const conditions = [];
+    if (p.sku?.trim()) conditions.push(eq(catalogVariantsTable.masterId, p.sku.trim()));
+    conditions.push(eq(catalogVariantsTable.publishedProductId, p.id));
+    const [variant] = await db
+      .select({
+        brandName: catalogVariantsTable.brandName,
+        ean: catalogVariantsTable.ean,
+        packagingNotes: catalogVariantsTable.packagingNotes,
+        imageUrl: catalogVariantsTable.imageUrl,
+      })
+      .from(catalogVariantsTable)
+      .where(or(...conditions))
+      .limit(1);
+    if (variant) {
+      if (variant.brandName?.trim()) brand = variant.brandName.trim();
+      if (variant.ean?.trim()) ean = variant.ean.trim();
+      if (!packaging && variant.packagingNotes) packaging = variant.packagingNotes;
+      if (variant.imageUrl?.trim() && !shouldPurgeCatalogImage(variant.imageUrl)) {
+        masterImageUrl = variant.imageUrl.trim();
+      }
+    }
+  } catch (err) {
+    logger.warn({ err, productId: p.id }, "resolve scrape context (variants) échoué");
+  }
+
+  if (!brand && p.supplierName?.trim() && looksLikeBrandNotCert(p.supplierName)) {
+    brand = p.supplierName.trim();
+  }
+  if (!brand) {
+    const inferred = brandPhrase(p.name);
+    brand = inferred || null;
+  }
+
+  return { brand, ean, packaging, masterImageUrl };
 }
 
 async function tryDownloadAndSave(productId: number, imageUrl: string, productName?: string): Promise<string | null> {
@@ -175,9 +238,24 @@ export async function scrapeOneProductPhoto(
     return { ok: true, image_url: p.imageUrl ?? undefined, reason: "deja_ok" };
   }
 
-  const candidates = await searchProductImageUrls(p.name, p.category, p.description);
+  const ctx = await resolveScrapeContext(p);
+  logger.info(
+    { productId: p.id, brand: ctx.brand, ean: ctx.ean, hasMasterImg: !!ctx.masterImageUrl },
+    "scrape context",
+  );
+
+  // Photo Master Data déjà connue → prioritaire (souvent packshot réel)
+  const seedUrls: string[] = [];
+  if (ctx.masterImageUrl) seedUrls.push(ctx.masterImageUrl);
+
+  const searched = await searchProductImageUrls(p.name, p.category, p.description, {
+    explicitBrand: ctx.brand,
+    packaging: ctx.packaging,
+    ean: ctx.ean,
+  });
+  const candidates = [...seedUrls, ...searched.filter((u) => !seedUrls.includes(u))];
   if (!candidates.length) {
-    logger.warn({ productId: p.id, name: p.name }, "scrape: 0 candidats");
+    logger.warn({ productId: p.id, name: p.name, brand: ctx.brand }, "scrape: 0 candidats");
     await db
       .update(productsTable)
       .set({ images: [PHOTO_MISS_MARKER, String(Date.now())] })
