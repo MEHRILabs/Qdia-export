@@ -139,7 +139,7 @@ class _CurvedBottomNavState extends State<CurvedBottomNav> with TickerProviderSt
                         end: Alignment.bottomRight,
                       ),
                     ),
-                    child: const Icon(Icons.add_rounded, color: QdiaColors.navy, size: 30),
+                    child: const Icon(Icons.search_rounded, color: QdiaColors.navy, size: 28),
                   ),
                 ),
               ),

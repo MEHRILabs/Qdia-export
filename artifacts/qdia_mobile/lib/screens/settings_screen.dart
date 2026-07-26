@@ -251,7 +251,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onTap: loggedIn
                           ? () => Navigator.pushNamed(context, '/my-rfqs')
                           : _openLogin,
+                      showDivider: false,
                     ),
+                  ],
+                ),
+                if (ApiService.instance.isSupplierOrAdmin)
+                  MobileSettingsGroup(
+                  title: context.tr('settings.section_exporter'),
+                  children: [
                     MobileSettingsTile(
                       icon: Icons.local_shipping_outlined,
                       title: context.tr('supplier_orders.title'),
@@ -265,13 +272,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onTap: loggedIn
                           ? () => Navigator.pushNamed(context, '/inquiries')
                           : _openLogin,
-                      showDivider: false,
                     ),
-                  ],
-                ),
-                MobileSettingsGroup(
-                  title: context.tr('settings.section_exporter'),
-                  children: [
                     MobileSettingsTile(
                       icon: Icons.bar_chart_rounded,
                       title: context.tr('settings.dashboard'),
@@ -304,6 +305,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ? () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FacturationScreen()))
                           : _openLogin,
                     ),
+                    MobileSettingsTile(
+                      icon: Icons.chat_bubble_outline_rounded,
+                      title: context.tr('mobile.tab_messages'),
+                      subtitle: context.tr('messages.start_from_product'),
+                      onTap: () {
+                        if (!loggedIn) {
+                          _openLogin();
+                          return;
+                        }
+                        widget.onOpenMessages?.call();
+                      },
+                      showDivider: false,
+                    ),
+                  ],
+                ),
+                MobileSettingsGroup(
+                  title: context.tr('mobile.tab_messages'),
+                  children: [
                     MobileSettingsTile(
                       icon: Icons.chat_bubble_outline_rounded,
                       title: context.tr('mobile.tab_messages'),

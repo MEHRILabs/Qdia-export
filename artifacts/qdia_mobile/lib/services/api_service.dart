@@ -10,9 +10,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 class ApiConfig {
+  /// Prod QDIA — même catalogue / auth que le site web.
   static const baseUrl = String.fromEnvironment(
     'API_URL',
-    defaultValue: 'http://localhost:8080',
+    defaultValue: 'https://qdia-export.onrender.com',
   );
 }
 
@@ -24,12 +25,17 @@ class ApiService {
   int? _userId;
   String? _userName;
   String? _userEmail;
+  String? _userRole;
 
   bool get isLoggedIn => _token != null && _token!.isNotEmpty;
   String? get authToken => _token;
   int? get userId => _userId;
   String? get userName => _userName;
   String? get userEmail => _userEmail;
+  String? get userRole => _userRole;
+  bool get isBuyer => _userRole == null || _userRole == 'buyer';
+  bool get isSupplierOrAdmin =>
+      _userRole == 'supplier' || _userRole == 'admin';
 
   Future<void> loadToken() async {
     final prefs = await SharedPreferences.getInstance();
@@ -41,6 +47,7 @@ class ApiService {
         _userId = (user['id'] as num?)?.toInt();
         _userName = user['name']?.toString();
         _userEmail = user['email']?.toString();
+        _userRole = user['role']?.toString();
       } catch (_) {}
     }
   }
@@ -55,6 +62,7 @@ class ApiService {
     _userId = (user['id'] as num?)?.toInt();
     _userName = user['name']?.toString();
     _userEmail = user['email']?.toString();
+    _userRole = user['role']?.toString();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('qdia_user', jsonEncode(user));
   }
@@ -75,6 +83,7 @@ class ApiService {
     _userId = null;
     _userName = null;
     _userEmail = null;
+    _userRole = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('qdia_token');
     await prefs.remove('qdia_user');
@@ -129,15 +138,23 @@ class ApiService {
   }
 
   // ─── Auth ───
-  Future<Map<String, dynamic>> register(String email, String password, {String? name}) =>
+  Future<Map<String, dynamic>> register(String email, String password, {String? name, String role = 'buyer'}) =>
       post('/api/auth/register', {
-        'email': email,
+        'email': email.trim(),
         'password': password,
-        if (name != null) 'name': name,
+        if (name != null) 'name': name.trim(),
+        'role': role,
       });
 
   Future<Map<String, dynamic>> login(String email, String password) =>
-      post('/api/auth/login', {'email': email, 'password': password});
+      post('/api/auth/login', {
+        'email': email.trim(),
+        'password': password,
+      });
+
+  /// Résout l'utilisateur messagerie lié à un fournisseur catalogue.
+  Future<Map<String, dynamic>> resolveSupplierContact(int supplierId) =>
+      get('/api/messages/by-supplier/$supplierId');
 
   Future<Map<String, dynamic>> loginGoogle(String email, String name, {String? googleId}) =>
       post('/api/auth/google', {

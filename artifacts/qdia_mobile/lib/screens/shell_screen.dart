@@ -103,25 +103,40 @@ class _ShellScreenState extends State<ShellScreen> {
     );
   }
 
-  void _contactSupplier(Product product) {
+  void _contactSupplier(Product product) async {
     if (!_loggedIn) {
       _openLogin();
       return;
     }
-    final myId = ApiService.instance.userId ?? 1;
-    final partnerId = myId == 1 ? 2 : 1;
-    final partnerName = myId == 1 ? 'Admin QDIA' : product.supplierName;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => MessageThreadScreen(
-          partnerId: partnerId,
-          partnerName: partnerName,
-          partnerRole: myId == 1 ? 'admin' : 'supplier',
-          productName: product.name,
-          productId: product.id,
+    final supplierId = product.supplierId;
+    if (supplierId == null || supplierId <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.tr('messages.no_supplier') )),
+      );
+      return;
+    }
+    try {
+      final contact = await ApiService.instance.resolveSupplierContact(supplierId);
+      final partnerId = (contact['id'] as num?)?.toInt();
+      if (partnerId == null) throw Exception('Contact introuvable');
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => MessageThreadScreen(
+            partnerId: partnerId,
+            partnerName: contact['name']?.toString() ?? product.supplierName,
+            partnerRole: contact['role']?.toString() ?? 'supplier',
+            productName: product.name,
+            productId: product.id,
+          ),
         ),
-      ),
-    );
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${context.tr('common.error')}: $e')),
+      );
+    }
   }
 
   void _openSearch() {
@@ -234,7 +249,7 @@ class _ShellScreenState extends State<ShellScreen> {
         currentIndex: _tab,
         hasMessageBadge: _loggedIn,
         rfqCount: _rfqItems.length,
-        onFabTap: () => Navigator.pushNamed(context, '/agent-ia'),
+        onFabTap: _openSearch,
         onTap: (i) {
           if (i == 2) {
             setState(() => _tab = 2);

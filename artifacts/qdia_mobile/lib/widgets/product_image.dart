@@ -34,21 +34,16 @@ class ProductImage extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.photo_camera_outlined, color: QdiaColors.primary, size: 28),
+            const Icon(Icons.inventory_2_outlined, color: QdiaColors.primary, size: 28),
             const SizedBox(height: 6),
             Text(
-              'QDIA Photo',
+              'QDIA',
               style: TextStyle(
                 color: QdiaColors.primary,
                 fontWeight: FontWeight.w800,
                 fontSize: width != null && width! < 120 ? 10 : 12,
               ),
             ),
-            if (width == null || width! >= 120)
-              const Text(
-                'Photo IA à générer',
-                style: TextStyle(color: QdiaColors.textMuted, fontSize: 9),
-              ),
           ],
         ),
       );

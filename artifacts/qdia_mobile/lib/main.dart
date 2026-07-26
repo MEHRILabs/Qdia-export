@@ -3,12 +3,10 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'package:qdia_mobile/l10n/app_locale.dart';
 import 'package:qdia_mobile/l10n/app_strings.dart';
-import 'package:qdia_mobile/screens/agent_ia_screen.dart';
 import 'package:qdia_mobile/screens/cart_screen.dart';
 import 'package:qdia_mobile/screens/dashboard_screen.dart';
 import 'package:qdia_mobile/screens/orders_screen.dart';
 import 'package:qdia_mobile/screens/settings_screen.dart';
-import 'package:qdia_mobile/screens/studio_screen.dart';
 import 'package:qdia_mobile/screens/supplier_products_screen.dart';
 import 'package:qdia_mobile/screens/tracking_screen.dart';
 import 'package:qdia_mobile/screens/trade_assurance_screen.dart';
@@ -92,12 +90,6 @@ class _QdiaAppState extends State<QdiaApp> {
         theme: buildQdiaTheme(),
         home: const ShellScreen(),
         routes: {
-          '/agent-ia': (_) => const AgentIaScreen(),
-          '/studio': (ctx) {
-            final args = ModalRoute.of(ctx)?.settings.arguments;
-            final productId = args is Map ? (args['productId'] as num?)?.toInt() : null;
-            return StudioScreen(linkedProductId: productId);
-          },
           '/settings': (_) => const SettingsScreen(),
           '/dashboard': (_) => const DashboardScreen(),
           '/supplier-products': (_) => const SupplierProductsScreen(),

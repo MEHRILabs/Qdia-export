@@ -99,11 +99,13 @@ class _MessagesScreenState extends State<MessagesScreen> {
   }
 
   void _openThread(Map<String, dynamic> t) {
+    final partnerId = (t['partner_id'] as num?)?.toInt();
+    if (partnerId == null) return;
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => MessageThreadScreen(
-          partnerId: t['partner_id'] as int,
+          partnerId: partnerId,
           partnerName: t['partner_name']?.toString() ?? context.tr('messages.contact'),
           partnerRole: t['partner_role']?.toString(),
           ws: _ws,

@@ -463,7 +463,8 @@
     "attach_cert": "Demander certificats",
     "attach_cert_body": "Pouvez-vous partager vos certificats halal, phytosanitaire et origine pour export UE ?",
     "attach_shipping": "Infos expédition",
-    "attach_shipping_body": "Merci de confirmer le port de départ, le délai d'expédition et le mode de transport."
+    "attach_shipping_body": "Merci de confirmer le port de départ, le délai d'expédition et le mode de transport.",
+    "no_supplier": "Aucun fournisseur lié à ce produit."
   },
   "favorites": {
     "title": "Mes favoris",
@@ -500,7 +501,12 @@
     "verify": "Vérifier",
     "continue_with": "Continuer avec",
     "login_with": "Connexion",
-    "google_config_error": "Connexion Google indisponible : l'application doit être enregistrée dans Google Cloud (nom de package + empreinte SHA-1). Utilisez Email ou SMS en attendant."
+    "google_config_error": "Connexion Google indisponible : l'application doit être enregistrée dans Google Cloud (nom de package + empreinte SHA-1). Utilisez Email ou SMS en attendant.",
+    "name": "Nom complet",
+    "fill_required": "Email et mot de passe requis",
+    "login_failed": "Connexion échouée — vérifiez vos identifiants",
+    "create_account": "Créer un compte acheteur",
+    "have_account": "Déjà un compte ? Se connecter"
   },
   "verification": {
     "title": "Vérification exportateur",

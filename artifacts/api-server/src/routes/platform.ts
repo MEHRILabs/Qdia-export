@@ -142,6 +142,71 @@ router.get("/messages/partner/:partnerId", requireAuth, async (req: AuthedReques
   });
 });
 
+/** Contact messagerie pour un fournisseur catalogue (supplier_id produit) */
+router.get("/messages/by-supplier/:supplierId", requireAuth, async (req: AuthedRequest, res) => {
+  const supplierId = parseInt(String(req.params.supplierId), 10);
+  if (Number.isNaN(supplierId) || supplierId <= 0) {
+    res.status(400).json({ error: "supplier_id invalide" });
+    return;
+  }
+  try {
+    const [user] = await db
+      .select({
+        id: usersTable.id,
+        name: usersTable.name,
+        email: usersTable.email,
+        role: usersTable.role,
+        company_name: usersTable.companyName,
+        supplier_id: usersTable.supplierId,
+      })
+      .from(usersTable)
+      .where(and(eq(usersTable.supplierId, supplierId), or(eq(usersTable.role, "supplier"), eq(usersTable.role, "admin"))))
+      .limit(1);
+
+    if (user) {
+      res.json({
+        id: user.id,
+        name: user.name ?? user.email ?? `Fournisseur #${supplierId}`,
+        email: user.email,
+        role: user.role,
+        company: user.company_name,
+        supplier_id: user.supplier_id,
+      });
+      return;
+    }
+
+    // Fallback : admin plateforme pour ne pas bloquer l'acheteur
+    const [adminUser] = await db
+      .select({
+        id: usersTable.id,
+        name: usersTable.name,
+        email: usersTable.email,
+        role: usersTable.role,
+        company_name: usersTable.companyName,
+        supplier_id: usersTable.supplierId,
+      })
+      .from(usersTable)
+      .where(eq(usersTable.role, "admin"))
+      .limit(1);
+
+    if (!adminUser) {
+      res.status(404).json({ error: "Aucun contact fournisseur disponible pour ce produit." });
+      return;
+    }
+    res.json({
+      id: adminUser.id,
+      name: adminUser.name ?? "Support QDIA",
+      email: adminUser.email,
+      role: adminUser.role,
+      company: adminUser.company_name,
+      supplier_id: supplierId,
+      fallback_admin: true,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Erreur contact fournisseur" });
+  }
+});
+
 router.get("/messages/thread/:partnerId", requireAuth, async (req: AuthedRequest, res) => {
   const uid = req.user!.id;
   const partnerId = parseInt(String(req.params.partnerId), 10);

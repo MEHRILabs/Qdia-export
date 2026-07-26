@@ -137,40 +137,123 @@ class _EmailForm extends StatefulWidget {
 class _EmailFormState extends State<_EmailForm> {
   final _email = TextEditingController();
   final _password = TextEditingController();
+  final _name = TextEditingController();
   bool _loading = false;
+  bool _registerMode = false;
 
   Future<void> _submit() async {
+    final email = _email.text.trim();
+    final password = _password.text;
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.tr('auth.fill_required'))),
+      );
+      return;
+    }
     setState(() => _loading = true);
     try {
-      final res = await ApiService.instance.login(_email.text, _password.text);
+      final Map<String, dynamic> res;
+      if (_registerMode) {
+        res = await ApiService.instance.register(
+          email,
+          password,
+          name: _name.text.trim().isEmpty ? email.split('@').first : _name.text.trim(),
+          role: 'buyer',
+        );
+      } else {
+        res = await ApiService.instance.login(email, password);
+      }
       await ApiService.instance.saveSession(res);
+      if (!ApiService.instance.isLoggedIn) {
+        throw Exception(context.tr('auth.login_failed'));
+      }
       widget.onLogin();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        );
+      }
     }
     if (mounted) setState(() => _loading = false);
+  }
+
+  @override
+  void dispose() {
+    _email.dispose();
+    _password.dispose();
+    _name.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(24),
-      child: Column(
-        children: [
-          TextField(controller: _email, decoration: InputDecoration(labelText: context.tr('auth.email_pro'), filled: true, fillColor: QdiaColors.pageBg, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none))),
-          const SizedBox(height: 12),
-          TextField(controller: _password, obscureText: true, decoration: InputDecoration(labelText: context.tr('auth.password'), filled: true, fillColor: QdiaColors.pageBg, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none))),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: ElevatedButton(
-              onPressed: _loading ? null : _submit,
-              style: ElevatedButton.styleFrom(backgroundColor: QdiaColors.primary, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-              child: _loading ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : Text(context.tr('auth.login'), style: const TextStyle(fontWeight: FontWeight.w800)),
+      child: SingleChildScrollView(
+        child: Column(
+          children: [
+            if (_registerMode) ...[
+              TextField(
+                controller: _name,
+                decoration: InputDecoration(
+                  labelText: context.tr('auth.name'),
+                  filled: true,
+                  fillColor: QdiaColors.pageBg,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            TextField(
+              controller: _email,
+              keyboardType: TextInputType.emailAddress,
+              autocorrect: false,
+              decoration: InputDecoration(
+                labelText: context.tr('auth.email_pro'),
+                filled: true,
+                fillColor: QdiaColors.pageBg,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            TextField(
+              controller: _password,
+              obscureText: true,
+              decoration: InputDecoration(
+                labelText: context.tr('auth.password'),
+                filled: true,
+                fillColor: QdiaColors.pageBg,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                onPressed: _loading ? null : _submit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: QdiaColors.primary,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: _loading
+                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : Text(
+                        _registerMode ? context.tr('auth.register') : context.tr('auth.login'),
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+              ),
+            ),
+            TextButton(
+              onPressed: _loading ? null : () => setState(() => _registerMode = !_registerMode),
+              child: Text(
+                _registerMode ? context.tr('auth.have_account') : context.tr('auth.create_account'),
+                style: const TextStyle(color: QdiaColors.primary, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

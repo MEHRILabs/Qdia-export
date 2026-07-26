@@ -48,6 +48,11 @@ app.use(cors({
       callback(null, true);
       return;
     }
+    // Flutter web / Chrome local (acheteur) — localhost n'importe quel port
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) {
+      callback(null, true);
+      return;
+    }
     if (!isProduction()) {
       callback(null, true);
       return;

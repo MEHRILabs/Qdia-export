@@ -49,13 +49,32 @@ class _MessageThreadScreenState extends State<MessageThreadScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.productName != null && widget.productName!.isNotEmpty) {
+      _ctrl.text = 'Bonjour, je suis intéressé par : ${widget.productName}';
+    }
     _load();
-    _wsSub = widget.ws?.events.listen(_handleWsEvent);
+    _setupWs();
   }
+
+  Future<void> _setupWs() async {
+    if (widget.ws != null) {
+      _wsSub = widget.ws!.events.listen(_handleWsEvent);
+      return;
+    }
+    await ApiService.instance.loadToken();
+    if (!ApiService.instance.isLoggedIn) return;
+    final ws = QdiaWebSocket();
+    _ownWs = ws;
+    _wsSub = ws.events.listen(_handleWsEvent);
+    await ws.connect();
+  }
+
+  QdiaWebSocket? _ownWs;
 
   @override
   void dispose() {
     _wsSub?.cancel();
+    _ownWs?.disconnect();
     _ctrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();
@@ -150,7 +169,7 @@ class _MessageThreadScreenState extends State<MessageThreadScreen> {
     if (mounted) setState(() => _sending = false);
   }
 
-  void _onTyping(String _) => widget.ws?.sendTyping(widget.partnerId);
+  void _onTyping(String _) => (widget.ws ?? _ownWs)?.sendTyping(widget.partnerId);
 
   bool _isMine(Map<String, dynamic> m) {
     final sender = (m['sender_id'] as num?)?.toInt();
