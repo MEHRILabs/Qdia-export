@@ -16,7 +16,8 @@ copy .env.example .env
 
 - Site : http://localhost:25180  
 - API : http://localhost:8080  
-- Compte **administration** (unique) : `administration@qdiadz.com` / `QDIA@Admin2026`
+- Admin 1 : `ops.admin@qdiadz.com` / `QdiaOps#Secure2026`
+- Admin 2 : `platform.admin@qdiadz.com` / `QdiaPlatform#Secure2026`
 - Les **exportateurs** créent leur compte via **Inscription** (email, Gmail ou téléphone)
 
 ## Hébergement Vercel (recommandé)

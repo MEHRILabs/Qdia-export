@@ -7,7 +7,8 @@ Set-Location $Root
 
 Write-Host "=== QDIA Export — démarrage démo ===" -ForegroundColor Cyan
 Write-Host "Comptes test:" -ForegroundColor Yellow
-Write-Host "  Admin (unique) : administration@qdiadz.com / QDIA@Admin2026"
+Write-Host "  Admin 1 : ops.admin@qdiadz.com / QdiaOps#Secure2026"
+Write-Host "  Admin 2 : platform.admin@qdiadz.com / QdiaPlatform#Secure2026"
 Write-Host "  Exportateurs   : inscription via le site (email / Gmail / telephone)"
 Write-Host ""
 

@@ -6,8 +6,8 @@ async function login() {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      email: process.env.QDIA_ADMIN_EMAIL || "administration@qdiadz.com",
-      password: process.env.QDIA_ADMIN_PASSWORD || "QDIA@Admin2026",
+      email: process.env.QDIA_ADMIN_EMAIL || "ops.admin@qdiadz.com",
+      password: process.env.QDIA_ADMIN_PASSWORD || "QdiaOps#Secure2026",
     }),
   });
   const data = await res.json();
