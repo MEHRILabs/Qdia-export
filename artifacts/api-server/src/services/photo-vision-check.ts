@@ -3,6 +3,8 @@
  * « cette image est-elle bien un packshot de CE produit ? »
  * Utilise la clé disponible (OpenAI / Gemini / Claude). Sans clé → pas de vérif (comportement inchangé).
  */
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { logger } from "../lib/logger";
 import { hasProviderKey } from "./ai/config";
 
@@ -15,9 +17,11 @@ export function visionCheckAvailable(): boolean {
 const SYSTEM_PROMPT = `Tu es contrôleur qualité d'un catalogue B2B de produits algériens (alimentaire, agro, consommation).
 On te montre une image candidate pour la fiche d'un produit donné.
 Réponds UNIQUEMENT en JSON strict: {"match": true ou false, "confidence": 0 à 100, "reason": "explication courte"}.
-match=true seulement si l'image montre clairement ce produit : emballage / packshot du bon TYPE de produit (idéalement la bonne marque).
-match=false pour : paysages, personnes, dessins ou cartoons, logos seuls, citations ou textes religieux, publicités sans produit, produits d'un autre type, captures d'écran, images floues ou illisibles.
-En cas de doute sérieux, réponds match=false.`;
+match=true seulement si l'image montre clairement CE produit (packshot / emballage) :
+- bon TYPE de produit (ex. huile d'olive vs datte, farine vs lait)
+- idéalement la bonne MARQUE si elle est lisible sur l'emballage
+match=false pour : paysages, personnes, dessins ou cartoons, logos seuls sans produit, citations, produits d'un autre type, mauvaises marques claires et différentes, captures d'écran, flou illisible.
+En cas de doute sérieux, match=false.`;
 
 export type VisionCheckResult = {
   /** true si une IA a réellement vérifié l'image */
@@ -28,25 +32,53 @@ export type VisionCheckResult = {
   reason?: string;
 };
 
+async function resolveImagePayload(imageInput: string): Promise<string> {
+  // data URL ou base64 brut
+  if (imageInput.startsWith("data:") || imageInput.length > 200) {
+    return imageInput.replace(/^data:image\/\w+;base64,/, "");
+  }
+  // Chemin local /uploads/...
+  if (imageInput.startsWith("/uploads/") || imageInput.startsWith("uploads/")) {
+    const rel = imageInput.replace(/^\//, "");
+    const candidates = [
+      join(process.cwd(), "public", rel),
+      join(process.cwd(), rel),
+      join(process.cwd(), "artifacts", "api-server", "public", rel),
+    ];
+    for (const p of candidates) {
+      try {
+        const buf = await readFile(p);
+        return buf.toString("base64");
+      } catch {
+        /* try next */
+      }
+    }
+  }
+  return imageInput.replace(/^data:image\/\w+;base64,/, "");
+}
+
 export async function verifyProductPhoto(
   imageBase64: string,
   productName: string,
   description?: string | null,
+  brand?: string | null,
 ): Promise<VisionCheckResult> {
   if (!visionCheckAvailable()) return { checked: false, match: true, confidence: 0 };
 
   try {
     const { aiVisionJson } = await import("./ai/engine");
+    const payload = await resolveImagePayload(imageBase64);
     const prompt =
       `Produit: ${productName}` +
+      (brand ? `\nMarque attendue: ${brand}` : "") +
       (description ? `\nDescription: ${description.slice(0, 200)}` : "") +
-      `\nCette image correspond-elle à ce produit ? Réponds en JSON.`;
+      `\nCette image correspond-elle à CE produit (bon type, idéalement bonne marque) ? JSON uniquement.`;
 
     const timeout = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error("vision timeout")), VISION_TIMEOUT_MS),
     );
     const { data, provider } = await Promise.race([
-      aiVisionJson(SYSTEM_PROMPT, prompt, imageBase64),
+      aiVisionJson(SYSTEM_PROMPT, prompt, payload),
       timeout,
     ]);
 
@@ -69,7 +101,7 @@ export async function verifyProductPhoto(
     );
     return result;
   } catch (err) {
-    // Vérification indisponible (pas de crédit, timeout…) → ne pas bloquer le scrape
+    // Vérification indisponible → ne pas bloquer le scrape
     logger.warn({ err, productName: productName.slice(0, 40) }, "vision check indisponible");
     return { checked: false, match: true, confidence: 0 };
   }

@@ -9,9 +9,13 @@ const NSFW_URL_RE =
 const NSFW_HOST_RE =
   /(?:^|\.)(?:pornhub|xvideos|xhamster|xnxx|onlyfans|chaturbate|stripchat|redtube|youporn|spankbang|imagefap|motherless|gelbooru|danbooru|nhentai|fapello|coomer|thothub|bongacams|livejasmin|myfreecams|camsoda)\./i;
 
-/** Mots UI / hors produit */
+/**
+ * Mots UI / hors produit.
+ * Ne PAS bloquer googleusercontent / gstatic / ggpht : beaucoup de vrais packshots
+ * Bing pointent vers ces CDN (sinon → aucune_candidat massif).
+ */
 const JUNK_URL_RE =
-  /logo|favicon|sprite|avatar|1x1|pixel|spacer|banner-ad|advert|tracking|emoji|sticker|snoopy|peanuts|wallpaper|shutterstock|gettyimages|unsplash|surfing|surfboard|piggy.?bank|google\.com\/images|gstatic\.com|ggpht\.com|googleusercontent|bing\.com\/th|tse\d*\.mm\.bing|bible|scripture|verse|church|sunset|pier|landscape|inspirational|quote/i;
+  /\/logo[-_./]|favicon|sprite|avatar|1x1|pixel|spacer|banner-ad|advert|tracking|emoji|sticker|snoopy|peanuts|wallpaper|shutterstock|gettyimages|unsplash|surfing|surfboard|piggy.?bank|google\.com\/images\/|bing\.com\/th\b|tse\d*\.mm\.bing\.net\/th|bible|scripture|verse|church|sunset|pier|landscape|inspirational|quote/i;
 
 export function isNsfwOrBlockedImageUrl(url: string | null | undefined): boolean {
   if (!url?.trim()) return false;

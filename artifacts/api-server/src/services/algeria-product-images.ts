@@ -1,6 +1,6 @@
 /**
- * Recherche images produit — sites e-commerce algériens d'abord, puis Bing.
- * Matching strict marque+type. Jamais de fallback aléatoire SafeSearch.
+ * Recherche images produit — multi-requêtes Bing (sites DZ + packshot + générique).
+ * Agrège tous les résultats puis rank (strict puis soft). Jamais de fallback aléatoire.
  */
 import { logger } from "../lib/logger";
 import { isNsfwOrBlockedImageUrl } from "./catalog-image-safety";
@@ -10,10 +10,12 @@ import {
   significantProductTokens,
   extractBrandTokens,
   extractProductTypeTokens,
+  type MatchMode,
 } from "./product-image-match";
 
-const SEARCH_TIMEOUT_MS = 8_000;
-const MAX_CANDIDATES = 8;
+const SEARCH_TIMEOUT_MS = 10_000;
+const MAX_CANDIDATES = 12;
+const MAX_QUERIES = 8;
 
 /** Sites marketplace / marques DZ où les packshots sont plus fiables. */
 export const ALGERIA_FOOD_SITES = [
@@ -24,6 +26,8 @@ export const ALGERIA_FOOD_SITES = [
   "jumia.dz",
   "shop.cevital.com",
   "soummam.com",
+  "carrefour.dz",
+  "ouedkniss.com",
 ] as const;
 
 export type ImageSearchOpts = {
@@ -46,6 +50,7 @@ function buildQueries(
     significantProductTokens(productName)[0] ||
     productName.slice(0, 40);
   const typeWords = typeTok.slice(0, 3).join(" ");
+  const typeOne = typeTok[0] ?? "";
   const quoted = brand.includes(" ") ? `"${brand}"` : brand;
   const pack = (opts.packaging ?? "")
     .toLowerCase()
@@ -55,11 +60,11 @@ function buildQueries(
     .filter((t) => t.length >= 3)
     .slice(0, 2)
     .join(" ");
-  const catHint = (opts.category ?? "")
-    .toLowerCase()
-    .includes("food") || (opts.category ?? "").toLowerCase().includes("agro")
-    ? "alimentaire"
-    : "";
+  const isFood =
+    /food|agro|aliment|epice|huile|cafe|datte|miel|lait|fromage|semoule|couscous/i.test(
+      `${opts.category ?? ""} ${productName}`,
+    );
+  const catHint = isFood ? "alimentaire" : "";
   const descTok = opts.description
     ? significantProductTokens(opts.description)
         .filter((t) => !brandTok.includes(t) && !typeTok.includes(t))
@@ -68,24 +73,34 @@ function buildQueries(
     : "";
 
   const core = `${quoted} ${typeWords}`.trim();
+  const shortName = productName
+    .replace(/\d+\s*(g|kg|ml|cl|l|pcs?)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80);
   const queries: string[] = [];
 
   // 1) EAN / code-barres — très précis quand dispo
   if (opts.ean && /^\d{8,14}$/.test(opts.ean.trim())) {
     queries.push(opts.ean.trim());
+    queries.push(`${opts.ean.trim()} ${brand}`.trim());
   }
 
   // 2) Sites algériens (packshots plus fiables)
-  for (const site of ALGERIA_FOOD_SITES.slice(0, 4)) {
+  for (const site of ALGERIA_FOOD_SITES.slice(0, 5)) {
     queries.push(`site:${site} ${core}`.trim());
+    if (typeOne) queries.push(`site:${site} ${quoted} ${typeOne}`.trim());
   }
 
   // 3) Requêtes génériques marquées DZ / packshot
   queries.push(
     `${core} ${pack} ${descTok} packshot OR emballage OR flacon OR bocal OR sachet`.trim(),
+    `"${shortName}" packshot OR produit`.trim(),
     `${core} produit Algerie OR Algeria ${catHint}`.trim(),
+    `${quoted} ${typeOne} packshot`.trim(),
     `${core}`.trim(),
-    `${quoted} ${typeWords.split(" ")[0] ?? ""} Algerie`.trim(),
+    `${quoted} ${typeOne} Algerie`.trim(),
+    `${shortName}`.trim(),
   );
 
   return {
@@ -117,7 +132,7 @@ async function fetchHtml(url: string): Promise<string | null> {
   }
 }
 
-function extractBingMurls(html: string): Array<{ url: string; alt: string }> {
+export function extractBingMurls(html: string): Array<{ url: string; alt: string }> {
   const titles: string[] = [];
   const titleRe = /t&quot;:&quot;([^&]+?)&quot;/gi;
   let tm: RegExpExecArray | null;
@@ -128,13 +143,25 @@ function extractBingMurls(html: string): Array<{ url: string; alt: string }> {
       titles.push(tm[1]);
     }
   }
+
+  // Fallback titres JSON classiques
+  const titleJsonRe = /"t"\s*:\s*"([^"]+)"/gi;
+  while ((tm = titleJsonRe.exec(html)) !== null) {
+    try {
+      titles.push(JSON.parse(`"${tm[1]}"`));
+    } catch {
+      titles.push(tm[1]);
+    }
+  }
+
   const out: Array<{ url: string; alt: string }> = [];
   const seen = new Set<string>();
   const push = (raw: string, alt: string) => {
     try {
       const u = decodeURIComponent(raw.replace(/\\u0026/g, "&").replace(/\\\//g, "/"));
       if (!/^https?:\/\//i.test(u) || isNsfwOrBlockedImageUrl(u) || seen.has(u)) return;
-      if (/bing\.net\/th/i.test(u) && !alt.trim()) return;
+      // Miniatures Bing sans titre = peu utiles
+      if (/bing\.net\/th|mm\.bing\.net/i.test(u) && !alt.trim()) return;
       seen.add(u);
       out.push({ url: u, alt });
     } catch {
@@ -142,12 +169,20 @@ function extractBingMurls(html: string): Array<{ url: string; alt: string }> {
     }
   };
 
-  const murlRe = /murl&quot;:&quot;(https?:\/\/[^&]+?)&quot;/gi;
   let idx = 0;
   let m: RegExpExecArray | null;
+  const murlRe = /murl&quot;:&quot;(https?:\/\/[^&]+?)&quot;/gi;
   while ((m = murlRe.exec(html)) !== null) {
     push(m[1], titles[idx] ?? "");
     idx++;
+  }
+
+  // Format JSON alternatif Bing
+  const jsonMurl = /"murl"\s*:\s*"(https?:\/\/[^"]+)"/gi;
+  let jIdx = 0;
+  while ((m = jsonMurl.exec(html)) !== null) {
+    push(m[1], titles[jIdx] ?? "");
+    jIdx++;
   }
 
   const turlRe = /turl&quot;:&quot;(https?:\/\/[^&]+?)&quot;/gi;
@@ -164,16 +199,18 @@ function rank(
   items: Array<{ url: string; alt: string }>,
   productName: string,
   explicitBrand?: string | null,
+  mode: MatchMode = "strict",
+  minScore = 6,
 ): string[] {
   const seen = new Set<string>();
   return items
     .map((img) => ({
       u: img.url,
-      s: isRelevantProductImage(img.url, productName, img.alt, explicitBrand)
-        ? scoreNameMatch(img.url, productName, img.alt, explicitBrand)
+      s: isRelevantProductImage(img.url, productName, img.alt, explicitBrand, mode)
+        ? scoreNameMatch(img.url, productName, img.alt, explicitBrand, mode)
         : -1,
     }))
-    .filter((x) => x.s >= 6)
+    .filter((x) => x.s >= minScore)
     .sort((a, b) => b.s - a.s)
     .map((x) => x.u)
     .filter((u) => {
@@ -185,8 +222,8 @@ function rank(
 }
 
 /**
- * Jusqu’à 5 requêtes Bing (sites DZ → packshot → générique).
- * Zéro candidat si hors marque/produit.
+ * Multi-requêtes Bing agrégées (sites DZ → packshot → générique).
+ * 1) rank strict  2) rank soft si 0 résultat.
  */
 export async function searchAlgerianProductImageUrls(
   productName: string,
@@ -204,22 +241,62 @@ export async function searchAlgerianProductImageUrls(
   const { brand, queries } = buildQueries(productName, searchOpts);
   if (!queries.length) return [];
 
-  for (const query of queries.slice(0, 5)) {
+  const pool: Array<{ url: string; alt: string }> = [];
+  const seenUrl = new Set<string>();
+  let queriesOk = 0;
+
+  // Toujours parcourir plusieurs requêtes pour ne pas s'arrêter sur un mauvais "hit"
+  for (const query of queries.slice(0, MAX_QUERIES)) {
     const url =
       `https://www.bing.com/images/async?q=${encodeURIComponent(query)}` +
-      `&async=1&first=1&count=45&adlt=strict&safesearch=strict`;
+      `&async=1&first=1&count=50&adlt=strict&safesearch=strict`;
     const html = await fetchHtml(url);
     if (!html) continue;
-    const ranked = rank(extractBingMurls(html), productName, opts.explicitBrand ?? brand);
-    if (ranked.length) {
-      logger.info(
-        { productName: productName.slice(0, 40), n: ranked.length, brand, query: query.slice(0, 80) },
-        "bing images ok",
-      );
-      return ranked;
+    const found = extractBingMurls(html);
+    if (!found.length) continue;
+    queriesOk++;
+    for (const img of found) {
+      if (seenUrl.has(img.url)) continue;
+      seenUrl.add(img.url);
+      pool.push(img);
     }
+    // Assez de candidats bruts → on peut classer
+    if (pool.length >= 40) break;
   }
 
-  logger.warn({ productName: productName.slice(0, 60), brand }, "aucune image pertinente (marque+type)");
-  return [];
+  if (!pool.length) {
+    logger.warn({ productName: productName.slice(0, 60), brand }, "bing: 0 raw murls");
+    return [];
+  }
+
+  let ranked = rank(pool, productName, opts.explicitBrand ?? brand, "strict", 6);
+  if (!ranked.length) {
+    ranked = rank(pool, productName, opts.explicitBrand ?? brand, "soft", 4);
+    if (ranked.length) {
+      logger.info(
+        { productName: productName.slice(0, 40), n: ranked.length, brand, mode: "soft", pool: pool.length },
+        "bing images ok (soft match)",
+      );
+    }
+  } else {
+    logger.info(
+      {
+        productName: productName.slice(0, 40),
+        n: ranked.length,
+        brand,
+        mode: "strict",
+        pool: pool.length,
+        queriesOk,
+      },
+      "bing images ok",
+    );
+  }
+
+  if (!ranked.length) {
+    logger.warn(
+      { productName: productName.slice(0, 60), brand, pool: pool.length, queriesOk },
+      "aucune image pertinente (marque+type)",
+    );
+  }
+  return ranked;
 }

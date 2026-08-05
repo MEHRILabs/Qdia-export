@@ -1,5 +1,6 @@
 /**
- * Matching strict : marque + type produit dans URL/alt. Refuse lifestyle / hors-sujet.
+ * Matching marque + type produit (URL ou alt Bing).
+ * Mode strict pour ranking, mode assoupli pour ne pas rater packshots CDN sans slug.
  */
 
 const UNIT_STOP =
@@ -20,7 +21,7 @@ const WEAK_NAME_WORDS = new Set([
   "lait", "eau", "jus", "sauce", "pates", "riz", "confiture", "vinaigre",
   "semoule", "couscous", "harissa", "tomate", "fromage", "yaourt", "beurre",
   "chocolat", "biscuit", "neon", "promot", "promotion", "ail", "artichaut",
-  "artichauts", "arome", "fond", "cur",
+  "artichauts", "arome", "fond", "cur", "net",
 ]);
 
 const PRODUCT_TYPE_WORDS =
@@ -34,7 +35,10 @@ const LIFESTYLE_RE =
   /\b(legume|l[eé]gumes?|vegetable|fruit|farmer|fermier|panier|basket|bio[_\-]?logo|organic.?farm|portrait|person|people|woman|man|girl|boy|smil|jardin|garden|harvest|r[eé]colte|carrots?|radish|salade|ferme|farmer)\b/i;
 
 const PACKSHOT_RE =
-  /packshot|emballage|flacon|bouteille|bottle|jar|sachet|boite|bo[iî]te|canette|tube|bocal|pot\b|product|produit|marker|highlighter|tape|packaging|etiquette/i;
+  /packshot|emballage|flacon|bouteille|bottle|jar|sachet|boite|bo[iî]te|canette|tube|bocal|pot\b|product|produit|marker|highlighter|tape|packaging|etiquette|sku|ean|upc|catalog/i;
+
+const DZ_HOST_RE =
+  /tidjaria|elwajed|batolis|yassir|jumia\.dz|cevital|soummam|maghreb|alger|oran|constantine|\.dz\//i;
 
 function normalize(s: string): string {
   return s
@@ -125,6 +129,10 @@ export function hasBrandMatch(blob: string, brand: string[]): boolean {
   if (phrase && b.includes(phrase)) return true;
   const primary = [...brand].sort((a, c) => c.length - a.length)[0]!;
   if (primary.length >= 4 && b.includes(primary)) return true;
+  // Marques courtes (3 chars) acceptées si token exact
+  if (primary.length >= 3 && new RegExp(`(?:^|[^a-z0-9])${primary}(?:[^a-z0-9]|$)`).test(b)) {
+    return true;
+  }
   if (brand.length === 1) return b.includes(brand[0]!);
   return hasAllTokens(blob, brand);
 }
@@ -138,15 +146,18 @@ function isOfftopicBlob(blob: string, productName: string): boolean {
   return false;
 }
 
+export type MatchMode = "strict" | "soft";
+
 /**
- * Strict : marque obligatoire + au moins 1 mot produit (type).
- * Refuse cartoons / lifestyle / surf / stock hors sujet.
+ * strict : marque + (type | packshot | host DZ + marque dans alt)
+ * soft   : marque dans le titre/alt Bing suffit + pas offtopic (CDN sans slug OK)
  */
 export function isRelevantProductImage(
   url: string,
   productName: string,
   alt = "",
   explicitBrand?: string | null,
+  mode: MatchMode = "strict",
 ): boolean {
   const brand = extractBrandTokens(productName, explicitBrand);
   const allTokens = significantProductTokens(productName);
@@ -154,18 +165,38 @@ export function isRelevantProductImage(
 
   const blob = `${url} ${alt}`;
   if (isOfftopicBlob(blob, productName)) return false;
-  if (!hasBrandMatch(blob, brand)) return false;
+
+  // Priorité au titre Bing (souvent le seul endroit où apparaît la marque sur un CDN)
+  const brandInAlt = hasBrandMatch(alt, brand);
+  const brandInUrl = hasBrandMatch(url, brand);
+  if (!brandInAlt && !brandInUrl) return false;
 
   const others = allTokens.filter((t) => !brand.includes(t));
-  const brandInAlt = hasBrandMatch(alt, brand);
-  const dzHost = /tidjaria|elwajed|batolis|yassir|jumia\.dz|cevital|soummam/i.test(url);
+  const dzHost = DZ_HOST_RE.test(url);
+  const typeInBlob = others.length ? hasAnyToken(blob, others) : countTokenHits(blob, allTokens) >= 1;
+  const typeInAlt = others.length ? hasAnyToken(alt, others) : hasAnyToken(alt, allTokens);
+  const pack = PACKSHOT_RE.test(blob);
 
-  // Marque + (mot produit OU packshot OU (marque claire dans alt + site DZ))
+  if (mode === "soft") {
+    // Soft : marque dans le titre = ok si pas de type contradictoire offtopic
+    // Bonus si type produit ou packshot ou host DZ
+    if (brandInAlt || brandInUrl) {
+      if (typeInAlt || typeInBlob || pack || dzHost) return true;
+      // Marque seule dans un titre long qui ressemble au produit
+      const nameHits = countTokenHits(alt, allTokens);
+      if (nameHits >= 2) return true;
+      // Marque seule + EAN dans le nom produit souvent trop rare sur image → gardons
+      if (brandInAlt && alt.trim().length >= 8) return true;
+    }
+    return false;
+  }
+
+  // Marque + (mot produit OU packshot OU (marque claire dans alt + site DZ) OU type dans alt)
   if (others.length > 0) {
-    if (!hasAnyToken(blob, others) && !PACKSHOT_RE.test(blob) && !(brandInAlt && dzHost)) {
+    if (!typeInBlob && !typeInAlt && !pack && !(brandInAlt && dzHost)) {
       return false;
     }
-  } else if (countTokenHits(blob, allTokens) < 1 && !PACKSHOT_RE.test(blob) && !(brandInAlt && dzHost)) {
+  } else if (!typeInBlob && !pack && !(brandInAlt && dzHost)) {
     return false;
   }
 
@@ -177,18 +208,27 @@ export function scoreNameMatch(
   productName: string,
   alt = "",
   explicitBrand?: string | null,
+  mode: MatchMode = "strict",
 ): number {
-  if (!isRelevantProductImage(url, productName, alt, explicitBrand)) return -100;
+  if (!isRelevantProductImage(url, productName, alt, explicitBrand, mode)) return -100;
   const brand = extractBrandTokens(productName, explicitBrand);
   const typeTokens = extractProductTypeTokens(productName, brand);
   const blob = `${url} ${alt}`;
   let s = 0;
   const phrase = brand.join(" ");
   if (normalize(blob).includes(phrase)) s += 15;
+  if (hasBrandMatch(alt, brand)) s += 12; // titre Bing très fort
   s += countTokenHits(blob, brand) * 8;
   s += countTokenHits(blob, typeTokens) * 6;
+  s += countTokenHits(alt, typeTokens) * 4;
   if (PACKSHOT_RE.test(blob)) s += 12;
+  if (DZ_HOST_RE.test(url)) s += 10;
   if (hasAllTokens(blob, brand) && countTokenHits(blob, typeTokens) >= 1) s += 10;
+  // Similarité nom complet
+  const nameTokens = significantProductTokens(productName);
+  const nameHits = countTokenHits(alt, nameTokens);
+  if (nameHits >= 3) s += 8;
   if (LIFESTYLE_RE.test(blob) || OFFTOPIC_RE.test(blob)) s -= 40;
+  if (mode === "soft") s -= 3; // préférer strict en ranking
   return s;
 }

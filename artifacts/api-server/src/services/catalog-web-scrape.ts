@@ -113,7 +113,9 @@ async function resolveScrapeContext(p: typeof productsTable.$inferSelect): Promi
       if (variant.brandName?.trim()) brand = variant.brandName.trim();
       if (variant.ean?.trim()) ean = variant.ean.trim();
       if (!packaging && variant.packagingNotes) packaging = variant.packagingNotes;
-      if (variant.imageUrl?.trim() && !shouldPurgeCatalogImage(variant.imageUrl)) {
+      // Master Data : accepter aussi les https distantes (seed → download → data:/uploads).
+      // shouldPurgeCatalogImage bloquait toutes les URLs http → 0 seed utile.
+      if (variant.imageUrl?.trim() && !isNsfwOrBlockedImageUrl(variant.imageUrl)) {
         masterImageUrl = variant.imageUrl.trim();
       }
     }
@@ -140,12 +142,14 @@ async function tryDownloadAndSave(productId: number, imageUrl: string, productNa
   if (raw.byteLength < MIN_BYTES) return null;
   if (!mime.startsWith("image/")) return null;
 
-  // Pertinence déjà filtrée à la recherche (URL + alt Bing). Ne pas re-filtrer sur l'URL seule
-  // (les CDN n'ont souvent pas le nom produit dans le path → faux négatifs).
-  const urlScore = scoreSafeProductCandidate(imageUrl, productName);
-  if (urlScore < 4 && (await looksMostlySkinTone(raw))) {
-    logger.warn({ productId, imageUrl: imageUrl.slice(0, 120) }, "image rejetée (heuristique peau)");
-    return null;
+  // Seule l'heuristique peau pour faux positifs corps ; ne plus exiger score URL
+  // (CDN google/shop sans tokens = score bas → faux négatifs massifs).
+  if (await looksMostlySkinTone(raw)) {
+    const urlScore = scoreSafeProductCandidate(imageUrl, productName);
+    if (urlScore < 8) {
+      logger.warn({ productId, imageUrl: imageUrl.slice(0, 120) }, "image rejetée (heuristique peau)");
+      return null;
+    }
   }
 
   const ephemeralDisk = process.env.RENDER === "true" || process.env.CATALOG_IMAGE_MODE === "remote";
@@ -265,8 +269,8 @@ export async function scrapeOneProductPhoto(
   const savedList: string[] = [];
   let visionCalls = 0;
   let visionRejects = 0;
-  const MAX_VISION_CALLS = 4;
-  for (const candidate of candidates.slice(0, 6)) {
+  const MAX_VISION_CALLS = 5;
+  for (const candidate of candidates.slice(0, 10)) {
     if (savedList.length >= 3) break; // jusqu'à 3 candidats pour « Image suivante »
     if (isNsfwOrBlockedImageUrl(candidate)) continue;
     try {
@@ -275,9 +279,9 @@ export async function scrapeOneProductPhoto(
       if (isNsfwOrBlockedImageUrl(saved)) continue;
       if (savedList.includes(saved)) continue;
       // Vérification IA vision : l'image montre-t-elle bien CE produit ?
-      if (saved.startsWith("data:") && visionCalls < MAX_VISION_CALLS) {
+      if (visionCalls < MAX_VISION_CALLS && (saved.startsWith("data:") || saved.startsWith("/"))) {
         visionCalls++;
-        const check = await verifyProductPhoto(saved, p.name, p.description);
+        const check = await verifyProductPhoto(saved, p.name, p.description, ctx.brand);
         if (check.checked && !check.match) {
           visionRejects++;
           logger.info(
