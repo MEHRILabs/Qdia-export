@@ -7,8 +7,13 @@ echo "=== QDIA Export — préparation base de données ==="
 
 if [ -z "${DATABASE_URL:-}" ]; then
   echo "ERREUR: DATABASE_URL non défini"
+  echo "Render → Service qdia-export → Environment → DATABASE_URL (External URL de la base Postgres)"
   exit 1
 fi
+
+# Diagnostic clair + retries (DB free cold-start / DNS)
+echo "→ Attente / vérification PostgreSQL…"
+node ./scripts/wait-for-db.mjs
 
 echo "→ Création/vérification des tables…"
 node ./scripts/ensure-app-tables.mjs
@@ -24,7 +29,7 @@ fi
 echo "→ Seed données initiales…"
 node ./scripts/seed.mjs || echo "WARN: seed (non bloquant)"
 
-echo "→ Compte administrateur unique…"
+echo "→ Compte administrateur…"
 node ./scripts/ensure-admin.mjs || echo "WARN: ensure-admin"
 
 CATALOG_XLS=""
