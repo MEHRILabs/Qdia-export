@@ -3,10 +3,9 @@
  */
 import fs from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { uploadsDir } from "../lib/runtime-paths";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-export const CATEGORY_UPLOAD_DIR = path.join(__dirname, "../uploads/category");
+export const CATEGORY_UPLOAD_DIR = path.join(uploadsDir(), "category");
 
 function safeFilename(id: string): string {
   return id.replace(/[^a-zA-Z0-9._-]/g, "_");

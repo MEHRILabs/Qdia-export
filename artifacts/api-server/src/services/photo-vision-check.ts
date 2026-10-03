@@ -6,6 +6,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { logger } from "../lib/logger";
+import { uploadsDir } from "../lib/runtime-paths";
 import { hasProviderKey } from "./ai/config";
 
 const VISION_TIMEOUT_MS = 25_000;
@@ -41,6 +42,7 @@ async function resolveImagePayload(imageInput: string): Promise<string> {
   if (imageInput.startsWith("/uploads/") || imageInput.startsWith("uploads/")) {
     const rel = imageInput.replace(/^\//, "");
     const candidates = [
+      join(uploadsDir(), rel.replace(/^uploads\//, "")),
       join(process.cwd(), "public", rel),
       join(process.cwd(), rel),
       join(process.cwd(), "artifacts", "api-server", "public", rel),

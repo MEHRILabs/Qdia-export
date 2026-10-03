@@ -1,6 +1,4 @@
 import { config } from "dotenv";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { envFilePath } from "./lib/runtime-paths";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-config({ path: path.resolve(__dirname, "../../../.env"), override: true });
+config({ path: envFilePath(), override: true });

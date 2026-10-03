@@ -1,7 +1,6 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import subscriptionsRouter, { stripeWebhookHandler } from "./routes/subscriptions";
@@ -9,8 +8,7 @@ import { logger } from "./lib/logger";
 import { getAllowedOrigins, isProduction } from "./lib/env-security";
 import { securityHeaders } from "./middleware/security-headers";
 import { globalApiLimiter } from "./middleware/rate-limit";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { uploadsDir, webRootDir } from "./lib/runtime-paths";
 
 const app: Express = express();
 
@@ -73,7 +71,7 @@ app.use("/api/subscriptions/webhook", express.raw({ type: "application/json" }),
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 
-app.use("/uploads", express.static(path.join(__dirname, "../uploads"), {
+app.use("/uploads", express.static(uploadsDir(), {
   dotfiles: "deny",
   index: false,
   setHeaders(res, filePath) {
@@ -89,7 +87,7 @@ app.use("/api", globalApiLimiter, router);
 
 const serveWeb = process.env.SERVE_WEB === "1" || process.env.SERVE_WEB === "true";
 if (serveWeb) {
-  const webRoot = path.join(__dirname, "../../qdia-export/dist/public");
+  const webRoot = webRootDir();
   app.use(express.static(webRoot, { index: false }));
   app.get(/^(?!\/api\/)(?!\/uploads\/).*/, (_req, res) => {
     res.sendFile(path.join(webRoot, "index.html"));

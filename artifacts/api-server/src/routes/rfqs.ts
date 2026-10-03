@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { db, rfqsTable, transactionsTable } from "@workspace/db";
@@ -9,10 +8,10 @@ import { requireAuth, type AuthedRequest } from "../middleware/auth";
 import { canAccessRfq } from "../middleware/access-control";
 import { createTransactionOnRfqAccept, fundTransaction } from "../services/payments";
 import { sendPushToUser } from "../services/fcm";
+import { uploadsDir } from "../lib/runtime-paths";
 
 const router: IRouter = Router();
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const UPLOAD_DIR = path.join(__dirname, "../../uploads/rfq");
+const UPLOAD_DIR = path.join(uploadsDir(), "rfq");
 
 type RfqStatus = "pending" | "quoted" | "accepted" | "rejected" | "shipped";
 

@@ -1,10 +1,9 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { uploadsDir } from "../lib/runtime-paths";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-/** dist/ → ../uploads/catalog (aligné avec express.static dans app.ts) */
-export const CATALOG_UPLOAD_DIR = path.join(__dirname, "../uploads/catalog");
+/** Aligné avec express.static /uploads */
+export const CATALOG_UPLOAD_DIR = path.join(uploadsDir(), "catalog");
 
 function safeFilename(masterId: string): string {
   return masterId.replace(/[^a-zA-Z0-9._-]/g, "_");

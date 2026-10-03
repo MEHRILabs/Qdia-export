@@ -92,6 +92,26 @@ router.get("/messages/contacts", requireAuth, async (req: AuthedRequest, res) =>
   }
   if (adminUser && adminUser.id !== uid) partnerIds.add(adminUser.id);
 
+  // Acheteurs : proposer aussi les comptes exportateurs actifs (nouveau message)
+  if (role === "buyer") {
+    const suppliers = await db.select({ id: usersTable.id })
+      .from(usersTable)
+      .where(and(eq(usersTable.role, "supplier"), sql`${usersTable.id} != ${uid}`))
+      .orderBy(usersTable.name)
+      .limit(100);
+    for (const s of suppliers) partnerIds.add(s.id);
+  }
+
+  // Exportateurs : proposer les acheteurs déjà en conversation + admin (déjà ajoutés)
+  if (role === "supplier") {
+    const buyers = await db.select({ id: usersTable.id })
+      .from(usersTable)
+      .where(and(eq(usersTable.role, "buyer"), sql`${usersTable.id} != ${uid}`))
+      .orderBy(usersTable.name)
+      .limit(80);
+    for (const b of buyers) partnerIds.add(b.id);
+  }
+
   const partners = partnerIds.size
     ? await db.select({
       id: usersTable.id,

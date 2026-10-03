@@ -1,7 +1,7 @@
 /** Données ports & douanes — fallback si BDD vide */
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
+import { dataDir } from "../lib/runtime-paths";
 
 interface ShippingTariffsFile {
   freight_overrides_dzd?: Record<string, Record<string, number>>;
@@ -14,8 +14,7 @@ let _customTariffs: ShippingTariffsFile | null = null;
 function loadCustomTariffs(): ShippingTariffsFile {
   if (_customTariffs) return _customTariffs;
   try {
-    const dir = dirname(fileURLToPath(import.meta.url));
-    const raw = readFileSync(join(dir, "../data/shipping-tariffs.json"), "utf8");
+    const raw = readFileSync(join(dataDir(), "shipping-tariffs.json"), "utf8");
     _customTariffs = JSON.parse(raw) as ShippingTariffsFile;
   } catch {
     _customTariffs = {};
